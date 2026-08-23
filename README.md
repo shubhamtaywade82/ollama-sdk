@@ -1,6 +1,6 @@
 # @nemesis-oss/ollama-sdk
 
-[![CI](https://github.com/shubhamtaywade82/ollama-client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhamtaywade82/ollama-client-ts/actions/workflows/ci.yml)
+[![CI](https://github.com/shubhamtaywade82/ollama-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhamtaywade82/ollama-sdk/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@nemesis-oss/ollama-sdk.svg)](https://www.npmjs.com/package/@nemesis-oss/ollama-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -11,12 +11,12 @@
 ## Key Features
 
 - 🚀 **Native Web Standards**: Built on native `fetch` and Web Streams. Zero external HTTP dependencies.
-- 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3.5:2b`, `deepseek-r1`) with discrete `thinking` and `token` streaming events.
+- 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3:8b`, `deepseek-r1:8b`) with discrete `thinking` and `token` streaming events.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
 - 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, and active health checks.
 - 🔌 **Model Context Protocol (MCP)**: Native adapters to convert MCP tools into Ollama-compatible function schemas.
-- 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/models`, and `/v1/messages`.
+- 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
@@ -45,7 +45,7 @@ const client = new OllamaClient();
 
 // Text helper
 const answer = await client.chatText({
-  model: 'qwen3.5:2b',
+  model: 'qwen3:8b',
   messages: [{ role: 'user', content: 'Explain quantum computing in one sentence.' }],
 });
 console.log(answer);
@@ -55,7 +55,7 @@ console.log(answer);
 
 ```typescript
 const stream = await client.chatStream({
-  model: 'qwen3.5:2b',
+  model: 'qwen3:8b',
   messages: [{ role: 'user', content: 'What is 18 * 4?' }],
   options: { temperature: 0 },
 });
@@ -86,7 +86,7 @@ const ProductSchema = z.object({
 
 const product = await client.chatWithSchema(
   {
-    model: 'qwen3.5:2b',
+    model: 'qwen3:8b',
     messages: [{ role: 'user', content: 'Generate a gaming keyboard item.' }],
   },
   ProductSchema,
@@ -131,7 +131,7 @@ const registry = new ToolRegistry([weatherTool]);
 const agent = new Agent(client, { tools: registry, maxIterations: 5 });
 
 const response = await agent.run({
-  model: 'qwen3.5:2b',
+  model: 'qwen3:8b',
   messages: [{ role: 'user', content: 'What is the weather in Tokyo?' }],
 });
 
@@ -191,7 +191,7 @@ import { toResponse } from '@nemesis-oss/ollama-sdk';
 export async function POST(req: Request) {
   const { messages } = await req.json();
   const stream = await client.chatStream({
-    model: 'qwen3.5:2b',
+    model: 'qwen3:8b',
     messages,
   });
 
@@ -208,12 +208,38 @@ const openAIRes = await client.openai.chatCompletions({
   messages: [{ role: 'user', content: 'Hello via OpenAI bridge' }],
 });
 
+// OpenAI Responses API endpoint (/v1/responses) — added in Ollama v0.13.3
+const responsesRes = await client.openai.responses({
+  model: 'llama3.2',
+  input: 'Hello via the OpenAI Responses bridge',
+});
+console.log(responsesRes.output[0]?.content[0]?.text);
+
 // Anthropic compatibility endpoint (/v1/messages)
 const anthropicRes = await client.anthropic.messages({
   model: 'llama3.2',
   messages: [{ role: 'user', content: 'Hello via Anthropic bridge' }],
 });
 ```
+
+`/v1/responses` is implemented non-statefully by Ollama: send the full conversation in
+`input` on every call — `previous_response_id` and `conversation` are accepted for
+OpenAI request-shape compatibility but ignored (see `OpenAIResponsesRequest` JSDoc).
+
+For thinking models (`deepseek-r1`, `qwen3`, etc.), both compatibility bridges' chat
+completions request accept a reasoning effort knob:
+
+```typescript
+await client.openai.chatCompletions({
+  model: 'deepseek-r1:8b',
+  messages: [{ role: 'user', content: 'Solve: 17 * 23' }],
+  reasoning_effort: 'high', // or `reasoning: { effort: 'high' }`
+});
+```
+
+`tool_choice` and `parallel_tool_calls` are also typed on the request so a standard
+OpenAI request object type-checks unmodified, but Ollama's compat layer does not honor
+either — see the `@remarks` on each field in `OpenAIChatCompletionRequest`.
 
 ### Multi-Endpoint High Availability Failover
 
@@ -325,7 +351,7 @@ the original error via the standard `cause` property:
 import { OllamaClientError, OllamaRateLimitError } from '@nemesis-oss/ollama-sdk';
 
 try {
-  await client.chatText({ model: 'qwen3.5:2b', messages: [...] });
+  await client.chatText({ model: 'qwen3:8b', messages: [...] });
 } catch (err) {
   if (err instanceof OllamaRateLimitError) {
     console.warn(`Rate limited, retry after ${err.retryAfterMs}ms`);
@@ -347,7 +373,7 @@ observe per-endpoint circuit state directly.
 
 ## Testing
 
-The test suite contains 105 automated tests across 4 testing tiers:
+The test suite contains 114 automated tests across 4 testing tiers:
 
 ```bash
 # Run unit, integration, and functional test suite

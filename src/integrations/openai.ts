@@ -4,13 +4,15 @@
  *
  * @remarks
  * This is a typed pass-through to Ollama's own OpenAI-compatible `/v1` endpoints — it
- * implements the subset of the OpenAI Chat Completions API that Ollama documents as
- * supported (https://docs.ollama.com/api/openai-compatibility), not the full OpenAI
- * surface (Responses API, hosted tools like web/file search, computer use, code
- * interpreter, or server-side conversation state). Notably, `tools` is supported by
- * Ollama's compat layer but `tool_choice` and `parallel_tool_calls` are explicitly
- * **not** — deliberately omitted from {@link OpenAIChatCompletionRequest} rather than
- * typed as accepted-but-ignored.
+ * implements the subset of the OpenAI API surface that Ollama documents as supported
+ * (https://docs.ollama.com/api/openai-compatibility), not the full OpenAI surface (hosted
+ * tools like web/file search, computer use, code interpreter, or stateful server-side
+ * conversation state). Notably, `tools` is supported by Ollama's compat layer but
+ * `tool_choice` and `parallel_tool_calls` are not — both are still typed on
+ * {@link OpenAIChatCompletionRequest} (accepted-but-ignored) so consumers passing a
+ * standard OpenAI request object don't get spurious type errors; see the `@remarks` on
+ * each field. `/v1/responses` is supported non-statefully — see
+ * {@link OpenAIResponsesRequest}.
  */
 
 import type { HttpClient } from '../transport/http.js';
@@ -64,6 +66,33 @@ export interface OpenAIChatCompletionRequest {
   readonly frequency_penalty?: number | undefined;
   readonly user?: string | undefined;
   readonly tools?: readonly OpenAITool[] | undefined;
+  /**
+   * @remarks Accepted for OpenAI compatibility but ignored by Ollama — every tool the
+   * model is given remains callable regardless of this value.
+   */
+  readonly tool_choice?:
+    | 'none'
+    | 'auto'
+    | 'required'
+    | { readonly type: 'function'; readonly function: { readonly name: string } }
+    | undefined;
+  /**
+   * @remarks Accepted for OpenAI compatibility but ignored by Ollama — Ollama does not
+   * control tool-call parallelism through this flag.
+   */
+  readonly parallel_tool_calls?: boolean | undefined;
+  /**
+   * Effort level for thinking models (e.g. `deepseek-r1`, `qwen3`). Equivalent to
+   * `reasoning.effort`; only effective for models that support reasoning/thinking.
+   */
+  readonly reasoning_effort?: 'high' | 'medium' | 'low' | 'max' | 'none' | undefined;
+  /**
+   * Effort level for thinking models (e.g. `deepseek-r1`, `qwen3`), nested OpenAI-style.
+   * Equivalent to `reasoning_effort`; only effective for models that support
+   * reasoning/thinking.
+   */
+  readonly reasoning?:
+    { readonly effort?: 'high' | 'medium' | 'low' | 'max' | 'none' | undefined } | undefined;
 }
 
 export interface OpenAIChatCompletionChoice {
@@ -99,6 +128,58 @@ export interface OpenAIListModelsResponse {
   readonly data: readonly OpenAIModelItem[];
 }
 
+/**
+ * Request body for OpenAI's Responses API (`/v1/responses`), added in Ollama v0.13.3.
+ *
+ * @remarks
+ * Ollama implements this **non-statefully**: every call is independent, so
+ * {@link previous_response_id} and {@link conversation} — OpenAI's mechanisms for
+ * resuming server-side conversation state — are accepted for compatibility but ignored.
+ * Send the full conversation in `input` on every call, the same as `/api/chat`.
+ */
+export interface OpenAIResponsesRequest {
+  readonly model: string;
+  readonly input: string | readonly OpenAIMessage[];
+  readonly instructions?: string | undefined;
+  readonly tools?: readonly OpenAITool[] | undefined;
+  readonly stream?: boolean | undefined;
+  readonly temperature?: number | undefined;
+  readonly top_p?: number | undefined;
+  readonly max_output_tokens?: number | undefined;
+  /** @remarks Not supported by Ollama, which is stateless across calls — accepted but ignored. */
+  readonly previous_response_id?: string | undefined;
+  /** @remarks Not supported by Ollama, which is stateless across calls — accepted but ignored. */
+  readonly conversation?: string | undefined;
+  readonly truncation?: string | undefined;
+}
+
+export interface OpenAIResponsesOutputTextContent {
+  readonly type: 'output_text';
+  readonly text: string;
+}
+
+export interface OpenAIResponsesOutputMessage {
+  readonly type: 'message';
+  readonly role?: string | undefined;
+  readonly content: readonly OpenAIResponsesOutputTextContent[];
+}
+
+/** Non-stateful response shape for `/v1/responses`; see {@link OpenAIResponsesRequest}. */
+export interface OpenAIResponsesResponse {
+  readonly id: string;
+  readonly object: 'response';
+  readonly created: number;
+  readonly model: string;
+  readonly output: readonly OpenAIResponsesOutputMessage[];
+  readonly usage?:
+    | {
+        readonly input_tokens: number;
+        readonly output_tokens: number;
+        readonly total_tokens: number;
+      }
+    | undefined;
+}
+
 export class OpenAICompatClient {
   constructor(private readonly http: HttpClient) {}
 
@@ -126,5 +207,23 @@ export class OpenAICompatClient {
       method: 'GET',
       signal,
     });
+  }
+
+  async createResponses(
+    request: OpenAIResponsesRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesResponse> {
+    return this.http.request<OpenAIResponsesResponse>({
+      path: '/v1/responses',
+      body: request,
+      signal,
+    });
+  }
+
+  async responses(
+    request: OpenAIResponsesRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesResponse> {
+    return this.createResponses(request, signal);
   }
 }

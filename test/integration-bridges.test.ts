@@ -87,8 +87,9 @@ describe('Compatibility bridge request typing (mocked network)', () => {
     const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
     const body = JSON.parse(init.body);
     expect(body.tools[0].function.name).toBe('get_weather');
-    // tool_choice / parallel_tool_calls are deliberately not part of the request type —
-    // Ollama's OpenAI-compat layer documents tool_choice as explicitly unsupported.
+    // tool_choice / parallel_tool_calls are typed as accepted-but-ignored — Ollama's
+    // OpenAI-compat layer documents both as unsupported, so omitting them from the
+    // request leaves them absent from the body.
     expect(body.tool_choice).toBeUndefined();
   });
 

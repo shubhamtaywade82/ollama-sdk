@@ -178,6 +178,10 @@ export {
   type OpenAIChatCompletionResponse,
   type OpenAIModelItem,
   type OpenAIListModelsResponse,
+  type OpenAIResponsesRequest,
+  type OpenAIResponsesResponse,
+  type OpenAIResponsesOutputMessage,
+  type OpenAIResponsesOutputTextContent,
   type AnthropicCacheControl,
   type AnthropicContentBlock,
   type AnthropicMessage,
@@ -250,6 +254,9 @@ export {
   ATTR_OLLAMA_AGENT_ITERATION,
   GEN_AI_SYSTEM_OLLAMA,
 } from './telemetry/index.js';
+
+// Utilities
+export { encodeImage } from './utils.js';
 
 // Logger
 export {

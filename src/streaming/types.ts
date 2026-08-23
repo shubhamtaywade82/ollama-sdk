@@ -56,6 +56,8 @@ export interface ChatStreamResult {
   readonly message: Message;
   readonly model: string;
   readonly done: boolean;
+  /** Mirrors the final chunk's `done_reason` (e.g. `"stop"`, `"load"`, `"unload"`). */
+  readonly doneReason?: string | undefined;
   readonly totalDurationMs?: number | undefined;
   readonly usage?: TokenUsage | undefined;
   readonly raw?: ChatResponse | undefined;
@@ -65,6 +67,8 @@ export interface GenerateStreamResult {
   readonly response: string;
   readonly model: string;
   readonly done: boolean;
+  /** Mirrors the final chunk's `done_reason` (e.g. `"stop"`, `"load"`, `"unload"`). */
+  readonly doneReason?: string | undefined;
   readonly totalDurationMs?: number | undefined;
   readonly usage?: TokenUsage | undefined;
   readonly raw?: GenerateResponse | undefined;
