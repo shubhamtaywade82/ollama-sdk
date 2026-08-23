@@ -30,6 +30,7 @@ function aggregateChat(accumulated: ChatStreamResult, chunk: ChatResponse): Chat
     },
     model: chunk.model,
     done: chunk.done,
+    doneReason: chunk.done ? chunk.done_reason : accumulated.doneReason,
     totalDurationMs:
       chunk.done && chunk.total_duration !== undefined
         ? chunk.total_duration / NANOS_PER_MS
@@ -104,6 +105,7 @@ function aggregateGenerate(
     response: accumulated.response + (chunk.response ?? ''),
     model: chunk.model,
     done: chunk.done,
+    doneReason: chunk.done ? chunk.done_reason : accumulated.doneReason,
     totalDurationMs:
       chunk.done && chunk.total_duration !== undefined
         ? chunk.total_duration / NANOS_PER_MS

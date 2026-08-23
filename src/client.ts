@@ -32,6 +32,7 @@ import { ModelsClient } from './models-client.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
+import { withEncodedImages, withEncodedMessageImages } from './utils.js';
 import {
   withSpan,
   ATTR_GEN_AI_SYSTEM,
@@ -186,12 +187,13 @@ export class OllamaClient {
   async chat(
     req: ChatRequestOptions,
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
+    const messages = await withEncodedMessageImages(req.messages);
     if (req.stream) {
       return this.executeWithFailover(async (http, signal) => {
         if (req.format !== undefined) this.assertStructuredOutputSupported(http.baseUrl, req.model);
         const stream = await http.requestStream<ChatResponse>({
           path: '/api/chat',
-          body: { ...req, stream: true },
+          body: { ...req, messages, stream: true },
           signal,
         });
         return normalizeChatStream(stream);
@@ -210,7 +212,7 @@ export class OllamaClient {
             this.assertStructuredOutputSupported(http.baseUrl, req.model);
           return http.request<ChatResponse>({
             path: '/api/chat',
-            body: { ...req, stream: false },
+            body: { ...req, messages, stream: false },
             signal,
           });
         }, req);
@@ -263,34 +265,36 @@ export class OllamaClient {
   async generate(
     req: GenerateRequestOptions,
   ): Promise<GenerateResponse | OllamaStream<GenerateResponse, GenerateStreamResult>> {
-    if (req.stream) {
+    const encodedReq = await withEncodedImages(req);
+    if (encodedReq.stream) {
       return this.executeWithFailover(async (http, signal) => {
-        if (req.format !== undefined) this.assertStructuredOutputSupported(http.baseUrl, req.model);
+        if (encodedReq.format !== undefined)
+          this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
         const stream = await http.requestStream<GenerateResponse>({
           path: '/api/generate',
-          body: { ...req, stream: true },
+          body: { ...encodedReq, stream: true },
           signal,
         });
         return normalizeGenerateStream(stream);
-      }, req);
+      }, encodedReq);
     }
     return withSpan(
-      `text_completion ${req.model}`,
+      `text_completion ${encodedReq.model}`,
       {
         [ATTR_GEN_AI_SYSTEM]: GEN_AI_SYSTEM_OLLAMA,
         [ATTR_GEN_AI_OPERATION_NAME]: 'text_completion',
-        [ATTR_GEN_AI_REQUEST_MODEL]: req.model,
+        [ATTR_GEN_AI_REQUEST_MODEL]: encodedReq.model,
       },
       async (span) => {
         const res = await this.executeWithFailover((http, signal) => {
-          if (req.format !== undefined)
-            this.assertStructuredOutputSupported(http.baseUrl, req.model);
+          if (encodedReq.format !== undefined)
+            this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
           return http.request<GenerateResponse>({
             path: '/api/generate',
-            body: { ...req, stream: false },
+            body: { ...encodedReq, stream: false },
             signal,
           });
-        }, req);
+        }, encodedReq);
         span?.setAttributes({
           [ATTR_GEN_AI_RESPONSE_MODEL]: res.model,
           ...(res.prompt_eval_count !== undefined

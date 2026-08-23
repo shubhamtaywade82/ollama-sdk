@@ -30,7 +30,12 @@ export interface ToolCall {
 export interface Message {
   readonly role: Role;
   readonly content: string;
-  readonly images?: readonly string[] | undefined;
+  /**
+   * Base64-encoded image strings, or raw `Uint8Array` image bytes. `Uint8Array` entries
+   * are base64-encoded automatically (see {@link encodeImage}) before the request reaches
+   * the wire — Ollama's REST API only ever accepts base64 strings.
+   */
+  readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
   /** Set on a `role: 'tool'` message to identify which {@link ToolCall.id} this answers. */
   readonly tool_call_id?: string | undefined;
@@ -134,7 +139,12 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly stream?: boolean | undefined;
   readonly raw?: boolean | undefined;
   readonly format?: FormatOption | undefined;
-  readonly images?: readonly string[] | undefined;
+  /**
+   * Base64-encoded image strings, or raw `Uint8Array` image bytes. `Uint8Array` entries
+   * are base64-encoded automatically (see {@link encodeImage}) before the request reaches
+   * the wire — Ollama's REST API only ever accepts base64 strings.
+   */
+  readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly options?: ModelOptions | undefined;
   readonly keep_alive?: string | number | undefined;
   readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
@@ -250,12 +260,29 @@ export interface PushRequestOptions extends RequestCancellationOptions {
 
 export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly model: string;
+  /**
+   * @deprecated Not part of the official `/api/create` REST payload — Ollama's server
+   * only ever accepted this in older client tooling that assembled a Modelfile string
+   * client-side. Use the discrete fields below instead (`from`, `files`, `adapters`,
+   * `template`, `system`, `parameters`, `license`, `messages`), which map 1:1 onto the
+   * documented Modelfile instructions and are validated server-side. Kept for backward
+   * compatibility with existing callers; not read by this SDK, but still forwarded as-is
+   * in the request body for any server/proxy that inspects it.
+   */
   readonly modelfile?: string | undefined;
   readonly stream?: boolean | undefined;
   readonly quantize?: string | undefined;
   readonly from?: string | undefined;
   readonly files?: Record<string, string> | undefined;
   readonly adapters?: Record<string, string> | undefined;
+  readonly template?: string | undefined;
+  readonly renderer?: string | undefined;
+  readonly parser?: string | undefined;
+  readonly license?: string | readonly string[] | undefined;
+  readonly system?: string | undefined;
+  /** Modelfile `PARAMETER` instructions, e.g. `{ temperature: 0.7, stop: ['\n'] }`. */
+  readonly parameters?: Record<string, unknown> | undefined;
+  readonly messages?: readonly Message[] | undefined;
 }
 
 export interface DeleteRequestOptions extends RequestCancellationOptions {

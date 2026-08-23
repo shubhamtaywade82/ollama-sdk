@@ -5,6 +5,40 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-23
+
+Brings the SDK's typed surface up to date with Ollama v0.13.3+.
+
+### Added
+
+- **`/api/create` field parity:** `CreateRequestOptions` now exposes the documented
+  `template`, `renderer`, `parser`, `license`, `system`, `parameters`, and `messages`
+  fields alongside the existing `from`/`files`/`adapters`/`quantize`. The old
+  `modelfile` string field is kept for backward compatibility but marked `@deprecated`
+  in favor of the discrete fields.
+- **OpenAI Responses API bridge:** `client.openai.responses()` / `createResponses()`
+  POST to `/v1/responses`. Ollama implements this non-statefully, so
+  `previous_response_id`/`conversation` are typed but documented as ignored.
+- **`reasoning_effort` / `reasoning.effort`:** Added to `OpenAIChatCompletionRequest`
+  for thinking models (`deepseek-r1`, `qwen3`, etc.), matching Ollama's OpenAI
+  compatibility docs.
+- **`tool_choice` / `parallel_tool_calls`:** Now typed as accepted-but-ignored on
+  `OpenAIChatCompletionRequest` (previously omitted entirely), so passing a standard
+  OpenAI request object type-checks without modification.
+- **Raw image bytes:** `Message.images` and `GenerateRequestOptions.images` accept
+  `Uint8Array` alongside base64 strings. `OllamaClient.chat()`/`generate()` encode any
+  `Uint8Array` entries to base64 automatically via the new `encodeImage` utility
+  (exported from the package root), using `Buffer` on Node and `btoa` elsewhere so it
+  stays Edge Runtime-safe.
+- **`doneReason` in stream results:** `ChatStreamResult`/`GenerateStreamResult` now
+  carry `doneReason`, mapped from the final chunk's `done_reason` (e.g. `"stop"`,
+  `"load"`, `"unload"`).
+
+### Fixed
+
+- `package.json`'s `homepage`, `repository`, and `bugs` URLs now point at
+  `ollama-sdk` instead of the pre-rename `ollama-client-ts`.
+
 ## [1.0.0] - 2026-08-17
 
 First public release. The version was `0.1.0` throughout development but was never
