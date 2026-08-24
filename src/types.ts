@@ -68,6 +68,23 @@ export interface ToolDefinition {
 
 export type FormatOption = 'json' | Record<string, unknown>;
 
+/** One alternative token considered at a generated position, and its log probability. */
+export interface LogprobToken {
+  readonly token: string;
+  readonly logprob: number;
+  readonly bytes?: readonly number[] | undefined;
+}
+
+/**
+ * Log probability info for one generated token, returned when `logprobs: true` is set on
+ * a `/api/chat` or `/api/generate` request. `top_logprobs` holds the `top_logprobs` most
+ * likely alternative tokens considered at this position (see `top_logprobs` on
+ * {@link ChatRequestOptions}/{@link GenerateRequestOptions}).
+ */
+export interface Logprob extends LogprobToken {
+  readonly top_logprobs?: readonly LogprobToken[] | undefined;
+}
+
 export interface ModelOptions {
   readonly num_keep?: number | undefined;
   readonly seed?: number | undefined;
@@ -113,6 +130,10 @@ export interface ChatRequestOptions extends RequestCancellationOptions {
   readonly stream?: boolean | undefined;
   readonly keep_alive?: string | number | undefined;
   readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  /** Whether to return log probabilities of the output tokens. See {@link ChatResponse.logprobs}. */
+  readonly logprobs?: boolean | undefined;
+  /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
+  readonly top_logprobs?: number | undefined;
 }
 
 export interface ChatResponse {
@@ -127,6 +148,8 @@ export interface ChatResponse {
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
+  /** Present when the request set `logprobs: true`. */
+  readonly logprobs?: readonly Logprob[] | undefined;
 }
 
 export interface GenerateRequestOptions extends RequestCancellationOptions {
@@ -148,6 +171,10 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly options?: ModelOptions | undefined;
   readonly keep_alive?: string | number | undefined;
   readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  /** Whether to return log probabilities of the output tokens. See {@link GenerateResponse.logprobs}. */
+  readonly logprobs?: boolean | undefined;
+  /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
+  readonly top_logprobs?: number | undefined;
 }
 
 export interface GenerateResponse {
@@ -164,6 +191,8 @@ export interface GenerateResponse {
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
   readonly thinking?: string | undefined;
+  /** Present when the request set `logprobs: true`. */
+  readonly logprobs?: readonly Logprob[] | undefined;
 }
 
 export interface EmbedRequestOptions extends RequestCancellationOptions {
@@ -306,25 +335,47 @@ export interface PsResponse {
   readonly models: readonly ModelResponse[];
 }
 
+/**
+ * `webSearch`/`webFetch` call Ollama's hosted web tools at `https://ollama.com` — a
+ * fixed cloud service, unrelated to any locally-configured `baseUrl`/`endpoints` — and
+ * require an Ollama account API key (`apiKey`/`OLLAMA_API_KEY`). See
+ * {@link OllamaClient.webSearch}.
+ */
 export interface WebSearchRequestOptions extends RequestCancellationOptions {
   readonly query: string;
+  /** Max results to return (server default 5, max 10). */
+  readonly max_results?: number | undefined;
+  /**
+   * @deprecated Not a field the Ollama web search API recognizes (`max_results` is).
+   * Kept for backward compatibility with earlier (non-functional) versions of this
+   * method; mapped to `max_results` when `max_results` itself isn't set.
+   */
   readonly count?: number | undefined;
 }
 
 export interface WebSearchResult {
   readonly title: string;
   readonly url: string;
-  readonly snippet: string;
+  readonly content: string;
+  /**
+   * @deprecated Not a field the Ollama web search API returns (`content` is) — kept, and
+   * populated by the SDK as a mirror of `content`, for backward compatibility with
+   * earlier (non-functional, wrong-endpoint) versions of `webSearch`. Use `content`.
+   */
+  readonly snippet?: string | undefined;
 }
 
 export interface WebSearchResponse {
   readonly results: readonly WebSearchResult[];
 }
 
+/** See {@link WebSearchRequestOptions} — same fixed Ollama Cloud endpoint and auth. */
 export interface WebFetchRequestOptions extends RequestCancellationOptions {
   readonly url: string;
 }
 
 export interface WebFetchResponse {
+  readonly title?: string | undefined;
   readonly content: string;
+  readonly links?: readonly string[] | undefined;
 }

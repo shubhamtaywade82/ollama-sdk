@@ -7,6 +7,7 @@ import {
   DEFAULT_BASE_URL,
   DEFAULT_FAILOVER_CODES,
   DEFAULT_TIMEOUT_MS,
+  OLLAMA_CLOUD_BASE_URL,
   resolveApiKey,
   resolveBaseUrl,
   type OllamaClientConfig,
@@ -59,6 +60,7 @@ import type {
   GenerateResponse,
   PullRequestOptions,
   PushRequestOptions,
+  RequestCancellationOptions,
   ShowRequestOptions,
   WebFetchRequestOptions,
   WebFetchResponse,
@@ -74,9 +76,18 @@ export class OllamaClient {
   private readonly failoverCodes: Set<string>;
   private readonly fetchImpl: FetchLike;
   private readonly logger: Logger;
+  /**
+   * API key for Ollama's hosted web tools (`webSearch`/`webFetch`), which always target
+   * `OLLAMA_CLOUD_BASE_URL` regardless of `config.endpoints` — an Ollama account API key
+   * is inherently a single global credential, not tied to any one inference endpoint.
+   * Resolved the same way as a single-endpoint `apiKey` (`config.apiKey` falling back to
+   * `OLLAMA_API_KEY`), independent of whether `config.endpoints` was used instead.
+   */
+  private readonly cloudApiKey: string | undefined;
 
   constructor(config: OllamaClientConfig = {}) {
     const resolvedApiKey = resolveApiKey(config.apiKey);
+    this.cloudApiKey = resolvedApiKey;
     const endpoints = config.endpoints ?? [
       {
         name: 'default',
@@ -371,19 +382,61 @@ export class OllamaClient {
   readonly checkBlob = (digest: string) => this.models.checkBlob(digest);
 
   // --- Web Endpoints ---
-  webSearch(req: WebSearchRequestOptions): Promise<WebSearchResponse> {
-    return this.executeWithFailover(
+  /**
+   * Ollama's hosted web search tool (`POST https://ollama.com/api/web_search`) — a fixed
+   * Ollama Cloud service, unrelated to `config.endpoints`/`baseUrl` and not proxied
+   * through a local server. Requires an Ollama account API key: pass `apiKey` to the
+   * client constructor or set `OLLAMA_API_KEY`. Applies the same default `timeoutMs` and
+   * retry policy as inference calls, but never cross-endpoint-fails-over — there is only
+   * ever the one cloud endpoint to call.
+   */
+  async webSearch(req: WebSearchRequestOptions): Promise<WebSearchResponse> {
+    const { count, max_results, ...rest } = req;
+    const res = await this.executeCloudRequest(
       (http, signal) =>
-        http.request<WebSearchResponse>({ path: '/api/websearch', body: req, signal }),
+        http.request<WebSearchResponse>({
+          path: '/api/web_search',
+          body: { ...rest, max_results: max_results ?? count },
+          signal,
+        }),
+      req,
+    );
+    // `snippet` is a deprecated mirror of `content`, kept for backward compatibility —
+    // see the `@deprecated` note on `WebSearchResult.snippet`.
+    return { results: res.results.map((r) => ({ ...r, snippet: r.content })) };
+  }
+  /**
+   * Ollama's hosted web fetch tool (`POST https://ollama.com/api/web_fetch`) — see
+   * {@link OllamaClient.webSearch} for the cloud-endpoint/auth/timeout/retry behavior,
+   * which applies identically here.
+   */
+  webFetch(req: WebFetchRequestOptions): Promise<WebFetchResponse> {
+    return this.executeCloudRequest(
+      (http, signal) =>
+        http.request<WebFetchResponse>({ path: '/api/web_fetch', body: req, signal }),
       req,
     );
   }
-  webFetch(req: WebFetchRequestOptions): Promise<WebFetchResponse> {
-    return this.executeWithFailover(
-      (http, signal) =>
-        http.request<WebFetchResponse>({ path: '/api/webfetch', body: req, signal }),
-      req,
-    );
+  /**
+   * Runs `operation` against the fixed Ollama Cloud host with this client's default
+   * timeout and retry policy — the same primitives `executeWithFailover` uses, minus the
+   * multi-candidate loop, since `webSearch`/`webFetch` only ever have the one endpoint.
+   */
+  private async executeCloudRequest<T>(
+    operation: (http: HttpClient, signal: AbortSignal) => Promise<T>,
+    options: RequestCancellationOptions,
+  ): Promise<T> {
+    const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, options.signal);
+    try {
+      const http = new HttpClient({
+        baseUrl: OLLAMA_CLOUD_BASE_URL,
+        apiKey: this.cloudApiKey,
+        fetch: this.fetchImpl,
+      });
+      return await withRetry(() => operation(http, timeout.signal), this.retryConfig);
+    } finally {
+      timeout.cancel();
+    }
   }
 
   // --- Capabilities & Health ---

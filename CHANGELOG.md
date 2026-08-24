@@ -5,6 +5,36 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-24
+
+Closes gaps found during a documentation/API-parity review against the official Ollama
+API — two of which were genuine issues, the rest already covered (multimodal `images`,
+native `think`, `/api/embed`, and full model-lifecycle management all predate this
+release; see the new README sections documenting them).
+
+### Fixed
+
+- **`webSearch`/`webFetch` were non-functional against real Ollama Cloud.** They
+  previously posted to `<configured-baseUrl>/api/websearch` and `/webfetch` — the wrong
+  host (Ollama's web tools only ever exist at `https://ollama.com`, never proxied through
+  a local server) _and_ the wrong path (missing the underscore: `/api/web_search`,
+  `/api/web_fetch`) _and_ the wrong request/response field names. Both methods now always
+  target `https://ollama.com` regardless of `baseUrl`/`endpoints`, using the resolved
+  `apiKey`/`OLLAMA_API_KEY`, and use the real field names (`max_results` request,
+  `content` response). `WebSearchRequestOptions.count` and `WebSearchResult.snippet` are
+  kept as `@deprecated` back-compat aliases (mapped to/mirrored from the correct fields)
+  rather than removed outright. `WebFetchResponse` gains the `title`/`links` fields the
+  real API actually returns.
+
+### Added
+
+- **`logprobs`/`top_logprobs`:** Added to `ChatRequestOptions`/`GenerateRequestOptions`
+  (request) and `ChatResponse`/`GenerateResponse` (response, as a new `Logprob[]` typed
+  by the new `Logprob`/`LogprobToken` types), matching the official `/api/chat` and
+  `/api/generate` schemas.
+- `OLLAMA_CLOUD_BASE_URL` exported for consumers who want to reference the fixed web-tools
+  host directly.
+
 ## [1.1.0] - 2026-08-23
 
 Brings the SDK's typed surface up to date with Ollama v0.13.3+.

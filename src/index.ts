@@ -9,6 +9,7 @@ export {
   DEFAULT_BASE_URL,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_FAILOVER_CODES,
+  OLLAMA_CLOUD_BASE_URL,
   type OllamaClientConfig,
 } from './config.js';
 
@@ -23,6 +24,8 @@ export type {
   ToolDefinition,
   FormatOption,
   ModelOptions,
+  LogprobToken,
+  Logprob,
   RequestCancellationOptions,
   ChatRequestOptions,
   ChatResponse,
