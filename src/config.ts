@@ -10,6 +10,12 @@ import type { EndpointRegistryOptions, OllamaEndpoint } from './providers/endpoi
 
 export const DEFAULT_BASE_URL = 'http://localhost:11434';
 export const DEFAULT_TIMEOUT_MS = 30_000;
+/**
+ * Fixed host for Ollama's hosted web tools (`/api/web_search`, `/api/web_fetch`) — see
+ * `OllamaClient.webSearch`/`webFetch`. These are an Ollama Cloud service reachable only
+ * at this host, independent of any locally-configured `baseUrl`/`endpoints`.
+ */
+export const OLLAMA_CLOUD_BASE_URL = 'https://ollama.com';
 
 /**
  * Reads a process environment variable, if any. Guarded with `typeof process` rather

@@ -11,11 +11,14 @@
 ## Key Features
 
 - 🚀 **Native Web Standards**: Built on native `fetch` and Web Streams. Zero external HTTP dependencies.
-- 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3:8b`, `deepseek-r1:8b`) with discrete `thinking` and `token` streaming events.
+- 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3:8b`, `deepseek-r1:8b`) via the native `think` parameter, with discrete `thinking` and `token` streaming events, plus `logprobs`/`top_logprobs` for token-level confidence scoring.
+- 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` accepts base64 strings or raw `Uint8Array` bytes (auto-encoded) for vision models like `llava` or `qwen2.5vl`.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
 - 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, and active health checks.
 - 🔌 **Model Context Protocol (MCP)**: Native adapters to convert MCP tools into Ollama-compatible function schemas.
+- 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
+- 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
@@ -53,10 +56,13 @@ console.log(answer);
 
 ### Thinking & Reasoning Token Streams
 
+`think` is Ollama's native reasoning-effort parameter, exposed directly on `chat()`/`generate()` — no bridge translation needed. It accepts `true`/`false` or a level (`'low' | 'medium' | 'high' | 'max'`); the OpenAI bridge's `reasoning_effort` (see below) is a compatibility alias for the same underlying knob.
+
 ```typescript
 const stream = await client.chatStream({
   model: 'qwen3:8b',
   messages: [{ role: 'user', content: 'What is 18 * 4?' }],
+  think: 'high',
   options: { temperature: 0 },
 });
 
@@ -70,6 +76,47 @@ for await (const event of stream) {
 
 const final = await stream.finalResult;
 console.log(`\nEval tokens/sec: ${final.usage?.tokensPerSecond}`);
+```
+
+### Token Log Probabilities (`logprobs`)
+
+Set `logprobs: true` (optionally with `top_logprobs`) on `chat()`/`generate()` to get per-token log probabilities back — useful for confidence scoring, speculative decoding, or agent routing decisions.
+
+```typescript
+const res = await client.chat({
+  model: 'llama3.2',
+  messages: [{ role: 'user', content: 'Is Paris the capital of France?' }],
+  logprobs: true,
+  top_logprobs: 3,
+  stream: false,
+});
+
+for (const entry of res.logprobs ?? []) {
+  console.log(entry.token, entry.logprob, entry.top_logprobs);
+}
+```
+
+### Multimodal / Vision Input
+
+`images` on a `Message` (or on `generate()`'s top-level request) accepts base64-encoded strings or raw `Uint8Array` bytes — `Uint8Array` entries are base64-encoded automatically before the request is sent.
+
+```typescript
+import { readFile } from 'node:fs/promises';
+
+const imageBytes = await readFile('./cat.png'); // Buffer, a Uint8Array subclass
+
+const res = await client.chatText({
+  model: 'llava',
+  messages: [{ role: 'user', content: 'What is in this image?', images: [imageBytes] }],
+});
+console.log(res);
+
+// Base64 strings work too, unchanged:
+const base64Res = await client.generateText({
+  model: 'llava',
+  prompt: 'Describe this image.',
+  images: ['iVBORw0KGgoAAAANSUhEUgAA...'],
+});
 ```
 
 ### Structured Outputs with Zod
@@ -111,6 +158,51 @@ console.log(
   `Generated ${res.embeddings.length} vectors with dimension ${res.embeddings[0].length}`,
 );
 ```
+
+`embed()` targets the modern `/api/embed` endpoint (batch `input`, `truncate`, and `dimensions` truncation are all supported). The older single-prompt `/api/embeddings` is still available as `client.embeddings()`, but it's `@deprecated` — Ollama's own docs consider it legacy in favor of `/api/embed`.
+
+### Model Lifecycle Management
+
+Full parity with Ollama's model catalog and blob-store API — every method targets one specific endpoint's local state and deliberately does **not** cross-endpoint fail over (see [ADR 0008](./docs/adr/0008-endpoint-failover-scope.md)):
+
+```typescript
+// What's currently loaded in VRAM right now
+const running = await client.ps();
+console.log(running.models.map((m) => `${m.name} (${m.size_vram} bytes VRAM)`));
+
+// Create a custom model from an existing base, without hand-writing a Modelfile string
+await client.createModel({
+  model: 'my-assistant',
+  from: 'llama3.2',
+  system: 'You are a terse, no-nonsense assistant.',
+  parameters: { temperature: 0.2 },
+});
+
+await client.copyModel({ source: 'my-assistant', destination: 'my-assistant-backup' });
+await client.pushModel({ model: 'my-namespace/my-assistant' });
+await client.deleteModel({ model: 'my-assistant-backup' });
+```
+
+### Web Search & Web Fetch (Ollama Cloud)
+
+`webSearch`/`webFetch` wrap Ollama's **hosted** web tools (`POST https://ollama.com/api/web_search` and `/api/web_fetch`) — a fixed Ollama Cloud service, entirely separate from whatever local `baseUrl`/`endpoints` the client is configured with. They require an Ollama account API key (`apiKey` on the client, or the `OLLAMA_API_KEY` environment variable) regardless of where your inference traffic goes:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'http://localhost:11434', // local inference — unrelated to the calls below
+  apiKey: process.env.OLLAMA_API_KEY, // required for webSearch/webFetch specifically
+});
+
+const search = await client.webSearch({ query: 'latest Ollama release notes', max_results: 5 });
+for (const result of search.results) {
+  console.log(result.title, result.url, result.content);
+}
+
+const page = await client.webFetch({ url: 'https://ollama.com/blog' });
+console.log(page.title, page.content.slice(0, 200));
+```
+
+These two methods don't participate in the multi-endpoint failover below — there's only ever the one cloud host to call — but they do use the same default `timeoutMs` and retry policy as everything else.
 
 ### Autonomous Agent & Tool Calling
 
@@ -373,7 +465,7 @@ observe per-endpoint circuit state directly.
 
 ## Testing
 
-The test suite contains 114 automated tests across 4 testing tiers:
+The test suite contains 121 automated tests across 4 testing tiers:
 
 ```bash
 # Run unit, integration, and functional test suite
