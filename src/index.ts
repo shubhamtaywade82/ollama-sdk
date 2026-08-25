@@ -64,6 +64,7 @@ export {
   OllamaAuthError,
   OllamaNotFoundError,
   OllamaRateLimitError,
+  OllamaQuotaExceededError,
   OllamaServerError,
   OllamaAbortError,
   OllamaToolValidationError,
@@ -136,6 +137,16 @@ export {
   type TokenUsage,
   type RawUsageSource,
 } from './usage.js';
+
+// Quota (client-side usage budgeting — see src/quota.ts for why this is necessary)
+export {
+  QuotaManager,
+  createOllamaCloudFreeTierQuota,
+  type QuotaWindowConfig,
+  type QuotaWindowStatus,
+  type QuotaManagerOptions,
+  type OllamaCloudFreeTierQuotaBudgets,
+} from './quota.js';
 
 // Schema and Structured Outputs
 export { zodToJsonSchema, parseStructuredOutput, type SupportedSchema } from './schema/zod.js';

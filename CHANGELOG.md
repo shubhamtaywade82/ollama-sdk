@@ -5,6 +5,25 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-25
+
+### Added
+
+- **Client-side quota monitoring (`QuotaManager`).** Ollama Cloud doesn't expose
+  account-level quota through the API — no response header or endpoint reports how much
+  of your plan's session/weekly limit is left (see
+  [ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). `QuotaManager`
+  tracks usage you record (via `recordUsage`, which reads `extractUsage`-normalized token
+  counts off a raw response) against budgets you configure over one or more rolling
+  windows, and refuses to proceed (`canProceed`/`assertCanProceed`) once a window's budget
+  is spent — a local safety net to complement, not replace, catching the server's own
+  `OllamaRateLimitError`. `createOllamaCloudFreeTierQuota` is a convenience factory
+  wiring up the free tier's documented 5-hour session and 7-day weekly window cadence
+  (you still supply the token/request budgets, since Ollama doesn't publish the actual
+  ceilings). New `OllamaQuotaExceededError` (`code: 'quota_exceeded'`) is thrown by
+  `assertCanProceed`. See the [Quota Monitoring](./README.md#quota-monitoring) README
+  section.
+
 ## [1.2.0] - 2026-08-24
 
 Closes gaps found during a documentation/API-parity review against the official Ollama

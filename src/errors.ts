@@ -95,6 +95,30 @@ export class OllamaRateLimitError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown client-side, before a network request is made, by `QuotaManager.assertCanProceed`
+ * (see `src/quota.ts`) when issuing the request would exceed a configured usage budget for
+ * one of its rolling windows. This is distinct from `OllamaRateLimitError`, which reflects
+ * the server's own 429 response — Ollama Cloud does not expose account-level quota via the
+ * API, so `QuotaManager` tracks usage against budgets the caller configures locally and
+ * fails fast rather than waiting for the server to reject the request.
+ */
+export class OllamaQuotaExceededError extends OllamaClientError {
+  readonly windowId: string;
+  readonly resetAt: number;
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      windowId: string;
+      resetAt: number;
+    },
+  ) {
+    super(message, { ...options, code: 'quota_exceeded', retryable: false });
+    this.windowId = options.windowId;
+    this.resetAt = options.resetAt;
+  }
+}
+
 export class OllamaServerError extends OllamaClientError {
   constructor(
     message: string,

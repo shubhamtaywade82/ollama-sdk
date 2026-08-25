@@ -22,6 +22,7 @@
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
+- 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
 - 📦 **Dual ESM & CJS Build**: Full module support with clean TypeScript `.d.ts` declaration maps.
 
@@ -396,6 +397,64 @@ for exactly which spans and attributes are emitted, and the tradeoffs behind tha
 
 ---
 
+### Quota Monitoring
+
+Ollama Cloud doesn't expose account-level quota through the API — chat/generate
+responses carry only per-request token counts, and there's no header or endpoint that
+reports how much of your plan's session or weekly limit is left. The only way to see
+that today is the [ollama.com dashboard](https://ollama.com) or the 90%-usage email (see
+[ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). Free-tier usage
+resets on a session window (~5 hours) and a weekly window (7 days), and is measured in
+compute, not a fixed token count, so a budget you set for one model won't transfer
+exactly to another.
+
+`QuotaManager` is a client-side safety net, not a mirror of Ollama's real limits: it
+tracks usage you record against budgets *you* configure over one or more rolling
+windows, and fails fast — before a request is even sent — once a window's budget is
+spent. Pair it with catching `OllamaRateLimitError` (the server's actual `429`) as the
+authoritative signal.
+
+```typescript
+import {
+  OllamaClient,
+  OllamaQuotaExceededError,
+  OllamaRateLimitError,
+  createOllamaCloudFreeTierQuota,
+} from '@nemesis-oss/ollama-sdk';
+
+const client = new OllamaClient({ apiKey: process.env.OLLAMA_API_KEY });
+
+// Session (5h) and weekly (7d) windows, with budgets you choose empirically —
+// Ollama doesn't publish the actual ceilings.
+const quota = createOllamaCloudFreeTierQuota({
+  session: { maxTokens: 50_000 },
+  weekly: { maxTokens: 200_000 },
+});
+
+async function chatWithQuota(prompt: string) {
+  quota.assertCanProceed(); // throws OllamaQuotaExceededError if any window is spent
+
+  try {
+    const res = await client.chat({ model: 'qwen3:8b', messages: [{ role: 'user', content: prompt }] });
+    quota.recordUsage(res); // reads prompt_eval_count/eval_count off the raw response
+    return res.message.content;
+  } catch (error) {
+    if (error instanceof OllamaRateLimitError) {
+      console.warn('Server-side rate limit hit — pause until the session window resets.');
+    }
+    throw error;
+  }
+}
+```
+
+`quota.status()` returns per-window `tokensUsed`/`requestsMade`/`remainingTokens`/
+`windowResetAt` for building your own usage dashboard, and `quota.reset(windowId?)` lets
+you clear a window manually (e.g. after confirming a reset on the ollama.com dashboard).
+For budgets that don't match the free tier's cadence, construct `new QuotaManager({
+windows: [...] })` directly with your own `windowMs`/`maxTokens`/`maxRequests` per window.
+
+---
+
 ### Edge Runtime Compatibility
 
 The core client (`OllamaClient`, `Agent`, `ToolRegistry`, and everything exported from
@@ -426,6 +485,7 @@ class or narrow to a specific `code`:
 | `OllamaAuthError`                  | `auth_error`                    | `false`     | The endpoint returned `401`/`403`.                                                                                                                                                                                                                       |
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | The endpoint returned `404` (e.g. unknown model).                                                                                                                                                                                                        |
 | `OllamaRateLimitError`             | `rate_limited`                  | `true`      | The endpoint returned `429`.                                                                                                                                                                                                                             |
+| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` was called and would exceed a configured usage budget. Thrown client-side, before any network call — see [Quota Monitoring](#quota-monitoring).                                                                        |
 | `OllamaServerError`                | `server_error`                  | `true`      | The endpoint returned `5xx`.                                                                                                                                                                                                                             |
 | `OllamaAbortError`                 | `aborted`                       | `false`     | The request was cancelled via `AbortSignal`.                                                                                                                                                                                                             |
 | `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | A tool call's arguments, or a `chatWithSchema`/`generateWithSchema` result, failed Zod validation.                                                                                                                                                       |
