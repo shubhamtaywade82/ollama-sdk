@@ -157,64 +157,101 @@ export class OllamaClient {
        * endpoint, same as before this option existed.
        */
       model?: string | undefined;
+      /**
+       * For an operation whose real completion outlasts its own returned promise — a
+       * streaming response, specifically — defers releasing the endpoint's concurrency
+       * slot (see `EndpointRegistryOptions.maxConcurrentPerEndpoint`/`'least-connections'`)
+       * until the promise this returns settles, instead of releasing as soon as
+       * `operation` resolves. Pass `(stream) => stream.finalResult` for `chatStream`/
+       * `generateStream` so the slot stays held for as long as the underlying HTTP
+       * connection realistically does — until the stream is fully consumed, errors, or is
+       * aborted. Omit for anything whose returned promise already represents the whole
+       * request/response (the default, and correct for every non-streaming call).
+       */
+      holdUntil?: ((result: T) => Promise<unknown>) | undefined;
     },
   ): Promise<T> {
     const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
     try {
-      const allCandidates = this.registry.candidates(options?.model);
-      if (allCandidates.length === 0 && options?.model !== undefined && this.registry.hasModelScopedEndpoints()) {
-        const configured = this.registry
-          .list()
-          .flatMap((ep) => ep.models ?? [])
-          .filter((m, i, arr) => arr.indexOf(m) === i);
-        throw new OllamaModelRoutingError(
-          `No configured endpoint is authorized for model "${options.model}". ` +
-            (configured.length > 0
-              ? `Endpoints are scoped to: ${configured.join(', ')}.`
-              : 'No endpoint declares a `models` allow-list that includes it.') +
-            ' Add or widen an `OllamaEndpoint.models` entry to route this model.',
-          { model: options.model, availableModels: configured },
-        );
-      }
-      const candidates = options?.singleEndpoint ? allCandidates.slice(0, 1) : allCandidates;
       let lastError: Error | undefined;
 
-      for (const [attemptIndex, endpoint] of candidates.entries()) {
-        this.logger.debug(`Executing on endpoint "${endpoint.name}" (${endpoint.baseUrl})`);
-        const http = new HttpClient({
-          baseUrl: endpoint.baseUrl,
-          ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
-          ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
-          fetch: this.fetchImpl,
-        });
-
-        // Acquired synchronously, right after this endpoint was chosen from `candidates()`
-        // with no `await` in between — see `EndpointRegistryOptions.strategy`'s
-        // `'least-connections'` doc for why that ordering is what makes it race-free.
-        this.registry.acquire(endpoint.name);
-        try {
-          const result = await withSpan(
-            'ollama.endpoint.attempt',
-            {
-              [ATTR_OLLAMA_ENDPOINT_NAME]: endpoint.name,
-              [ATTR_OLLAMA_ENDPOINT_ATTEMPT]: attemptIndex,
-            },
-            () => withRetry(() => operation(http, timeout.signal), this.retryConfig),
+      for (;;) {
+        const allCandidates = this.registry.candidates(options?.model);
+        if (
+          allCandidates.length === 0 &&
+          options?.model !== undefined &&
+          this.registry.hasModelScopedEndpoints()
+        ) {
+          const configured = this.registry
+            .list()
+            .flatMap((ep) => ep.models ?? [])
+            .filter((m, i, arr) => arr.indexOf(m) === i);
+          throw new OllamaModelRoutingError(
+            `No configured endpoint is authorized for model "${options.model}". ` +
+              (configured.length > 0
+                ? `Endpoints are scoped to: ${configured.join(', ')}.`
+                : 'No endpoint declares a `models` allow-list that includes it.') +
+              ' Add or widen an `OllamaEndpoint.models` entry to route this model.',
+            { model: options.model, availableModels: configured },
           );
-          this.registry.reportSuccess(endpoint.name);
-          return result;
-        } catch (err) {
-          const error = err instanceof Error ? err : new Error(String(err));
-          lastError = error;
-          this.registry.reportFailure(endpoint.name);
-          this.logger.warn(`Failed on "${endpoint.name}": ${error.message}`);
-          if (!(error instanceof OllamaClientError && this.failoverCodes.has(error.code)))
-            throw error;
-        } finally {
-          this.registry.release(endpoint.name);
         }
+        const candidates = options?.singleEndpoint ? allCandidates.slice(0, 1) : allCandidates;
+
+        const runnable = this.registry.filterWithCapacity(candidates);
+        if (runnable.length === 0 && candidates.length > 0) {
+          await this.registry.waitForCapacity(
+            candidates.map((c) => c.name),
+            timeout.signal,
+          );
+          continue;
+        }
+
+        for (const [attemptIndex, endpoint] of runnable.entries()) {
+          this.logger.debug(`Executing on endpoint "${endpoint.name}" (${endpoint.baseUrl})`);
+          const http = new HttpClient({
+            baseUrl: endpoint.baseUrl,
+            ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
+            ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
+            fetch: this.fetchImpl,
+          });
+
+          // Acquired synchronously, right after this endpoint was chosen from
+          // `candidates()`/`filterWithCapacity()` with no `await` in between — see
+          // `EndpointRegistryOptions.strategy`'s `'least-connections'` doc for why that
+          // ordering is what makes it race-free.
+          this.registry.acquire(endpoint.name);
+          let holdPromise: Promise<unknown> | undefined;
+          try {
+            const result = await withSpan(
+              'ollama.endpoint.attempt',
+              {
+                [ATTR_OLLAMA_ENDPOINT_NAME]: endpoint.name,
+                [ATTR_OLLAMA_ENDPOINT_ATTEMPT]: attemptIndex,
+              },
+              () => withRetry(() => operation(http, timeout.signal), this.retryConfig),
+            );
+            this.registry.reportSuccess(endpoint.name);
+            if (options?.holdUntil) holdPromise = options.holdUntil(result);
+            return result;
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            lastError = error;
+            this.registry.reportFailure(endpoint.name);
+            this.logger.warn(`Failed on "${endpoint.name}": ${error.message}`);
+            if (!(error instanceof OllamaClientError && this.failoverCodes.has(error.code)))
+              throw error;
+          } finally {
+            if (holdPromise) {
+              void holdPromise
+                .catch(() => undefined)
+                .finally(() => this.registry.release(endpoint.name));
+            } else {
+              this.registry.release(endpoint.name);
+            }
+          }
+        }
+        throw lastError ?? new Error('No healthy Ollama endpoints available');
       }
-      throw lastError ?? new Error('No healthy Ollama endpoints available');
     } finally {
       timeout.cancel();
     }
@@ -233,15 +270,27 @@ export class OllamaClient {
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
     const messages = await withEncodedMessageImages(req.messages);
     if (req.stream) {
-      return this.executeWithFailover(async (http, signal) => {
-        if (req.format !== undefined) this.assertStructuredOutputSupported(http.baseUrl, req.model);
-        const stream = await http.requestStream<ChatResponse>({
-          path: '/api/chat',
-          body: { ...req, messages, stream: true },
-          signal,
-        });
-        return normalizeChatStream(stream);
-      }, req);
+      return this.executeWithFailover(
+        async (http, signal) => {
+          if (req.format !== undefined)
+            this.assertStructuredOutputSupported(http.baseUrl, req.model);
+          const stream = await http.requestStream<ChatResponse>({
+            path: '/api/chat',
+            body: { ...req, messages, stream: true },
+            signal,
+          });
+          return normalizeChatStream(stream);
+        },
+        {
+          signal: req.signal,
+          timeoutMs: req.timeoutMs,
+          model: req.model,
+          // The endpoint's concurrency slot must stay held for as long as the stream is
+          // actually being consumed, not just until the initial response/headers arrive
+          // — see `executeWithFailover`'s `holdUntil` doc.
+          holdUntil: (stream) => stream.finalResult,
+        },
+      );
     }
     return withSpan(
       `chat ${req.model}`,
@@ -311,16 +360,24 @@ export class OllamaClient {
   ): Promise<GenerateResponse | OllamaStream<GenerateResponse, GenerateStreamResult>> {
     const encodedReq = await withEncodedImages(req);
     if (encodedReq.stream) {
-      return this.executeWithFailover(async (http, signal) => {
-        if (encodedReq.format !== undefined)
-          this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
-        const stream = await http.requestStream<GenerateResponse>({
-          path: '/api/generate',
-          body: { ...encodedReq, stream: true },
-          signal,
-        });
-        return normalizeGenerateStream(stream);
-      }, encodedReq);
+      return this.executeWithFailover(
+        async (http, signal) => {
+          if (encodedReq.format !== undefined)
+            this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
+          const stream = await http.requestStream<GenerateResponse>({
+            path: '/api/generate',
+            body: { ...encodedReq, stream: true },
+            signal,
+          });
+          return normalizeGenerateStream(stream);
+        },
+        {
+          signal: encodedReq.signal,
+          timeoutMs: encodedReq.timeoutMs,
+          model: encodedReq.model,
+          holdUntil: (stream) => stream.finalResult,
+        },
+      );
     }
     return withSpan(
       `text_completion ${encodedReq.model}`,

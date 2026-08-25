@@ -164,7 +164,11 @@ export interface OllamaClientConfig {
    * request to whichever candidate currently has the fewest requests in flight (e.g.
    * several free-tier Ollama Cloud accounts, each capped at 1 concurrent request — this
    * deterministically spreads concurrent `Promise.all`-style calls one-per-account rather
-   * than risking two landing on the same still-busy one). See `EndpointRegistryOptions`.
+   * than risking two landing on the same still-busy one), and `maxConcurrentPerEndpoint`
+   * to cap that at an exact number and queue (rather than overrun a saturated candidate)
+   * once every eligible one is at capacity — e.g. `{ strategy: 'least-connections',
+   * maxConcurrentPerEndpoint: 1 }` for accounts that only allow one request at a time.
+   * See `EndpointRegistryOptions`.
    */
   readonly endpointHealth?: EndpointRegistryOptions;
   /** Error codes that trigger failover to the next candidate endpoint. */

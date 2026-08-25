@@ -5,6 +5,32 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-25
+
+### Added
+
+- **`maxConcurrentPerEndpoint` — queueing past capacity.** `EndpointRegistryOptions`
+  gains `maxConcurrentPerEndpoint`, capping in-flight requests per endpoint exactly. Once
+  every otherwise-eligible candidate is at that cap, a request waits (FIFO, new
+  `EndpointRegistry.filterWithCapacity`/`waitForCapacity`) for one to free rather than
+  being routed to an already-saturated candidate — the gap `'least-connections'` alone
+  doesn't close for `N + 1` concurrent calls against `N` capacity-1 candidates. Waiting is
+  bounded by the request's own `timeoutMs`/`AbortSignal`; a queued call that times out or
+  is cancelled is dequeued and rejects without ever being sent.
+
+### Fixed
+
+- **Streaming requests (`chatStream`/`generateStream`) now hold their endpoint's
+  concurrency slot for the lifetime of the stream, not just until it starts.**
+  Previously, `acquire`/`release` around a streaming call released the slot as soon as
+  `http.requestStream` resolved (response headers received) — before any tokens were
+  actually read — so `'least-connections'`/`maxConcurrentPerEndpoint` accounting stopped
+  reflecting reality the moment a stream was returned, undercounting real concurrency for
+  as long as the caller kept consuming it. `executeWithFailover` gains an internal
+  `holdUntil` hook, wired to the returned `OllamaStream`'s `finalResult` for `chatStream`/
+  `generateStream` (and the streaming `pull`/`push`/`create` progress endpoints), so the
+  slot now releases only once the stream is fully drained, errors, or is aborted.
+
 ## [1.7.0] - 2026-08-25
 
 ### Added

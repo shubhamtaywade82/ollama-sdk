@@ -524,6 +524,58 @@ an account's actual 429 forces failover to the next-least-busy candidate). Prior
 are respected the same way as `'round-robin'` — a higher-priority candidate is still
 always tried first regardless of its active count.
 
+#### Queueing past capacity, instead of overrunning an account
+
+`'least-connections'` alone only guarantees no collision for up to `N` *simultaneous*
+calls against `N` candidates — an `(N+1)`th concurrent call would still be routed to
+whichever account looks least busy at that instant, which, once all `N` already have one
+request each, means sending it to an account that's already at its real limit. Add
+`maxConcurrentPerEndpoint` to cap that exactly and queue instead:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    account1: { apiKey: process.env.OLLAMA_KEY_1! },
+    account2: { apiKey: process.env.OLLAMA_KEY_2! },
+  },
+  endpointHealth: { strategy: 'least-connections', maxConcurrentPerEndpoint: 1 },
+});
+
+// With 2 accounts capped at 1 request each: the first two calls run immediately, one
+// per account; the third waits (no fetch is made for it yet) until either finishes,
+// then takes that freed slot.
+const [a, b, c] = await Promise.all([
+  client.chat({ model: 'm1', messages: m1Messages }),
+  client.chat({ model: 'm2', messages: m2Messages }),
+  client.chat({ model: 'm3', messages: m3Messages }),
+]);
+```
+
+Waiting is bounded by the same `timeoutMs`/`AbortSignal` as the rest of the request — a
+queued call that times out or is cancelled is removed from the queue and rejects without
+ever having been sent, rather than hanging indefinitely. Queue wake order is best-effort
+FIFO (a slot that frees can, rarely, be won by a brand-new call instead of the
+longest-waiting one) — the exact cap, not fairness, is the guarantee this exists for.
+
+#### Slot lifecycle: streaming and tool-calling agents
+
+Two details matter for the concurrency accounting (`'least-connections'`/
+`maxConcurrentPerEndpoint`/`activeRequests`) to reflect reality rather than just the
+initial HTTP round trip:
+
+- **Streaming (`chatStream`/`generateStream`) holds the slot for as long as the stream is
+  actually being consumed**, not just until the response headers arrive. The promise
+  `chatStream` returns resolves as soon as the stream object exists (mirroring the real
+  HTTP connection, which is still open at that point); the slot releases only once the
+  stream is fully drained, errors, or is aborted. A returned stream that's never iterated
+  (or `.on()`'d) holds its slot indefinitely — same as the underlying HTTP connection
+  would stay open — so always consume or `stream.abort()` a stream you no longer need.
+- **`Agent`'s tool-execution phase never holds a slot.** Each turn's `chat()` call
+  acquires and releases its own slot independently; tool execution happens entirely
+  between turns, outside any `chat()` call, so a slow tool never ties up one of your
+  scarce concurrent-request accounts.
+
 ---
 
 ### Observability with OpenTelemetry

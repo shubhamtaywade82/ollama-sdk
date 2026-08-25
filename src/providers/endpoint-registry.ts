@@ -2,6 +2,8 @@
  * Multi-endpoint registry with priority routing and circuit breaker failover.
  */
 
+import { OllamaAbortError } from '../errors.js';
+
 export interface OllamaEndpoint {
   readonly name: string;
   readonly baseUrl: string;
@@ -57,6 +59,26 @@ export interface EndpointRegistryOptions {
    * the same candidate.
    */
   readonly strategy?: 'priority' | 'round-robin' | 'least-connections' | undefined;
+  /**
+   * Caps in-flight requests per endpoint (tracked via `acquire`/`release`). Unset (the
+   * default) means no cap — candidates are never treated as saturated. When set, a
+   * request whose every otherwise-eligible candidate is already at this cap waits
+   * (`waitForCapacity`, FIFO per candidate) for one of them to free up, instead of being
+   * sent to an already-saturated candidate. Pairs naturally with `strategy:
+   * 'least-connections'` for a pool of accounts each limited to N concurrent requests —
+   * e.g. `maxConcurrentPerEndpoint: 1` for several Ollama Cloud free-tier accounts, so
+   * `N + 1` concurrent calls against `N` such accounts run `N` immediately and queue the
+   * rest, rather than the `(N+1)`th overrunning whichever account looks "least busy" at
+   * that instant. Waiting is bounded by the request's own timeout/`AbortSignal`, same as
+   * any other in-flight request — it never blocks indefinitely on its own.
+   */
+  readonly maxConcurrentPerEndpoint?: number | undefined;
+}
+
+interface CapacityWaiter {
+  readonly names: readonly string[];
+  readonly resolve: () => void;
+  cleanup: () => void;
 }
 
 export class EndpointRegistry {
@@ -69,6 +91,8 @@ export class EndpointRegistry {
   private readonly strategy: 'priority' | 'round-robin' | 'least-connections';
   private roundRobinCounter = 0;
   private readonly activeCounts = new Map<string, number>();
+  private readonly maxConcurrentPerEndpoint: number | undefined;
+  private readonly waiters: CapacityWaiter[] = [];
 
   constructor(endpoints: readonly OllamaEndpoint[], options: EndpointRegistryOptions = {}) {
     this.endpoints =
@@ -77,6 +101,7 @@ export class EndpointRegistry {
     this.cooldownMs = options.cooldownMs ?? 30_000;
     this.now = options.now ?? Date.now;
     this.strategy = options.strategy ?? 'priority';
+    this.maxConcurrentPerEndpoint = options.maxConcurrentPerEndpoint;
   }
 
   /**
@@ -90,7 +115,7 @@ export class EndpointRegistry {
     this.activeCounts.set(name, (this.activeCounts.get(name) ?? 0) + 1);
   }
 
-  /** Releases one in-flight request marked via `acquire`. */
+  /** Releases one in-flight request marked via `acquire`, waking one waiter for `name` if any. */
   release(name: string): void {
     const next = (this.activeCounts.get(name) ?? 0) - 1;
     if (next <= 0) {
@@ -98,6 +123,60 @@ export class EndpointRegistry {
     } else {
       this.activeCounts.set(name, next);
     }
+    const idx = this.waiters.findIndex((w) => w.names.includes(name));
+    if (idx !== -1) {
+      const [waiter] = this.waiters.splice(idx, 1);
+      waiter?.cleanup();
+      waiter?.resolve();
+    }
+  }
+
+  /**
+   * `candidates` filtered down to those currently under `maxConcurrentPerEndpoint` (all
+   * of them, unchanged, if that option is unset).
+   */
+  filterWithCapacity(candidates: readonly OllamaEndpoint[]): OllamaEndpoint[] {
+    const cap = this.maxConcurrentPerEndpoint;
+    if (cap === undefined) return [...candidates];
+    return candidates.filter((ep) => (this.activeCounts.get(ep.name) ?? 0) < cap);
+  }
+
+  /**
+   * Resolves once any endpoint named in `names` has spare capacity under
+   * `maxConcurrentPerEndpoint` (a no-op resolve if that option is unset, or if one
+   * already does). Otherwise queues (FIFO per name) until a matching `release()` frees a
+   * slot, or rejects if `signal` aborts first — mirroring whatever aborted it
+   * (`OllamaTimeoutError`/the caller's own abort reason) so callers see the same error
+   * shape as any other in-flight request that times out or is cancelled. FIFO order is
+   * best-effort (a newly-arriving request can still win a race for a slot that just
+   * freed) — the capacity cap itself, not fairness, is the guarantee this exists for.
+   */
+  waitForCapacity(names: readonly string[], signal?: AbortSignal): Promise<void> {
+    const cap = this.maxConcurrentPerEndpoint;
+    if (cap === undefined) return Promise.resolve();
+    if (names.some((n) => (this.activeCounts.get(n) ?? 0) < cap)) return Promise.resolve();
+
+    return new Promise<void>((resolve, reject) => {
+      const waiter: CapacityWaiter = { names, resolve, cleanup: () => undefined };
+      const onAbort = (): void => {
+        const idx = this.waiters.indexOf(waiter);
+        if (idx !== -1) this.waiters.splice(idx, 1);
+        reject(
+          signal?.reason instanceof Error
+            ? signal.reason
+            : new OllamaAbortError('Aborted while waiting for endpoint capacity'),
+        );
+      };
+      if (signal !== undefined) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+        waiter.cleanup = () => signal.removeEventListener('abort', onAbort);
+      }
+      this.waiters.push(waiter);
+    });
   }
 
   /**
