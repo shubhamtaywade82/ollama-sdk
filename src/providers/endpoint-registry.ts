@@ -30,6 +30,19 @@ export interface EndpointRegistryOptions {
   readonly failureThreshold?: number | undefined;
   readonly cooldownMs?: number | undefined;
   readonly now?: (() => number) | undefined;
+  /**
+   * How candidates that share the same `priority` are ordered within `candidates()`.
+   * `'priority'` (the default) keeps them in registration order, so the same candidate is
+   * always tried first while it stays healthy. `'round-robin'` rotates each same-priority
+   * group by one position per `candidates()` call — i.e. per `chat`/`generate`/etc. call —
+   * so consecutive requests spread across a pool of interchangeable endpoints/credentials
+   * instead of always preferring the first one (the common case: several Ollama Cloud keys
+   * registered with no `models` restriction, meant to be used interchangeably). Endpoints
+   * at different priorities are unaffected either way — a higher-priority one is still
+   * always tried first, and failover to the rest of the group still applies if the
+   * rotated-to-front candidate fails.
+   */
+  readonly strategy?: 'priority' | 'round-robin' | undefined;
 }
 
 export class EndpointRegistry {
@@ -39,6 +52,8 @@ export class EndpointRegistry {
   private readonly failureThreshold: number;
   private readonly cooldownMs: number;
   private readonly now: () => number;
+  private readonly strategy: 'priority' | 'round-robin';
+  private roundRobinCounter = 0;
 
   constructor(endpoints: readonly OllamaEndpoint[], options: EndpointRegistryOptions = {}) {
     this.endpoints =
@@ -46,14 +61,38 @@ export class EndpointRegistry {
     this.failureThreshold = options.failureThreshold ?? 3;
     this.cooldownMs = options.cooldownMs ?? 30_000;
     this.now = options.now ?? Date.now;
+    this.strategy = options.strategy ?? 'priority';
+  }
+
+  /**
+   * Rotates each same-`priority` group in `sorted` (already sorted highest-priority-first)
+   * by one position further per call, wrapping around within the group. Priority tiers
+   * themselves are never reordered — only candidates that were already tied.
+   */
+  private applyRoundRobin(sorted: readonly OllamaEndpoint[]): OllamaEndpoint[] {
+    const offset = this.roundRobinCounter++;
+    const result: OllamaEndpoint[] = [];
+    let i = 0;
+    while (i < sorted.length) {
+      const priority = sorted[i]?.priority ?? 0;
+      let j = i + 1;
+      while (j < sorted.length && (sorted[j]?.priority ?? 0) === priority) j++;
+      const tier = sorted.slice(i, j);
+      const rotation = offset % tier.length;
+      result.push(...tier.slice(rotation), ...tier.slice(0, rotation));
+      i = j;
+    }
+    return result;
   }
 
   /**
    * Endpoints eligible for `model`, sorted healthy-first-by-priority (falling back to
-   * soonest-to-recover if every eligible endpoint is cooling down). When `model` is
-   * given, endpoints whose `models` allow-list doesn't include it are excluded entirely —
-   * see `OllamaEndpoint.models`. Omit `model` to consider every configured endpoint,
-   * regardless of any `models` restriction (used for non-model-scoped operations).
+   * soonest-to-recover if every eligible endpoint is cooling down); same-priority
+   * candidates are further reordered per `options.strategy` (see
+   * `EndpointRegistryOptions.strategy`). When `model` is given, endpoints whose `models`
+   * allow-list doesn't include it are excluded entirely — see `OllamaEndpoint.models`.
+   * Omit `model` to consider every configured endpoint, regardless of any `models`
+   * restriction (used for non-model-scoped operations).
    */
   candidates(model?: string): OllamaEndpoint[] {
     const currentTime = this.now();
@@ -78,7 +117,8 @@ export class EndpointRegistry {
     }
 
     if (healthy.length > 0) {
-      return healthy.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+      const sorted = healthy.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+      return this.strategy === 'round-robin' ? this.applyRoundRobin(sorted) : sorted;
     }
 
     // Fail-open: sort by soonest-to-recover

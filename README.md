@@ -435,6 +435,50 @@ const client = new OllamaClient({
 construction — a typo in this config fails loudly, not by silently routing nowhere.
 `credentials`/`modelBindings` merge additively with an `endpoints` array if you pass both.
 
+#### A free pool of interchangeable keys — and spreading load across it
+
+Register several keys as `credentials` and skip `modelBindings` for them entirely: an
+unbound credential is eligible for every model, so any of them can serve any request:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    key1: { apiKey: process.env.OLLAMA_KEY_1! },
+    key2: { apiKey: process.env.OLLAMA_KEY_2! },
+    key3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+});
+
+await client.chat({ model: 'any-model-you-like', messages });
+```
+
+By default, candidates at the same priority (the case here — none of these keys were
+given an explicit `priority`) are tried in registration order every time: `key1` first,
+falling over to `key2`/`key3` only if `key1` fails. To spread consecutive requests across
+the pool instead — so `key1`, `key2`, `key3` each take a turn rather than `key1` always
+going first — set `endpointHealth: { strategy: 'round-robin' }`:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    key1: { apiKey: process.env.OLLAMA_KEY_1! },
+    key2: { apiKey: process.env.OLLAMA_KEY_2! },
+    key3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  endpointHealth: { strategy: 'round-robin' },
+});
+```
+
+Each `chat`/`generate`/`embed`/etc. call rotates the starting candidate by one position
+within its priority tier — `key1, key2, key3, key1, key2, key3, ...` — while failover
+still applies if whichever key ends up first happens to fail. Round-robin never lets a
+lower-priority candidate jump ahead of a higher-priority one; it only reorders candidates
+that were already tied. This works identically with plain `endpoints` (no `credentials`
+required) and composes with `models`/`modelBindings` scoping — a scoped credential's tier
+of one is unaffected, only an actual multi-candidate tier rotates.
+
 ---
 
 ### Observability with OpenTelemetry

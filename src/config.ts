@@ -156,7 +156,12 @@ export interface OllamaClientConfig {
    * routes normally through any plain `endpoints` entry without a `models` restriction.
    */
   readonly defaultCredential?: string | undefined;
-  /** Tuning options for endpoint circuit breaker. */
+  /**
+   * Tuning options for the endpoint circuit breaker, and candidate selection ordering —
+   * pass `{ strategy: 'round-robin' }` to spread requests across a pool of same-priority
+   * endpoints/credentials (e.g. several unbound `credentials`) instead of always
+   * preferring the first one. See `EndpointRegistryOptions`.
+   */
   readonly endpointHealth?: EndpointRegistryOptions;
   /** Error codes that trigger failover to the next candidate endpoint. */
   readonly failoverOn?: readonly string[];

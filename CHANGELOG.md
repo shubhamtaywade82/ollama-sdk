@@ -5,6 +5,22 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-25
+
+### Added
+
+- **Round-robin candidate selection.** `EndpointRegistryOptions` (passed via
+  `OllamaClientConfig.endpointHealth`) gains `strategy: 'priority' | 'round-robin'`
+  (default `'priority'`, unchanged prior behavior). With `'round-robin'`,
+  `EndpointRegistry.candidates()` rotates each same-priority group of healthy candidates
+  by one position per call, so consecutive `chat`/`generate`/`embed`/etc. calls spread
+  across a pool of interchangeable endpoints or unbound `credentials` (e.g. several
+  free-tier Ollama Cloud keys with no `models`/`modelBindings` restriction) instead of
+  always preferring the first one. Candidates at different priorities are unaffected —
+  a higher-priority candidate is still always tried first — and failover to the rest of
+  the (rotated) list still applies if the first pick fails. See the README's
+  ["A free pool of interchangeable keys — and spreading load across it"](./README.md#a-free-pool-of-interchangeable-keys--and-spreading-load-across-it).
+
 ## [1.5.0] - 2026-08-25
 
 ### Added
