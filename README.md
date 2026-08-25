@@ -15,13 +15,14 @@
 - 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` accepts base64 strings or raw `Uint8Array` bytes (auto-encoded) for vision models like `llava` or `qwen2.5vl`.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
-- 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, and active health checks.
+- 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, active health checks, and per-endpoint `models` allow-lists for routing several model-specific API keys through one client.
 - 🔌 **Model Context Protocol (MCP)**: Native adapters to convert MCP tools into Ollama-compatible function schemas.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
+- 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
 - 📦 **Dual ESM & CJS Build**: Full module support with clean TypeScript `.d.ts` declaration maps.
 
@@ -237,6 +238,15 @@ position by hand: `response.turns[0].toolCalls[0].id` matches
 appends to history carries the same value as `tool_call_id`. See
 [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
 
+Running several `Agent`s against different models/API keys for different roles (e.g. a
+planning model, a coding model, a research model) is a single `OllamaClient` with
+per-endpoint `models` allow-lists (see
+["Multiple API keys, each entitled to different models"](#multiple-api-keys-each-entitled-to-different-models)) —
+the client resolves the right key from the model name, and `Agent` itself stays
+unaware of credentials entirely. See
+[Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
+for a worked example and a runnable scenario.
+
 ### Tool Execution Safety & Sandboxing
 
 Tool arguments and, indirectly, which tools get called at all are driven by model
@@ -363,6 +373,209 @@ etc.) and `capabilities()` target one specific endpoint's local state and delibe
 server doesn't retry the same operation, it silently acts on a different model catalog.
 See [ADR 0008](./docs/adr/0008-endpoint-failover-scope.md).
 
+#### Multiple API keys, each entitled to different models
+
+A common Ollama Cloud shape: several API keys, each unlocking a different set of models
+under your plan (e.g. one free-tier key per model family). Give each endpoint a `models`
+allow-list and the client resolves the right credential from the `model` you request —
+cross-endpoint failover only ever considers endpoints actually authorized for that model,
+so it never burns a request retrying an unrelated key:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  endpoints: [
+    { name: 'gpt-oss-key', apiKey: process.env.OLLAMA_KEY_1!, baseUrl: 'https://ollama.com', models: ['gpt-oss:120b'] },
+    { name: 'minimax-key', apiKey: process.env.OLLAMA_KEY_2!, baseUrl: 'https://ollama.com', models: ['minimax-m3'] },
+    { name: 'nemotron-key', apiKey: process.env.OLLAMA_KEY_3!, baseUrl: 'https://ollama.com', models: ['nemotron-3-super'] },
+  ],
+});
+
+// Routed to KEY_1 automatically:
+await client.chat({ model: 'gpt-oss:120b', messages });
+// Routed to KEY_2 automatically:
+await client.chat({ model: 'minimax-m3', messages });
+```
+
+An endpoint with no `models` field stays eligible for every model (the pre-existing
+behavior), so this is fully opt-in and mixes freely with unscoped endpoints. Requesting a
+model no configured endpoint is scoped to throws `OllamaModelRoutingError` immediately —
+no network call, no probing every key to see which one happens to work. Two or more
+endpoints can share the same model in their `models` list to get ordinary failover
+between multiple keys/replicas for that one model. See
+[Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
+for the full multi-key/multi-role pattern this was built for.
+
+**`credentials` + `modelBindings`** is an equivalent, map-based way to write the same
+config, if you prefer keying by an id you choose over an array of endpoint objects — both
+compile down to the same `endpoints`/`models` routing underneath, so pick whichever reads
+better in your codebase:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    supervisor: { apiKey: process.env.OLLAMA_KEY_1! },
+    coder: { apiKey: process.env.OLLAMA_KEY_2! },
+    researcher: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  modelBindings: {
+    'gpt-oss:120b': 'supervisor',
+    'minimax-m3': 'coder',
+    'nemotron-3-super': 'researcher',
+    // A model can also be bound to several credentials — failover applies between them:
+    // 'gpt-oss:120b': ['supervisor', 'supervisor-backup'],
+  },
+  // Optional: serves any model with no entry above, at lower priority than an explicit binding.
+  // defaultCredential: 'supervisor',
+});
+```
+
+`modelBindings` referencing a `credentials` id that doesn't exist throws immediately at
+construction — a typo in this config fails loudly, not by silently routing nowhere.
+`credentials`/`modelBindings` merge additively with an `endpoints` array if you pass both.
+
+#### A free pool of interchangeable keys — and spreading load across it
+
+Register several keys as `credentials` and skip `modelBindings` for them entirely: an
+unbound credential is eligible for every model, so any of them can serve any request:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    key1: { apiKey: process.env.OLLAMA_KEY_1! },
+    key2: { apiKey: process.env.OLLAMA_KEY_2! },
+    key3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+});
+
+await client.chat({ model: 'any-model-you-like', messages });
+```
+
+By default, candidates at the same priority (the case here — none of these keys were
+given an explicit `priority`) are tried in registration order every time: `key1` first,
+falling over to `key2`/`key3` only if `key1` fails. To spread consecutive requests across
+the pool instead — so `key1`, `key2`, `key3` each take a turn rather than `key1` always
+going first — set `endpointHealth: { strategy: 'round-robin' }`:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    key1: { apiKey: process.env.OLLAMA_KEY_1! },
+    key2: { apiKey: process.env.OLLAMA_KEY_2! },
+    key3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  endpointHealth: { strategy: 'round-robin' },
+});
+```
+
+Each `chat`/`generate`/`embed`/etc. call rotates the starting candidate by one position
+within its priority tier — `key1, key2, key3, key1, key2, key3, ...` — while failover
+still applies if whichever key ends up first happens to fail. Round-robin never lets a
+lower-priority candidate jump ahead of a higher-priority one; it only reorders candidates
+that were already tied. This works identically with plain `endpoints` (no `credentials`
+required) and composes with `models`/`modelBindings` scoping — a scoped credential's tier
+of one is unaffected, only an actual multi-candidate tier rotates.
+
+#### Concurrent requests across single-slot accounts (least-connections)
+
+Round-robin spreads requests over time, but it doesn't track whether a previous request
+on a given account is still running — with uneven request durations, two round-robin
+picks can still land on the same still-busy account back to back. That matters
+specifically for Ollama Cloud's free tier, which caps each account at **1 concurrent
+request**: if your application fires several requests at once (e.g. `Promise.all` across
+different models) using $N$ free-tier accounts, you want a guarantee that no two land on
+the same account while it's still busy — not just "spread out on average".
+
+`strategy: 'least-connections'` provides that guarantee. Each request is routed to
+whichever candidate currently has the fewest requests still in flight:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    account1: { apiKey: process.env.OLLAMA_KEY_1! },
+    account2: { apiKey: process.env.OLLAMA_KEY_2! },
+    account3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  endpointHealth: { strategy: 'least-connections' },
+});
+
+// Each of these lands on a different account — none has to wait on another's
+// in-flight request, and no single free-tier account gets hit with a 2nd concurrent
+// request while its 1st is still running.
+const [llama, qwen, mistral] = await Promise.all([
+  client.chat({ model: 'llama3', messages: llamaMessages }),
+  client.chat({ model: 'qwen2.5', messages: qwenMessages }),
+  client.chat({ model: 'mistral', messages: mistralMessages }),
+]);
+```
+
+This is deterministic, not probabilistic: the endpoint chosen for one request and the
+`acquire()` that marks it in-flight happen synchronously with no `await` in between, and
+JS's single-threaded execution means no two concurrent calls can ever observe the same
+"0 active" snapshot for the same candidate — so `N` concurrent calls against `N`
+same-priority candidates always land on `N` distinct ones, regardless of how the calls
+happen to interleave. In-flight counts are also exposed via `client.endpointStatus()[].activeRequests`
+for observability, and release automatically on both success and failure (including when
+an account's actual 429 forces failover to the next-least-busy candidate). Priority tiers
+are respected the same way as `'round-robin'` — a higher-priority candidate is still
+always tried first regardless of its active count.
+
+#### Queueing past capacity, instead of overrunning an account
+
+`'least-connections'` alone only guarantees no collision for up to `N` *simultaneous*
+calls against `N` candidates — an `(N+1)`th concurrent call would still be routed to
+whichever account looks least busy at that instant, which, once all `N` already have one
+request each, means sending it to an account that's already at its real limit. Add
+`maxConcurrentPerEndpoint` to cap that exactly and queue instead:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    account1: { apiKey: process.env.OLLAMA_KEY_1! },
+    account2: { apiKey: process.env.OLLAMA_KEY_2! },
+  },
+  endpointHealth: { strategy: 'least-connections', maxConcurrentPerEndpoint: 1 },
+});
+
+// With 2 accounts capped at 1 request each: the first two calls run immediately, one
+// per account; the third waits (no fetch is made for it yet) until either finishes,
+// then takes that freed slot.
+const [a, b, c] = await Promise.all([
+  client.chat({ model: 'm1', messages: m1Messages }),
+  client.chat({ model: 'm2', messages: m2Messages }),
+  client.chat({ model: 'm3', messages: m3Messages }),
+]);
+```
+
+Waiting is bounded by the same `timeoutMs`/`AbortSignal` as the rest of the request — a
+queued call that times out or is cancelled is removed from the queue and rejects without
+ever having been sent, rather than hanging indefinitely. Queue wake order is best-effort
+FIFO (a slot that frees can, rarely, be won by a brand-new call instead of the
+longest-waiting one) — the exact cap, not fairness, is the guarantee this exists for.
+
+#### Slot lifecycle: streaming and tool-calling agents
+
+Two details matter for the concurrency accounting (`'least-connections'`/
+`maxConcurrentPerEndpoint`/`activeRequests`) to reflect reality rather than just the
+initial HTTP round trip:
+
+- **Streaming (`chatStream`/`generateStream`) holds the slot for as long as the stream is
+  actually being consumed**, not just until the response headers arrive. The promise
+  `chatStream` returns resolves as soon as the stream object exists (mirroring the real
+  HTTP connection, which is still open at that point); the slot releases only once the
+  stream is fully drained, errors, or is aborted. A returned stream that's never iterated
+  (or `.on()`'d) holds its slot indefinitely — same as the underlying HTTP connection
+  would stay open — so always consume or `stream.abort()` a stream you no longer need.
+- **`Agent`'s tool-execution phase never holds a slot.** Each turn's `chat()` call
+  acquires and releases its own slot independently; tool execution happens entirely
+  between turns, outside any `chat()` call, so a slow tool never ties up one of your
+  scarce concurrent-request accounts.
+
 ---
 
 ### Observability with OpenTelemetry
@@ -396,6 +609,64 @@ for exactly which spans and attributes are emitted, and the tradeoffs behind tha
 
 ---
 
+### Quota Monitoring
+
+Ollama Cloud doesn't expose account-level quota through the API — chat/generate
+responses carry only per-request token counts, and there's no header or endpoint that
+reports how much of your plan's session or weekly limit is left. The only way to see
+that today is the [ollama.com dashboard](https://ollama.com) or the 90%-usage email (see
+[ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). Free-tier usage
+resets on a session window (~5 hours) and a weekly window (7 days), and is measured in
+compute, not a fixed token count, so a budget you set for one model won't transfer
+exactly to another.
+
+`QuotaManager` is a client-side safety net, not a mirror of Ollama's real limits: it
+tracks usage you record against budgets *you* configure over one or more rolling
+windows, and fails fast — before a request is even sent — once a window's budget is
+spent. Pair it with catching `OllamaRateLimitError` (the server's actual `429`) as the
+authoritative signal.
+
+```typescript
+import {
+  OllamaClient,
+  OllamaQuotaExceededError,
+  OllamaRateLimitError,
+  createOllamaCloudFreeTierQuota,
+} from '@nemesis-oss/ollama-sdk';
+
+const client = new OllamaClient({ apiKey: process.env.OLLAMA_API_KEY });
+
+// Session (5h) and weekly (7d) windows, with budgets you choose empirically —
+// Ollama doesn't publish the actual ceilings.
+const quota = createOllamaCloudFreeTierQuota({
+  session: { maxTokens: 50_000 },
+  weekly: { maxTokens: 200_000 },
+});
+
+async function chatWithQuota(prompt: string) {
+  quota.assertCanProceed(); // throws OllamaQuotaExceededError if any window is spent
+
+  try {
+    const res = await client.chat({ model: 'qwen3:8b', messages: [{ role: 'user', content: prompt }] });
+    quota.recordUsage(res); // reads prompt_eval_count/eval_count off the raw response
+    return res.message.content;
+  } catch (error) {
+    if (error instanceof OllamaRateLimitError) {
+      console.warn('Server-side rate limit hit — pause until the session window resets.');
+    }
+    throw error;
+  }
+}
+```
+
+`quota.status()` returns per-window `tokensUsed`/`requestsMade`/`remainingTokens`/
+`windowResetAt` for building your own usage dashboard, and `quota.reset(windowId?)` lets
+you clear a window manually (e.g. after confirming a reset on the ollama.com dashboard).
+For budgets that don't match the free tier's cadence, construct `new QuotaManager({
+windows: [...] })` directly with your own `windowMs`/`maxTokens`/`maxRequests` per window.
+
+---
+
 ### Edge Runtime Compatibility
 
 The core client (`OllamaClient`, `Agent`, `ToolRegistry`, and everything exported from
@@ -426,6 +697,8 @@ class or narrow to a specific `code`:
 | `OllamaAuthError`                  | `auth_error`                    | `false`     | The endpoint returned `401`/`403`.                                                                                                                                                                                                                       |
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | The endpoint returned `404` (e.g. unknown model).                                                                                                                                                                                                        |
 | `OllamaRateLimitError`             | `rate_limited`                  | `true`      | The endpoint returned `429`.                                                                                                                                                                                                                             |
+| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` was called and would exceed a configured usage budget. Thrown client-side, before any network call — see [Quota Monitoring](#quota-monitoring).                                                                        |
+| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured `endpoints` entry's `models` allow-list includes the requested model. Thrown client-side, before any network call — see [Multiple API keys, each entitled to different models](#multiple-api-keys-each-entitled-to-different-models).   |
 | `OllamaServerError`                | `server_error`                  | `true`      | The endpoint returned `5xx`.                                                                                                                                                                                                                             |
 | `OllamaAbortError`                 | `aborted`                       | `false`     | The request was cancelled via `AbortSignal`.                                                                                                                                                                                                             |
 | `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | A tool call's arguments, or a `chatWithSchema`/`generateWithSchema` result, failed Zod validation.                                                                                                                                                       |

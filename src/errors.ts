@@ -95,6 +95,30 @@ export class OllamaRateLimitError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown client-side, before a network request is made, by `QuotaManager.assertCanProceed`
+ * (see `src/quota.ts`) when issuing the request would exceed a configured usage budget for
+ * one of its rolling windows. This is distinct from `OllamaRateLimitError`, which reflects
+ * the server's own 429 response — Ollama Cloud does not expose account-level quota via the
+ * API, so `QuotaManager` tracks usage against budgets the caller configures locally and
+ * fails fast rather than waiting for the server to reject the request.
+ */
+export class OllamaQuotaExceededError extends OllamaClientError {
+  readonly windowId: string;
+  readonly resetAt: number;
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      windowId: string;
+      resetAt: number;
+    },
+  ) {
+    super(message, { ...options, code: 'quota_exceeded', retryable: false });
+    this.windowId = options.windowId;
+    this.resetAt = options.resetAt;
+  }
+}
+
 export class OllamaServerError extends OllamaClientError {
   constructor(
     message: string,
@@ -158,6 +182,30 @@ export class OllamaUnsupportedCapabilityError extends OllamaClientError {
   ) {
     super(message, { ...options, code: 'unsupported_capability', retryable: false });
     this.capability = options.capability;
+  }
+}
+
+/**
+ * Thrown client-side, before any network call, when `config.endpoints` uses
+ * `OllamaEndpoint.models` to scope endpoints/credentials to specific models and the
+ * requested `model` isn't in any configured endpoint's allow-list. This is a routing
+ * misconfiguration, not a connectivity problem — the SDK deliberately does not "probe"
+ * unauthorized endpoints to find one that happens to work (that would burn quota on keys
+ * that were never entitled to the model and produce non-deterministic startup behavior).
+ */
+export class OllamaModelRoutingError extends OllamaClientError {
+  readonly model: string;
+  readonly availableModels: readonly string[];
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      model: string;
+      availableModels: readonly string[];
+    },
+  ) {
+    super(message, { ...options, code: 'model_routing_error', retryable: false });
+    this.model = options.model;
+    this.availableModels = options.availableModels;
   }
 }
 

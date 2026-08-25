@@ -28,6 +28,9 @@ export type RequestRunner = <T>(
     signal?: AbortSignal | undefined;
     timeoutMs?: number | undefined;
     singleEndpoint?: boolean | undefined;
+    model?: string | undefined;
+    /** See `OllamaClient.executeWithFailover`'s `holdUntil` doc. */
+    holdUntil?: ((result: T) => Promise<unknown>) | undefined;
   },
 ) => Promise<T>;
 
@@ -73,7 +76,7 @@ export class ModelsClient {
           });
           return normalizeProgressStream(stream);
         },
-        { ...request, singleEndpoint: true },
+        { ...request, singleEndpoint: true, holdUntil: (stream) => stream.finalResult },
       );
     }
     return this.runner(
@@ -107,7 +110,7 @@ export class ModelsClient {
           });
           return normalizeProgressStream(stream);
         },
-        { ...request, singleEndpoint: true },
+        { ...request, singleEndpoint: true, holdUntil: (stream) => stream.finalResult },
       );
     }
     return this.runner(
@@ -141,7 +144,7 @@ export class ModelsClient {
           });
           return normalizeProgressStream(stream);
         },
-        { ...request, singleEndpoint: true },
+        { ...request, singleEndpoint: true, holdUntil: (stream) => stream.finalResult },
       );
     }
     return this.runner(

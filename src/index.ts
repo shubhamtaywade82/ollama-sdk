@@ -10,7 +10,9 @@ export {
   DEFAULT_TIMEOUT_MS,
   DEFAULT_FAILOVER_CODES,
   OLLAMA_CLOUD_BASE_URL,
+  resolveCredentialEndpoints,
   type OllamaClientConfig,
+  type OllamaCredentialConfig,
 } from './config.js';
 
 // Protocol and message types
@@ -64,6 +66,8 @@ export {
   OllamaAuthError,
   OllamaNotFoundError,
   OllamaRateLimitError,
+  OllamaQuotaExceededError,
+  OllamaModelRoutingError,
   OllamaServerError,
   OllamaAbortError,
   OllamaToolValidationError,
@@ -136,6 +140,16 @@ export {
   type TokenUsage,
   type RawUsageSource,
 } from './usage.js';
+
+// Quota (client-side usage budgeting — see src/quota.ts for why this is necessary)
+export {
+  QuotaManager,
+  createOllamaCloudFreeTierQuota,
+  type QuotaWindowConfig,
+  type QuotaWindowStatus,
+  type QuotaManagerOptions,
+  type OllamaCloudFreeTierQuotaBudgets,
+} from './quota.js';
 
 // Schema and Structured Outputs
 export { zodToJsonSchema, parseStructuredOutput, type SupportedSchema } from './schema/zod.js';

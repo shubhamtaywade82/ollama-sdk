@@ -43,6 +43,63 @@ export function resolveApiKey(configApiKey?: string | undefined): string | undef
   return configApiKey ?? readEnv('OLLAMA_API_KEY');
 }
 
+/** One named credential for the `credentials`/`modelBindings` config shape. */
+export interface OllamaCredentialConfig {
+  readonly apiKey: string;
+  /** Overrides `OllamaClientConfig.baseUrl` for requests made with this credential. */
+  readonly baseUrl?: string | undefined;
+  readonly headers?: Record<string, string> | undefined;
+}
+
+/**
+ * Builds synthetic `OllamaEndpoint`s (named `credential:<id>`) from `config.credentials` +
+ * `config.modelBindings` — an ergonomic, map-based alternative to writing out `endpoints`
+ * with per-entry `models` allow-lists directly. Both shapes feed the same
+ * `EndpointRegistry`/`executeWithFailover` routing engine; this is pure config sugar, not
+ * a separate routing mechanism. Returns `[]` if `config.credentials` is unset.
+ *
+ * A model bound to one credential (`modelBindings: { "minimax-m3": "coder" }`) scopes that
+ * credential to only that model, same as `OllamaEndpoint.models`. A model bound to several
+ * credentials (`modelBindings: { "gpt-oss:120b": ["key1", "key2"] }`) makes ordinary
+ * endpoint failover apply between them. `config.defaultCredential`, if set, is given a
+ * lower priority than explicitly-bound credentials and no `models` restriction, so it acts
+ * as a catch-all for any model without an explicit binding without ever pre-empting one
+ * that has.
+ */
+export function resolveCredentialEndpoints(
+  config: Pick<OllamaClientConfig, 'credentials' | 'modelBindings' | 'defaultCredential' | 'baseUrl'>,
+): readonly OllamaEndpoint[] {
+  if (config.credentials === undefined) return [];
+
+  const modelsByCredential = new Map<string, string[]>();
+  for (const [model, bound] of Object.entries(config.modelBindings ?? {})) {
+    for (const id of typeof bound === 'string' ? [bound] : bound) {
+      if (!(id in config.credentials)) {
+        throw new Error(
+          `modelBindings["${model}"] references unknown credential "${id}" — it isn't ` +
+            `in \`credentials\`. Known credentials: ${Object.keys(config.credentials).join(', ') || '(none)'}.`,
+        );
+      }
+      const list = modelsByCredential.get(id) ?? [];
+      list.push(model);
+      modelsByCredential.set(id, list);
+    }
+  }
+
+  return Object.entries(config.credentials).map(([id, credential]) => {
+    const isDefault = id === config.defaultCredential;
+    const boundModels = isDefault ? undefined : modelsByCredential.get(id);
+    return {
+      name: `credential:${id}`,
+      baseUrl: resolveBaseUrl(credential.baseUrl ?? config.baseUrl),
+      apiKey: credential.apiKey,
+      ...(credential.headers !== undefined ? { headers: credential.headers } : {}),
+      ...(boundModels !== undefined ? { models: boundModels } : {}),
+      priority: isDefault ? -1 : 0,
+    };
+  });
+}
+
 export const DEFAULT_FAILOVER_CODES: readonly string[] = [
   'network_error',
   'timeout',
@@ -70,9 +127,49 @@ export interface OllamaClientConfig {
   readonly apiKey?: string;
   /** Static headers merged into every request. */
   readonly headers?: Record<string, string>;
-  /** Multiple named endpoints for rotation and automatic failover. */
+  /**
+   * Multiple named endpoints for rotation and automatic failover. Each endpoint may
+   * carry its own `apiKey` and, via `models`, be scoped to only the models that
+   * credential is entitled to — see `OllamaEndpoint.models` for routing several
+   * per-model Ollama Cloud API keys through a single client.
+   */
   readonly endpoints?: readonly OllamaEndpoint[];
-  /** Tuning options for endpoint circuit breaker. */
+  /**
+   * Named credentials, keyed by an id you choose — an ergonomic alternative to writing
+   * out `endpoints` by hand for the common "several Ollama Cloud API keys, each entitled
+   * to different models" shape. Combine with `modelBindings` to scope each credential to
+   * the models it's authorized for; a credential with no binding (or set as
+   * `defaultCredential`) is eligible for every model, same as an `OllamaEndpoint` with no
+   * `models`. Merges additively with `endpoints` if both are given.
+   */
+  readonly credentials?: Readonly<Record<string, OllamaCredentialConfig>>;
+  /**
+   * Maps a model name to the `credentials` id (or ids, for several keys authorized for
+   * the same model — ordinary failover applies between them) that may serve it. Has no
+   * effect without `credentials`. Referencing an id not present in `credentials` throws
+   * at construction time.
+   */
+  readonly modelBindings?: Readonly<Record<string, string | readonly string[]>>;
+  /**
+   * The `credentials` id to fall back to for a model with no entry in `modelBindings`.
+   * Unset means such a model has no synthesized-from-`credentials` route — it still
+   * routes normally through any plain `endpoints` entry without a `models` restriction.
+   */
+  readonly defaultCredential?: string | undefined;
+  /**
+   * Tuning options for the endpoint circuit breaker, and candidate selection ordering —
+   * pass `{ strategy: 'round-robin' }` to spread requests across a pool of same-priority
+   * endpoints/credentials (e.g. several unbound `credentials`) instead of always
+   * preferring the first one, or `{ strategy: 'least-connections' }` to route each
+   * request to whichever candidate currently has the fewest requests in flight (e.g.
+   * several free-tier Ollama Cloud accounts, each capped at 1 concurrent request — this
+   * deterministically spreads concurrent `Promise.all`-style calls one-per-account rather
+   * than risking two landing on the same still-busy one), and `maxConcurrentPerEndpoint`
+   * to cap that at an exact number and queue (rather than overrun a saturated candidate)
+   * once every eligible one is at capacity — e.g. `{ strategy: 'least-connections',
+   * maxConcurrentPerEndpoint: 1 }` for accounts that only allow one request at a time.
+   * See `EndpointRegistryOptions`.
+   */
   readonly endpointHealth?: EndpointRegistryOptions;
   /** Error codes that trigger failover to the next candidate endpoint. */
   readonly failoverOn?: readonly string[];
