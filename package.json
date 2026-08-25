@@ -1,6 +1,6 @@
 {
   "name": "@nemesis-oss/ollama-sdk",
-  "version": "1.8.0",
+  "version": "1.3.0",
   "description": "Production-grade TypeScript SDK for Ollama with native fetch, high availability failover, multi-turn tool calling, structured outputs, reasoning stream tokens, OpenAI/Anthropic bridges, MCP, and Web Stream adapters.",
   "keywords": [
     "ollama",

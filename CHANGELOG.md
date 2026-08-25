@@ -5,10 +5,74 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.0] - 2026-08-25
+## [1.3.0] - 2026-08-25
 
 ### Added
 
+- **Client-side quota monitoring (`QuotaManager`).** Ollama Cloud doesn't expose
+  account-level quota through the API — no response header or endpoint reports how much
+  of your plan's session/weekly limit is left (see
+  [ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). `QuotaManager`
+  tracks usage you record (via `recordUsage`, which reads `extractUsage`-normalized token
+  counts off a raw response) against budgets you configure over one or more rolling
+  windows, and refuses to proceed (`canProceed`/`assertCanProceed`) once a window's budget
+  is spent — a local safety net to complement, not replace, catching the server's own
+  `OllamaRateLimitError`. `createOllamaCloudFreeTierQuota` is a convenience factory
+  wiring up the free tier's documented 5-hour session and 7-day weekly window cadence
+  (you still supply the token/request budgets, since Ollama doesn't publish the actual
+  ceilings). New `OllamaQuotaExceededError` (`code: 'quota_exceeded'`) is thrown by
+  `assertCanProceed`. See the [Quota Monitoring](./README.md#quota-monitoring) README
+  section.
+- **Credential-scoped multi-key routing.** `OllamaEndpoint` gains an optional `models`
+  allow-list, for the common case of several Ollama Cloud API keys each entitled to a
+  different model. `EndpointRegistry.candidates(model)` now filters to endpoints whose
+  `models` includes the requested model (endpoints without `models` stay eligible for
+  every model — fully backward compatible), so `chat`/`generate`/`embed`/`embeddings` and
+  model-lifecycle calls (`showModel`, `pullModel`, etc.) automatically resolve the
+  authorized credential for the model requested, and cross-endpoint failover between
+  differently-scoped endpoints never sends a request to a key that isn't entitled to that
+  model. Requesting a model no configured endpoint is scoped to throws the new
+  `OllamaModelRoutingError` (`code: 'model_routing_error'`) immediately, before any
+  network call — the SDK never probes unauthorized keys to see which one happens to
+  work. See the README's
+  ["Multiple API keys, each entitled to different models"](./README.md#multiple-api-keys-each-entitled-to-different-models)
+  and the
+  [multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md).
+- **`credentials` + `modelBindings` config.** An ergonomic, map-based alternative to
+  writing `endpoints` with per-entry `models` allow-lists by hand: `OllamaClientConfig`
+  gains `credentials` (named `{ apiKey, baseUrl?, headers? }` entries, keyed by an id you
+  choose), `modelBindings` (maps a model to the credential id, or ids, authorized to serve
+  it), and `defaultCredential` (a fallback credential for any model with no explicit
+  binding). Both config shapes compile down to the same `EndpointRegistry`/
+  `executeWithFailover` routing above — this is config sugar, not a second routing
+  mechanism — so behavior (including `OllamaModelRoutingError` on an unrouted model) is
+  identical either way. `modelBindings` referencing an unknown credential id throws at
+  construction. New `resolveCredentialEndpoints` export for anyone who wants the
+  translation without going through `OllamaClient`.
+- **Round-robin candidate selection.** `EndpointRegistryOptions` (passed via
+  `OllamaClientConfig.endpointHealth`) gains `strategy: 'priority' | 'round-robin'`
+  (default `'priority'`, unchanged prior behavior). With `'round-robin'`,
+  `EndpointRegistry.candidates()` rotates each same-priority group of healthy candidates
+  by one position per call, so consecutive `chat`/`generate`/`embed`/etc. calls spread
+  across a pool of interchangeable endpoints or unbound `credentials` (e.g. several
+  free-tier Ollama Cloud keys with no `models`/`modelBindings` restriction) instead of
+  always preferring the first one. Candidates at different priorities are unaffected —
+  a higher-priority candidate is still always tried first — and failover to the rest of
+  the (rotated) list still applies if the first pick fails. See the README's
+  ["A free pool of interchangeable keys — and spreading load across it"](./README.md#a-free-pool-of-interchangeable-keys--and-spreading-load-across-it).
+- **Least-connections candidate selection.** `EndpointRegistryOptions.strategy` gains a
+  third value, `'least-connections'`, alongside `'priority'` (default) and
+  `'round-robin'`. Each same-priority tier is ordered by ascending in-flight request
+  count (new `EndpointRegistry.acquire`/`release`, wired into `OllamaClient.executeWithFailover`
+  around each attempt) rather than a fixed rotation, so concurrent `Promise.all`-style
+  fan-out deterministically lands on distinct candidates — the motivating case being
+  several Ollama Cloud free-tier accounts, each capped at 1 concurrent request: `N`
+  concurrent requests against `N` such accounts land one-per-account rather than risking
+  two on the same still-busy one, because the endpoint choice and its `acquire()` happen
+  synchronously with no `await` in between (JS's single-threaded execution rules out the
+  race entirely). `EndpointHealth` gains `activeRequests`, also exposed via
+  `client.endpointStatus()`, for observability regardless of `strategy`. See the README's
+  ["Concurrent requests across single-slot accounts (least-connections)"](./README.md#concurrent-requests-across-single-slot-accounts-least-connections).
 - **`maxConcurrentPerEndpoint` — queueing past capacity.** `EndpointRegistryOptions`
   gains `maxConcurrentPerEndpoint`, capping in-flight requests per endpoint exactly. Once
   every otherwise-eligible candidate is at that cap, a request waits (FIFO, new
@@ -30,95 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `holdUntil` hook, wired to the returned `OllamaStream`'s `finalResult` for `chatStream`/
   `generateStream` (and the streaming `pull`/`push`/`create` progress endpoints), so the
   slot now releases only once the stream is fully drained, errors, or is aborted.
-
-## [1.7.0] - 2026-08-25
-
-### Added
-
-- **Least-connections candidate selection.** `EndpointRegistryOptions.strategy` gains a
-  third value, `'least-connections'`, alongside `'priority'` (default) and
-  `'round-robin'`. Each same-priority tier is ordered by ascending in-flight request
-  count (new `EndpointRegistry.acquire`/`release`, wired into `OllamaClient.executeWithFailover`
-  around each attempt) rather than a fixed rotation, so concurrent `Promise.all`-style
-  fan-out deterministically lands on distinct candidates — the motivating case being
-  several Ollama Cloud free-tier accounts, each capped at 1 concurrent request: `N`
-  concurrent requests against `N` such accounts land one-per-account rather than risking
-  two on the same still-busy one, because the endpoint choice and its `acquire()` happen
-  synchronously with no `await` in between (JS's single-threaded execution rules out the
-  race entirely). `EndpointHealth` gains `activeRequests`, also exposed via
-  `client.endpointStatus()`, for observability regardless of `strategy`. See the README's
-  ["Concurrent requests across single-slot accounts (least-connections)"](./README.md#concurrent-requests-across-single-slot-accounts-least-connections).
-
-## [1.6.0] - 2026-08-25
-
-### Added
-
-- **Round-robin candidate selection.** `EndpointRegistryOptions` (passed via
-  `OllamaClientConfig.endpointHealth`) gains `strategy: 'priority' | 'round-robin'`
-  (default `'priority'`, unchanged prior behavior). With `'round-robin'`,
-  `EndpointRegistry.candidates()` rotates each same-priority group of healthy candidates
-  by one position per call, so consecutive `chat`/`generate`/`embed`/etc. calls spread
-  across a pool of interchangeable endpoints or unbound `credentials` (e.g. several
-  free-tier Ollama Cloud keys with no `models`/`modelBindings` restriction) instead of
-  always preferring the first one. Candidates at different priorities are unaffected —
-  a higher-priority candidate is still always tried first — and failover to the rest of
-  the (rotated) list still applies if the first pick fails. See the README's
-  ["A free pool of interchangeable keys — and spreading load across it"](./README.md#a-free-pool-of-interchangeable-keys--and-spreading-load-across-it).
-
-## [1.5.0] - 2026-08-25
-
-### Added
-
-- **`credentials` + `modelBindings` config.** An ergonomic, map-based alternative to
-  writing `endpoints` with per-entry `models` allow-lists by hand: `OllamaClientConfig`
-  gains `credentials` (named `{ apiKey, baseUrl?, headers? }` entries, keyed by an id you
-  choose), `modelBindings` (maps a model to the credential id, or ids, authorized to serve
-  it), and `defaultCredential` (a fallback credential for any model with no explicit
-  binding). Both config shapes compile down to the same `EndpointRegistry`/
-  `executeWithFailover` routing added in 1.4.0 — this is config sugar, not a second
-  routing mechanism — so behavior (including `OllamaModelRoutingError` on an unrouted
-  model) is identical either way. `modelBindings` referencing an unknown credential id
-  throws at construction. New `resolveCredentialEndpoints` export for anyone who wants the
-  translation without going through `OllamaClient`.
-
-## [1.4.0] - 2026-08-25
-
-### Added
-
-- **Credential-scoped multi-key routing.** `OllamaEndpoint` gains an optional `models`
-  allow-list, for the common case of several Ollama Cloud API keys each entitled to a
-  different model. `EndpointRegistry.candidates(model)` now filters to endpoints whose
-  `models` includes the requested model (endpoints without `models` stay eligible for
-  every model — fully backward compatible), so `chat`/`generate`/`embed`/`embeddings` and
-  model-lifecycle calls (`showModel`, `pullModel`, etc.) automatically resolve the
-  authorized credential for the model requested, and cross-endpoint failover between
-  differently-scoped endpoints never sends a request to a key that isn't entitled to that
-  model. Requesting a model no configured endpoint is scoped to throws the new
-  `OllamaModelRoutingError` (`code: 'model_routing_error'`) immediately, before any
-  network call — the SDK never probes unauthorized keys to see which one happens to
-  work. See the README's
-  ["Multiple API keys, each entitled to different models"](./README.md#multiple-api-keys-each-entitled-to-different-models)
-  and the
-  [multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md).
-
-## [1.3.0] - 2026-08-25
-
-### Added
-
-- **Client-side quota monitoring (`QuotaManager`).** Ollama Cloud doesn't expose
-  account-level quota through the API — no response header or endpoint reports how much
-  of your plan's session/weekly limit is left (see
-  [ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). `QuotaManager`
-  tracks usage you record (via `recordUsage`, which reads `extractUsage`-normalized token
-  counts off a raw response) against budgets you configure over one or more rolling
-  windows, and refuses to proceed (`canProceed`/`assertCanProceed`) once a window's budget
-  is spent — a local safety net to complement, not replace, catching the server's own
-  `OllamaRateLimitError`. `createOllamaCloudFreeTierQuota` is a convenience factory
-  wiring up the free tier's documented 5-hour session and 7-day weekly window cadence
-  (you still supply the token/request budgets, since Ollama doesn't publish the actual
-  ceilings). New `OllamaQuotaExceededError` (`code: 'quota_exceeded'`) is thrown by
-  `assertCanProceed`. See the [Quota Monitoring](./README.md#quota-monitoring) README
-  section.
 
 ## [1.2.0] - 2026-08-24
 
