@@ -10,7 +10,9 @@ export {
   DEFAULT_TIMEOUT_MS,
   DEFAULT_FAILOVER_CODES,
   OLLAMA_CLOUD_BASE_URL,
+  resolveCredentialEndpoints,
   type OllamaClientConfig,
+  type OllamaCredentialConfig,
 } from './config.js';
 
 // Protocol and message types

@@ -406,6 +406,35 @@ between multiple keys/replicas for that one model. See
 [Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
 for the full multi-key/multi-role pattern this was built for.
 
+**`credentials` + `modelBindings`** is an equivalent, map-based way to write the same
+config, if you prefer keying by an id you choose over an array of endpoint objects — both
+compile down to the same `endpoints`/`models` routing underneath, so pick whichever reads
+better in your codebase:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    supervisor: { apiKey: process.env.OLLAMA_KEY_1! },
+    coder: { apiKey: process.env.OLLAMA_KEY_2! },
+    researcher: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  modelBindings: {
+    'gpt-oss:120b': 'supervisor',
+    'minimax-m3': 'coder',
+    'nemotron-3-super': 'researcher',
+    // A model can also be bound to several credentials — failover applies between them:
+    // 'gpt-oss:120b': ['supervisor', 'supervisor-backup'],
+  },
+  // Optional: serves any model with no entry above, at lower priority than an explicit binding.
+  // defaultCredential: 'supervisor',
+});
+```
+
+`modelBindings` referencing a `credentials` id that doesn't exist throws immediately at
+construction — a typo in this config fails loudly, not by silently routing nowhere.
+`credentials`/`modelBindings` merge additively with an `endpoints` array if you pass both.
+
 ---
 
 ### Observability with OpenTelemetry

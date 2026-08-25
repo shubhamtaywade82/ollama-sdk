@@ -10,6 +10,7 @@ import {
   OLLAMA_CLOUD_BASE_URL,
   resolveApiKey,
   resolveBaseUrl,
+  resolveCredentialEndpoints,
   type OllamaClientConfig,
 } from './config.js';
 import { OllamaClientError, OllamaModelRoutingError, OllamaUnsupportedCapabilityError } from './errors.js';
@@ -88,15 +89,20 @@ export class OllamaClient {
   constructor(config: OllamaClientConfig = {}) {
     const resolvedApiKey = resolveApiKey(config.apiKey);
     this.cloudApiKey = resolvedApiKey;
-    const endpoints = config.endpoints ?? [
-      {
-        name: 'default',
-        baseUrl: resolveBaseUrl(config.baseUrl),
-        ...(resolvedApiKey !== undefined ? { apiKey: resolvedApiKey } : {}),
-        ...(config.headers !== undefined ? { headers: config.headers } : {}),
-      },
-    ];
-    this.registry = new EndpointRegistry(endpoints, config.endpointHealth);
+    const credentialEndpoints = resolveCredentialEndpoints(config);
+    const endpoints =
+      config.endpoints ??
+      (credentialEndpoints.length > 0
+        ? []
+        : [
+            {
+              name: 'default',
+              baseUrl: resolveBaseUrl(config.baseUrl),
+              ...(resolvedApiKey !== undefined ? { apiKey: resolvedApiKey } : {}),
+              ...(config.headers !== undefined ? { headers: config.headers } : {}),
+            },
+          ]);
+    this.registry = new EndpointRegistry([...endpoints, ...credentialEndpoints], config.endpointHealth);
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.failoverCodes = new Set(config.failoverOn ?? DEFAULT_FAILOVER_CODES);
     this.fetchImpl = config.fetch ?? globalThis.fetch;

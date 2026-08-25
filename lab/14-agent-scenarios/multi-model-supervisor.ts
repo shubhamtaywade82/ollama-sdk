@@ -4,10 +4,10 @@ import { getLabEnv } from '../support/env.js';
 import { labLogger } from '../support/logger.js';
 
 /**
- * Demonstrates credential-scoped multi-key routing: one `OllamaClient` with three
- * `endpoints`, each scoped via `models` to the one model its API key is entitled to. The
- * client resolves the right key from the `model` you pass to `Agent.run` — `Agent` and
- * `ToolRegistry` stay unaware of credentials entirely. See
+ * Demonstrates credential-scoped multi-key routing: one `OllamaClient` with three named
+ * `credentials`, each bound via `modelBindings` to the one model its API key is entitled
+ * to. The client resolves the right key from the `model` you pass to `Agent.run` —
+ * `Agent` and `ToolRegistry` stay unaware of credentials entirely. See
  * docs/guides/multi-model-agent-benchmarking.md for the reasoning behind this specific
  * 3-key/3-role split. Model tags default to that guide's picks — confirm against your own
  * account's unlocked models and https://ollama.com/library before relying on them.
@@ -32,26 +32,16 @@ function buildClient(cloudBaseUrl: string): { client: OllamaClient; roles: Recor
 
   const client = new OllamaClient({
     baseUrl: cloudBaseUrl,
-    endpoints: [
-      {
-        name: 'supervisor-key',
-        baseUrl: cloudBaseUrl,
-        apiKey: readEnv('OLLAMA_SUPERVISOR_API_KEY', ''),
-        models: [roles.supervisor],
-      },
-      {
-        name: 'coder-key',
-        baseUrl: cloudBaseUrl,
-        apiKey: readEnv('OLLAMA_CODER_API_KEY', ''),
-        models: [roles.coder],
-      },
-      {
-        name: 'researcher-key',
-        baseUrl: cloudBaseUrl,
-        apiKey: readEnv('OLLAMA_RESEARCHER_API_KEY', ''),
-        models: [roles.researcher],
-      },
-    ],
+    credentials: {
+      supervisor: { apiKey: readEnv('OLLAMA_SUPERVISOR_API_KEY', '') },
+      coder: { apiKey: readEnv('OLLAMA_CODER_API_KEY', '') },
+      researcher: { apiKey: readEnv('OLLAMA_RESEARCHER_API_KEY', '') },
+    },
+    modelBindings: {
+      [roles.supervisor]: 'supervisor',
+      [roles.coder]: 'coder',
+      [roles.researcher]: 'researcher',
+    },
   });
 
   return { client, roles };

@@ -83,10 +83,10 @@ benchmark; library entries and naming change over time.
 
 ## One client, credential-scoped routing — don't hard-code roles into it
 
-Each of your three keys is entitled to a different model, so this is exactly what
-`OllamaEndpoint.models` (see the main README's
-["Multiple API keys, each entitled to different models"](../../README.md#multiple-api-keys-each-entitled-to-different-models))
-is for: **one** `OllamaClient`, three scoped endpoints, and the client resolves
+Each of your three keys is entitled to a different model, so this is exactly what the
+SDK's `credentials`/`modelBindings` config is for (see the main README's
+["Multiple API keys, each entitled to different models"](../../README.md#multiple-api-keys-each-entitled-to-different-models)):
+**one** `OllamaClient`, three named credentials, and the client resolves
 `KEY_1`/`KEY_2`/`KEY_3` from whichever `model` you pass to `chat`/`generate`/`Agent.run`.
 Neither `Agent` nor `ToolRegistry` gain any concept of "supervisor" or "coder" — that
 stays a plain naming convention your own code applies on top of model tags:
@@ -96,11 +96,16 @@ import { Agent, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
 
 const client = new OllamaClient({
   baseUrl: 'https://ollama.com',
-  endpoints: [
-    { name: 'supervisor-key', apiKey: process.env.SUPERVISOR_KEY!, baseUrl: 'https://ollama.com', models: ['gpt-oss:120b'] },
-    { name: 'coder-key', apiKey: process.env.CODER_KEY!, baseUrl: 'https://ollama.com', models: ['minimax-m3'] },
-    { name: 'researcher-key', apiKey: process.env.RESEARCHER_KEY!, baseUrl: 'https://ollama.com', models: ['nemotron-3-super'] },
-  ],
+  credentials: {
+    supervisor: { apiKey: process.env.SUPERVISOR_KEY! },
+    coder: { apiKey: process.env.CODER_KEY! },
+    researcher: { apiKey: process.env.RESEARCHER_KEY! },
+  },
+  modelBindings: {
+    'gpt-oss:120b': 'supervisor',
+    'minimax-m3': 'coder',
+    'nemotron-3-super': 'researcher',
+  },
 });
 
 const roles = {

@@ -5,6 +5,22 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-25
+
+### Added
+
+- **`credentials` + `modelBindings` config.** An ergonomic, map-based alternative to
+  writing `endpoints` with per-entry `models` allow-lists by hand: `OllamaClientConfig`
+  gains `credentials` (named `{ apiKey, baseUrl?, headers? }` entries, keyed by an id you
+  choose), `modelBindings` (maps a model to the credential id, or ids, authorized to serve
+  it), and `defaultCredential` (a fallback credential for any model with no explicit
+  binding). Both config shapes compile down to the same `EndpointRegistry`/
+  `executeWithFailover` routing added in 1.4.0 — this is config sugar, not a second
+  routing mechanism — so behavior (including `OllamaModelRoutingError` on an unrouted
+  model) is identical either way. `modelBindings` referencing an unknown credential id
+  throws at construction. New `resolveCredentialEndpoints` export for anyone who wants the
+  translation without going through `OllamaClient`.
+
 ## [1.4.0] - 2026-08-25
 
 ### Added
