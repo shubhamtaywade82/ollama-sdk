@@ -65,6 +65,7 @@ export {
   OllamaNotFoundError,
   OllamaRateLimitError,
   OllamaQuotaExceededError,
+  OllamaModelRoutingError,
   OllamaServerError,
   OllamaAbortError,
   OllamaToolValidationError,

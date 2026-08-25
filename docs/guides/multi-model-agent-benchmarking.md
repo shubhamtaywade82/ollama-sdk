@@ -81,45 +81,55 @@ Model tags above are illustrative — always confirm the exact tag your account 
 against the [Ollama model library](https://ollama.com/library) before wiring it into a
 benchmark; library entries and naming change over time.
 
-## Keep the SDK model-agnostic — don't hard-code roles into it
+## One client, credential-scoped routing — don't hard-code roles into it
 
-`OllamaClient`/`Agent`/`ToolRegistry` have no concept of "supervisor" or "coder" — and
-should not gain one. Role → `{client, model}` assignment is a decision the *caller*
-makes, using multiple `OllamaClient` instances (one per key/role):
+Each of your three keys is entitled to a different model, so this is exactly what
+`OllamaEndpoint.models` (see the main README's
+["Multiple API keys, each entitled to different models"](../../README.md#multiple-api-keys-each-entitled-to-different-models))
+is for: **one** `OllamaClient`, three scoped endpoints, and the client resolves
+`KEY_1`/`KEY_2`/`KEY_3` from whichever `model` you pass to `chat`/`generate`/`Agent.run`.
+Neither `Agent` nor `ToolRegistry` gain any concept of "supervisor" or "coder" — that
+stays a plain naming convention your own code applies on top of model tags:
 
 ```typescript
-import { OllamaClient } from '@nemesis-oss/ollama-sdk';
+import { Agent, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
 
-const providers = {
-  supervisor: {
-    client: new OllamaClient({ apiKey: process.env.SUPERVISOR_KEY }),
-    model: 'gpt-oss:120b',
-  },
-  coder: {
-    client: new OllamaClient({ apiKey: process.env.CODER_KEY }),
-    model: 'minimax-m3',
-  },
-  researcher: {
-    client: new OllamaClient({ apiKey: process.env.RESEARCHER_KEY }),
-    model: 'nemotron-3-super',
-  },
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  endpoints: [
+    { name: 'supervisor-key', apiKey: process.env.SUPERVISOR_KEY!, baseUrl: 'https://ollama.com', models: ['gpt-oss:120b'] },
+    { name: 'coder-key', apiKey: process.env.CODER_KEY!, baseUrl: 'https://ollama.com', models: ['minimax-m3'] },
+    { name: 'researcher-key', apiKey: process.env.RESEARCHER_KEY!, baseUrl: 'https://ollama.com', models: ['nemotron-3-super'] },
+  ],
+});
+
+const roles = {
+  supervisor: 'gpt-oss:120b',
+  coder: 'minimax-m3',
+  researcher: 'nemotron-3-super',
 } as const;
 
-// Your own orchestration layer decides routing — the SDK just runs whichever
-// {client, model} you hand it through Agent.run/chat/generate.
-function routeTask(task: string): keyof typeof providers {
+// Your own orchestration layer decides routing — the client resolves the right
+// credential from whichever model name you hand it.
+function routeTask(task: string): keyof typeof roles {
   if (/implement|refactor|fix|test/i.test(task)) return 'coder';
   if (/research|investigate|compare|summarize/i.test(task)) return 'researcher';
   return 'supervisor';
 }
+
+const agent = new Agent(client, { tools: new ToolRegistry([]) });
+const role = routeTask('Implement a retry wrapper and add a unit test for it.');
+await agent.run({ model: roles[role], messages: [{ role: 'user', content: '...' }] });
 ```
 
-A full runnable version of this pattern — three `OllamaClient`s, a heuristic router, and
-`Agent`/`ToolRegistry` wired per role — lives at
+A full runnable version of this pattern — one `OllamaClient` with all three keys
+registered, a heuristic router, and `Agent`/`ToolRegistry` wired per role — lives at
 [`lab/14-agent-scenarios/multi-model-supervisor.ts`](../../lab/14-agent-scenarios/multi-model-supervisor.ts).
 Run it with `npx tsx lab/14-agent-scenarios/multi-model-supervisor.ts` after setting
 `OLLAMA_SUPERVISOR_API_KEY`/`OLLAMA_CODER_API_KEY`/`OLLAMA_RESEARCHER_API_KEY` (and the
 matching `*_MODEL` overrides, if your account's tags differ from the defaults above).
+Requesting a model none of the configured keys are scoped to throws
+`OllamaModelRoutingError` immediately, rather than silently trying every key.
 
 ## Benchmark scorecard
 

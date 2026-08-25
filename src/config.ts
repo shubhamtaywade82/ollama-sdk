@@ -70,7 +70,12 @@ export interface OllamaClientConfig {
   readonly apiKey?: string;
   /** Static headers merged into every request. */
   readonly headers?: Record<string, string>;
-  /** Multiple named endpoints for rotation and automatic failover. */
+  /**
+   * Multiple named endpoints for rotation and automatic failover. Each endpoint may
+   * carry its own `apiKey` and, via `models`, be scoped to only the models that
+   * credential is entitled to — see `OllamaEndpoint.models` for routing several
+   * per-model Ollama Cloud API keys through a single client.
+   */
   readonly endpoints?: readonly OllamaEndpoint[];
   /** Tuning options for endpoint circuit breaker. */
   readonly endpointHealth?: EndpointRegistryOptions;

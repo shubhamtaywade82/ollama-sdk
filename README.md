@@ -15,7 +15,7 @@
 - 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` accepts base64 strings or raw `Uint8Array` bytes (auto-encoded) for vision models like `llava` or `qwen2.5vl`.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
-- 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, and active health checks.
+- 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, active health checks, and per-endpoint `models` allow-lists for routing several model-specific API keys through one client.
 - 🔌 **Model Context Protocol (MCP)**: Native adapters to convert MCP tools into Ollama-compatible function schemas.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
@@ -239,9 +239,11 @@ appends to history carries the same value as `tool_call_id`. See
 [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
 
 Running several `Agent`s against different models/API keys for different roles (e.g. a
-planning model, a coding model, a research model) is a plain application-level pattern —
-construct one `OllamaClient` per credential and route by task, rather than the SDK
-picking a model or key for you. See
+planning model, a coding model, a research model) is a single `OllamaClient` with
+per-endpoint `models` allow-lists (see
+["Multiple API keys, each entitled to different models"](#multiple-api-keys-each-entitled-to-different-models)) —
+the client resolves the right key from the model name, and `Agent` itself stays
+unaware of credentials entirely. See
 [Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
 for a worked example and a runnable scenario.
 
@@ -371,6 +373,39 @@ etc.) and `capabilities()` target one specific endpoint's local state and delibe
 server doesn't retry the same operation, it silently acts on a different model catalog.
 See [ADR 0008](./docs/adr/0008-endpoint-failover-scope.md).
 
+#### Multiple API keys, each entitled to different models
+
+A common Ollama Cloud shape: several API keys, each unlocking a different set of models
+under your plan (e.g. one free-tier key per model family). Give each endpoint a `models`
+allow-list and the client resolves the right credential from the `model` you request —
+cross-endpoint failover only ever considers endpoints actually authorized for that model,
+so it never burns a request retrying an unrelated key:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  endpoints: [
+    { name: 'gpt-oss-key', apiKey: process.env.OLLAMA_KEY_1!, baseUrl: 'https://ollama.com', models: ['gpt-oss:120b'] },
+    { name: 'minimax-key', apiKey: process.env.OLLAMA_KEY_2!, baseUrl: 'https://ollama.com', models: ['minimax-m3'] },
+    { name: 'nemotron-key', apiKey: process.env.OLLAMA_KEY_3!, baseUrl: 'https://ollama.com', models: ['nemotron-3-super'] },
+  ],
+});
+
+// Routed to KEY_1 automatically:
+await client.chat({ model: 'gpt-oss:120b', messages });
+// Routed to KEY_2 automatically:
+await client.chat({ model: 'minimax-m3', messages });
+```
+
+An endpoint with no `models` field stays eligible for every model (the pre-existing
+behavior), so this is fully opt-in and mixes freely with unscoped endpoints. Requesting a
+model no configured endpoint is scoped to throws `OllamaModelRoutingError` immediately —
+no network call, no probing every key to see which one happens to work. Two or more
+endpoints can share the same model in their `models` list to get ordinary failover
+between multiple keys/replicas for that one model. See
+[Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
+for the full multi-key/multi-role pattern this was built for.
+
 ---
 
 ### Observability with OpenTelemetry
@@ -493,6 +528,7 @@ class or narrow to a specific `code`:
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | The endpoint returned `404` (e.g. unknown model).                                                                                                                                                                                                        |
 | `OllamaRateLimitError`             | `rate_limited`                  | `true`      | The endpoint returned `429`.                                                                                                                                                                                                                             |
 | `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` was called and would exceed a configured usage budget. Thrown client-side, before any network call — see [Quota Monitoring](#quota-monitoring).                                                                        |
+| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured `endpoints` entry's `models` allow-list includes the requested model. Thrown client-side, before any network call — see [Multiple API keys, each entitled to different models](#multiple-api-keys-each-entitled-to-different-models).   |
 | `OllamaServerError`                | `server_error`                  | `true`      | The endpoint returned `5xx`.                                                                                                                                                                                                                             |
 | `OllamaAbortError`                 | `aborted`                       | `false`     | The request was cancelled via `AbortSignal`.                                                                                                                                                                                                             |
 | `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | A tool call's arguments, or a `chatWithSchema`/`generateWithSchema` result, failed Zod validation.                                                                                                                                                       |

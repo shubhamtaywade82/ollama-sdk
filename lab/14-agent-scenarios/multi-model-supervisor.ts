@@ -4,19 +4,16 @@ import { getLabEnv } from '../support/env.js';
 import { labLogger } from '../support/logger.js';
 
 /**
- * Demonstrates keeping the SDK model-agnostic: role -> {client, model} is decided by the
- * caller, not baked into OllamaClient/Agent. See
+ * Demonstrates credential-scoped multi-key routing: one `OllamaClient` with three
+ * `endpoints`, each scoped via `models` to the one model its API key is entitled to. The
+ * client resolves the right key from the `model` you pass to `Agent.run` — `Agent` and
+ * `ToolRegistry` stay unaware of credentials entirely. See
  * docs/guides/multi-model-agent-benchmarking.md for the reasoning behind this specific
  * 3-key/3-role split. Model tags default to that guide's picks — confirm against your own
  * account's unlocked models and https://ollama.com/library before relying on them.
  */
 
 type Role = 'supervisor' | 'coder' | 'researcher';
-
-interface RoleProvider {
-  readonly client: OllamaClient;
-  readonly model: string;
-}
 
 function readEnv(name: string, fallback: string): string {
   return (
@@ -26,30 +23,38 @@ function readEnv(name: string, fallback: string): string {
   );
 }
 
-function buildProviders(cloudBaseUrl: string): Record<Role, RoleProvider> {
-  return {
-    supervisor: {
-      client: new OllamaClient({
+function buildClient(cloudBaseUrl: string): { client: OllamaClient; roles: Record<Role, string> } {
+  const roles: Record<Role, string> = {
+    supervisor: readEnv('OLLAMA_SUPERVISOR_MODEL', 'gpt-oss:120b'),
+    coder: readEnv('OLLAMA_CODER_MODEL', 'minimax-m3'),
+    researcher: readEnv('OLLAMA_RESEARCHER_MODEL', 'nemotron-3-super'),
+  };
+
+  const client = new OllamaClient({
+    baseUrl: cloudBaseUrl,
+    endpoints: [
+      {
+        name: 'supervisor-key',
         baseUrl: cloudBaseUrl,
         apiKey: readEnv('OLLAMA_SUPERVISOR_API_KEY', ''),
-      }),
-      model: readEnv('OLLAMA_SUPERVISOR_MODEL', 'gpt-oss:120b'),
-    },
-    coder: {
-      client: new OllamaClient({
+        models: [roles.supervisor],
+      },
+      {
+        name: 'coder-key',
         baseUrl: cloudBaseUrl,
         apiKey: readEnv('OLLAMA_CODER_API_KEY', ''),
-      }),
-      model: readEnv('OLLAMA_CODER_MODEL', 'minimax-m3'),
-    },
-    researcher: {
-      client: new OllamaClient({
+        models: [roles.coder],
+      },
+      {
+        name: 'researcher-key',
         baseUrl: cloudBaseUrl,
         apiKey: readEnv('OLLAMA_RESEARCHER_API_KEY', ''),
-      }),
-      model: readEnv('OLLAMA_RESEARCHER_MODEL', 'nemotron-3-super'),
-    },
-  };
+        models: [roles.researcher],
+      },
+    ],
+  });
+
+  return { client, roles };
 }
 
 /**
@@ -71,11 +76,11 @@ const recordFindingTool = defineTool({
 });
 
 async function runRole(
+  client: OllamaClient,
+  model: string,
   role: Role,
-  providers: Record<Role, RoleProvider>,
   prompt: string,
 ): Promise<{ role: Role; model: string; durationMs: number; totalIterations: number; finalAnswer: string }> {
-  const { client, model } = providers[role];
   const registry = new ToolRegistry([recordFindingTool]);
   const agent = new Agent(client, { tools: registry, maxIterations: 4 });
   const start = Date.now();
@@ -91,7 +96,7 @@ async function runRole(
 
 async function main(): Promise<void> {
   const env = getLabEnv();
-  const providers = buildProviders(env.cloudBaseUrl);
+  const { client, roles } = buildClient(env.cloudBaseUrl);
 
   const tasks = [
     'Plan the rollout of a new caching layer and decide which service owns invalidation.',
@@ -101,15 +106,16 @@ async function main(): Promise<void> {
 
   for (const prompt of tasks) {
     const role = classify(prompt);
+    const model = roles[role];
     const start = Date.now();
     try {
-      const result = await runRole(role, providers, prompt);
+      const result = await runRole(client, model, role, prompt);
       await labLogger.log({
         experimentId: '14-scenarios-multi-model-supervisor',
         timestamp: new Date().toISOString(),
         provider: role,
         endpoint: env.cloudBaseUrl,
-        model: result.model,
+        model,
         operation: 'agent-scenario-multi-model-route',
         durationMs: result.durationMs,
         prompt,
@@ -125,7 +131,7 @@ async function main(): Promise<void> {
         timestamp: new Date().toISOString(),
         provider: role,
         endpoint: env.cloudBaseUrl,
-        model: providers[role].model,
+        model,
         operation: 'agent-scenario-multi-model-route',
         durationMs: Date.now() - start,
         prompt,

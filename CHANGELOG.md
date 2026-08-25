@@ -5,6 +5,26 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-25
+
+### Added
+
+- **Credential-scoped multi-key routing.** `OllamaEndpoint` gains an optional `models`
+  allow-list, for the common case of several Ollama Cloud API keys each entitled to a
+  different model. `EndpointRegistry.candidates(model)` now filters to endpoints whose
+  `models` includes the requested model (endpoints without `models` stay eligible for
+  every model — fully backward compatible), so `chat`/`generate`/`embed`/`embeddings` and
+  model-lifecycle calls (`showModel`, `pullModel`, etc.) automatically resolve the
+  authorized credential for the model requested, and cross-endpoint failover between
+  differently-scoped endpoints never sends a request to a key that isn't entitled to that
+  model. Requesting a model no configured endpoint is scoped to throws the new
+  `OllamaModelRoutingError` (`code: 'model_routing_error'`) immediately, before any
+  network call — the SDK never probes unauthorized keys to see which one happens to
+  work. See the README's
+  ["Multiple API keys, each entitled to different models"](./README.md#multiple-api-keys-each-entitled-to-different-models)
+  and the
+  [multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md).
+
 ## [1.3.0] - 2026-08-25
 
 ### Added

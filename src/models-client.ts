@@ -28,6 +28,7 @@ export type RequestRunner = <T>(
     signal?: AbortSignal | undefined;
     timeoutMs?: number | undefined;
     singleEndpoint?: boolean | undefined;
+    model?: string | undefined;
   },
 ) => Promise<T>;
 

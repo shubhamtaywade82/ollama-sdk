@@ -185,6 +185,30 @@ export class OllamaUnsupportedCapabilityError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown client-side, before any network call, when `config.endpoints` uses
+ * `OllamaEndpoint.models` to scope endpoints/credentials to specific models and the
+ * requested `model` isn't in any configured endpoint's allow-list. This is a routing
+ * misconfiguration, not a connectivity problem — the SDK deliberately does not "probe"
+ * unauthorized endpoints to find one that happens to work (that would burn quota on keys
+ * that were never entitled to the model and produce non-deterministic startup behavior).
+ */
+export class OllamaModelRoutingError extends OllamaClientError {
+  readonly model: string;
+  readonly availableModels: readonly string[];
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      model: string;
+      availableModels: readonly string[];
+    },
+  ) {
+    super(message, { ...options, code: 'model_routing_error', retryable: false });
+    this.model = options.model;
+    this.availableModels = options.availableModels;
+  }
+}
+
 export class OllamaAgentMaxIterationsError extends OllamaClientError {
   readonly maxIterations: number;
   constructor(

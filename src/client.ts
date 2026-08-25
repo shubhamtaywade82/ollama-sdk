@@ -12,7 +12,7 @@ import {
   resolveBaseUrl,
   type OllamaClientConfig,
 } from './config.js';
-import { OllamaClientError, OllamaUnsupportedCapabilityError } from './errors.js';
+import { OllamaClientError, OllamaModelRoutingError, OllamaUnsupportedCapabilityError } from './errors.js';
 import { createConsoleLogger, NOOP_LOGGER, type Logger } from './logger.js';
 import { EndpointRegistry, type EndpointHealth } from './providers/endpoint-registry.js';
 import { checkEndpointHealth, type EndpointHealthCheckResult } from './providers/health-check.js';
@@ -144,11 +144,32 @@ export class OllamaClient {
        * ADR 0008. Defaults to `false`, preserving normal failover for inference calls.
        */
       singleEndpoint?: boolean | undefined;
+      /**
+       * The model this request targets, used to filter candidates by
+       * `OllamaEndpoint.models` (credential-scoped routing — see that field's docs).
+       * Requests without a `model` (e.g. `listModels`) consider every configured
+       * endpoint, same as before this option existed.
+       */
+      model?: string | undefined;
     },
   ): Promise<T> {
     const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
     try {
-      const allCandidates = this.registry.candidates();
+      const allCandidates = this.registry.candidates(options?.model);
+      if (allCandidates.length === 0 && options?.model !== undefined && this.registry.hasModelScopedEndpoints()) {
+        const configured = this.registry
+          .list()
+          .flatMap((ep) => ep.models ?? [])
+          .filter((m, i, arr) => arr.indexOf(m) === i);
+        throw new OllamaModelRoutingError(
+          `No configured endpoint is authorized for model "${options.model}". ` +
+            (configured.length > 0
+              ? `Endpoints are scoped to: ${configured.join(', ')}.`
+              : 'No endpoint declares a `models` allow-list that includes it.') +
+            ' Add or widen an `OllamaEndpoint.models` entry to route this model.',
+          { model: options.model, availableModels: configured },
+        );
+      }
       const candidates = options?.singleEndpoint ? allCandidates.slice(0, 1) : allCandidates;
       let lastError: Error | undefined;
 
@@ -443,6 +464,7 @@ export class OllamaClient {
   capabilities(model: string): Promise<ModelCapabilities> {
     return this.executeWithFailover((http) => detectModelCapabilities(http, model), {
       singleEndpoint: true,
+      model,
     });
   }
   runtimeMode(): RuntimeMode {
