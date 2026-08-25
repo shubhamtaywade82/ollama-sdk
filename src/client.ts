@@ -188,6 +188,10 @@ export class OllamaClient {
           fetch: this.fetchImpl,
         });
 
+        // Acquired synchronously, right after this endpoint was chosen from `candidates()`
+        // with no `await` in between — see `EndpointRegistryOptions.strategy`'s
+        // `'least-connections'` doc for why that ordering is what makes it race-free.
+        this.registry.acquire(endpoint.name);
         try {
           const result = await withSpan(
             'ollama.endpoint.attempt',
@@ -206,6 +210,8 @@ export class OllamaClient {
           this.logger.warn(`Failed on "${endpoint.name}": ${error.message}`);
           if (!(error instanceof OllamaClientError && this.failoverCodes.has(error.code)))
             throw error;
+        } finally {
+          this.registry.release(endpoint.name);
         }
       }
       throw lastError ?? new Error('No healthy Ollama endpoints available');

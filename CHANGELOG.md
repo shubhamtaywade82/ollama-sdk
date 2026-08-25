@@ -5,6 +5,24 @@ All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-25
+
+### Added
+
+- **Least-connections candidate selection.** `EndpointRegistryOptions.strategy` gains a
+  third value, `'least-connections'`, alongside `'priority'` (default) and
+  `'round-robin'`. Each same-priority tier is ordered by ascending in-flight request
+  count (new `EndpointRegistry.acquire`/`release`, wired into `OllamaClient.executeWithFailover`
+  around each attempt) rather than a fixed rotation, so concurrent `Promise.all`-style
+  fan-out deterministically lands on distinct candidates — the motivating case being
+  several Ollama Cloud free-tier accounts, each capped at 1 concurrent request: `N`
+  concurrent requests against `N` such accounts land one-per-account rather than risking
+  two on the same still-busy one, because the endpoint choice and its `acquire()` happen
+  synchronously with no `await` in between (JS's single-threaded execution rules out the
+  race entirely). `EndpointHealth` gains `activeRequests`, also exposed via
+  `client.endpointStatus()`, for observability regardless of `strategy`. See the README's
+  ["Concurrent requests across single-slot accounts (least-connections)"](./README.md#concurrent-requests-across-single-slot-accounts-least-connections).
+
 ## [1.6.0] - 2026-08-25
 
 ### Added

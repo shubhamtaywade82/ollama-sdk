@@ -479,6 +479,51 @@ that were already tied. This works identically with plain `endpoints` (no `crede
 required) and composes with `models`/`modelBindings` scoping — a scoped credential's tier
 of one is unaffected, only an actual multi-candidate tier rotates.
 
+#### Concurrent requests across single-slot accounts (least-connections)
+
+Round-robin spreads requests over time, but it doesn't track whether a previous request
+on a given account is still running — with uneven request durations, two round-robin
+picks can still land on the same still-busy account back to back. That matters
+specifically for Ollama Cloud's free tier, which caps each account at **1 concurrent
+request**: if your application fires several requests at once (e.g. `Promise.all` across
+different models) using $N$ free-tier accounts, you want a guarantee that no two land on
+the same account while it's still busy — not just "spread out on average".
+
+`strategy: 'least-connections'` provides that guarantee. Each request is routed to
+whichever candidate currently has the fewest requests still in flight:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  credentials: {
+    account1: { apiKey: process.env.OLLAMA_KEY_1! },
+    account2: { apiKey: process.env.OLLAMA_KEY_2! },
+    account3: { apiKey: process.env.OLLAMA_KEY_3! },
+  },
+  endpointHealth: { strategy: 'least-connections' },
+});
+
+// Each of these lands on a different account — none has to wait on another's
+// in-flight request, and no single free-tier account gets hit with a 2nd concurrent
+// request while its 1st is still running.
+const [llama, qwen, mistral] = await Promise.all([
+  client.chat({ model: 'llama3', messages: llamaMessages }),
+  client.chat({ model: 'qwen2.5', messages: qwenMessages }),
+  client.chat({ model: 'mistral', messages: mistralMessages }),
+]);
+```
+
+This is deterministic, not probabilistic: the endpoint chosen for one request and the
+`acquire()` that marks it in-flight happen synchronously with no `await` in between, and
+JS's single-threaded execution means no two concurrent calls can ever observe the same
+"0 active" snapshot for the same candidate — so `N` concurrent calls against `N`
+same-priority candidates always land on `N` distinct ones, regardless of how the calls
+happen to interleave. In-flight counts are also exposed via `client.endpointStatus()[].activeRequests`
+for observability, and release automatically on both success and failure (including when
+an account's actual 429 forces failover to the next-least-busy candidate). Priority tiers
+are respected the same way as `'round-robin'` — a higher-priority candidate is still
+always tried first regardless of its active count.
+
 ---
 
 ### Observability with OpenTelemetry

@@ -160,7 +160,11 @@ export interface OllamaClientConfig {
    * Tuning options for the endpoint circuit breaker, and candidate selection ordering —
    * pass `{ strategy: 'round-robin' }` to spread requests across a pool of same-priority
    * endpoints/credentials (e.g. several unbound `credentials`) instead of always
-   * preferring the first one. See `EndpointRegistryOptions`.
+   * preferring the first one, or `{ strategy: 'least-connections' }` to route each
+   * request to whichever candidate currently has the fewest requests in flight (e.g.
+   * several free-tier Ollama Cloud accounts, each capped at 1 concurrent request — this
+   * deterministically spreads concurrent `Promise.all`-style calls one-per-account rather
+   * than risking two landing on the same still-busy one). See `EndpointRegistryOptions`.
    */
   readonly endpointHealth?: EndpointRegistryOptions;
   /** Error codes that trigger failover to the next candidate endpoint. */

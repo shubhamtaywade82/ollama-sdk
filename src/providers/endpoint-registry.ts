@@ -24,6 +24,8 @@ export interface EndpointHealth {
   readonly failureCount: number;
   readonly lastFailureTimestamp?: number | undefined;
   readonly isCoolingDown: boolean;
+  /** In-flight requests currently attempting this endpoint — see `acquire`/`release`. */
+  readonly activeRequests: number;
 }
 
 export interface EndpointRegistryOptions {
@@ -41,8 +43,20 @@ export interface EndpointRegistryOptions {
    * at different priorities are unaffected either way — a higher-priority one is still
    * always tried first, and failover to the rest of the group still applies if the
    * rotated-to-front candidate fails.
+   *
+   * `'least-connections'` instead orders each same-priority group by ascending in-flight
+   * request count (tracked via `acquire`/`release`, ties broken by registration order),
+   * so a request always prefers whichever candidate currently has the fewest requests
+   * still in progress. Unlike `'round-robin'`, this remains correct under uneven or
+   * overlapping request durations — e.g. several Ollama Cloud accounts each limited to 1
+   * concurrent request: firing several requests at once (`Promise.all`) deterministically
+   * lands each on a different account rather than risking two landing on the same
+   * still-busy one, because `candidates()` and the subsequent `acquire()` for the chosen
+   * candidate run synchronously with no `await` in between — JS's single-threaded
+   * execution means no two concurrent calls can observe the same "0 active" snapshot for
+   * the same candidate.
    */
-  readonly strategy?: 'priority' | 'round-robin' | undefined;
+  readonly strategy?: 'priority' | 'round-robin' | 'least-connections' | undefined;
 }
 
 export class EndpointRegistry {
@@ -52,8 +66,9 @@ export class EndpointRegistry {
   private readonly failureThreshold: number;
   private readonly cooldownMs: number;
   private readonly now: () => number;
-  private readonly strategy: 'priority' | 'round-robin';
+  private readonly strategy: 'priority' | 'round-robin' | 'least-connections';
   private roundRobinCounter = 0;
+  private readonly activeCounts = new Map<string, number>();
 
   constructor(endpoints: readonly OllamaEndpoint[], options: EndpointRegistryOptions = {}) {
     this.endpoints =
@@ -62,6 +77,27 @@ export class EndpointRegistry {
     this.cooldownMs = options.cooldownMs ?? 30_000;
     this.now = options.now ?? Date.now;
     this.strategy = options.strategy ?? 'priority';
+  }
+
+  /**
+   * Marks one more request as in-flight against `name`. Callers (`OllamaClient`) must
+   * pair every `acquire` with a `release` once that attempt finishes, success or not —
+   * see `OllamaClient.executeWithFailover`. Only affects candidate ordering when
+   * `strategy` is `'least-connections'`; harmless (just bookkeeping) otherwise, and
+   * always reflected in `status()`'s `activeRequests`.
+   */
+  acquire(name: string): void {
+    this.activeCounts.set(name, (this.activeCounts.get(name) ?? 0) + 1);
+  }
+
+  /** Releases one in-flight request marked via `acquire`. */
+  release(name: string): void {
+    const next = (this.activeCounts.get(name) ?? 0) - 1;
+    if (next <= 0) {
+      this.activeCounts.delete(name);
+    } else {
+      this.activeCounts.set(name, next);
+    }
   }
 
   /**
@@ -80,6 +116,28 @@ export class EndpointRegistry {
       const tier = sorted.slice(i, j);
       const rotation = offset % tier.length;
       result.push(...tier.slice(rotation), ...tier.slice(0, rotation));
+      i = j;
+    }
+    return result;
+  }
+
+  /**
+   * Reorders each same-`priority` group in `sorted` by ascending in-flight request count
+   * (from `acquire`/`release`); a stable sort, so candidates tied on active count keep
+   * their relative (priority-then-registration) order. Priority tiers themselves are
+   * never reordered.
+   */
+  private applyLeastConnections(sorted: readonly OllamaEndpoint[]): OllamaEndpoint[] {
+    const result: OllamaEndpoint[] = [];
+    let i = 0;
+    while (i < sorted.length) {
+      const priority = sorted[i]?.priority ?? 0;
+      let j = i + 1;
+      while (j < sorted.length && (sorted[j]?.priority ?? 0) === priority) j++;
+      const tier = [...sorted.slice(i, j)].sort(
+        (a, b) => (this.activeCounts.get(a.name) ?? 0) - (this.activeCounts.get(b.name) ?? 0),
+      );
+      result.push(...tier);
       i = j;
     }
     return result;
@@ -118,7 +176,9 @@ export class EndpointRegistry {
 
     if (healthy.length > 0) {
       const sorted = healthy.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-      return this.strategy === 'round-robin' ? this.applyRoundRobin(sorted) : sorted;
+      if (this.strategy === 'round-robin') return this.applyRoundRobin(sorted);
+      if (this.strategy === 'least-connections') return this.applyLeastConnections(sorted);
+      return sorted;
     }
 
     // Fail-open: sort by soonest-to-recover
@@ -160,6 +220,7 @@ export class EndpointRegistry {
         failureCount: failures,
         ...(lastFail !== undefined ? { lastFailureTimestamp: lastFail } : {}),
         isCoolingDown,
+        activeRequests: this.activeCounts.get(ep.name) ?? 0,
       };
     });
   }
