@@ -238,6 +238,13 @@ position by hand: `response.turns[0].toolCalls[0].id` matches
 appends to history carries the same value as `tool_call_id`. See
 [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
 
+Running several `Agent`s against different models/API keys for different roles (e.g. a
+planning model, a coding model, a research model) is a plain application-level pattern —
+construct one `OllamaClient` per credential and route by task, rather than the SDK
+picking a model or key for you. See
+[Guide: Benchmarking Agent Models Across Multiple Ollama Cloud Keys](./docs/guides/multi-model-agent-benchmarking.md)
+for a worked example and a runnable scenario.
+
 ### Tool Execution Safety & Sandboxing
 
 Tool arguments and, indirectly, which tools get called at all are driven by model
