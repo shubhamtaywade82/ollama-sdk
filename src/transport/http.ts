@@ -115,7 +115,7 @@ export class HttpClient {
       timestamp: startedAt,
     });
 
-    const finalHandler = async (req: typeof request): Promise<{
+    const finalHandler = async (req: RequestContext): Promise<{
       status: number;
       headers: Record<string, string>;
       body: Response;
@@ -123,7 +123,7 @@ export class HttpClient {
       const init: RequestInit = {
         method: req.method,
         headers: req.headers,
-        ...(req.body !== undefined ? { body: req.body as BodyInit } : {}),
+        ...(req.body !== undefined ? { body: req.body as RequestInit['body'] } : {}),
         ...(req.signal !== undefined ? { signal: req.signal } : {}),
       };
       const response = await this.fetchImpl(req.url, init);
