@@ -103,6 +103,8 @@ export async function* parseSseStream(
         const lf = buffer.indexOf('\n');
         const cr = buffer.indexOf('\r');
         if (lf === -1 && cr === -1) break;
+        // A CR may be the first half of a CRLF sequence split across two network chunks.
+        if (cr !== -1 && lf === -1 && cr === buffer.length - 1) break;
 
         const lineEnd = lf === -1 ? cr : cr === -1 ? lf : Math.min(lf, cr);
         let separatorLength = 1;
