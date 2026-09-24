@@ -67,9 +67,6 @@ export async function withRetry<T>(
 ): Promise<T> {
   let attempt = 0;
   while (true) {
-    if (signal?.aborted) {
-      throw abortError(signal, 'Retry aborted before attempt');
-    }
     try {
       return await operation(attempt);
     } catch (err) {
