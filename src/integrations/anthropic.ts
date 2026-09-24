@@ -89,6 +89,8 @@ export type AnthropicToolChoice =
 export interface AnthropicThinkingConfig {
   readonly type: 'enabled' | 'disabled' | 'adaptive';
   readonly display?: 'omitted' | 'summarized' | 'updates' | undefined;
+  /** Accepted by Ollama for compatibility but currently not enforced by the server. */
+  readonly budget_tokens?: number | undefined;
 }
 
 export interface AnthropicOutputConfig {
@@ -108,7 +110,12 @@ export interface AnthropicMessagesRequest {
   readonly tools?: readonly AnthropicTool[] | undefined;
   readonly thinking?: AnthropicThinkingConfig | undefined;
   readonly output_config?: AnthropicOutputConfig | undefined;
+  /**
+   * Accepted for Anthropic compatibility but currently ignored by Ollama.
+   * Tool selection cannot be forced through the Ollama compatibility endpoint.
+   */
   readonly tool_choice?: AnthropicToolChoice | undefined;
+  /** Accepted for compatibility but currently ignored by Ollama. */
   readonly metadata?: Record<string, unknown> | undefined;
 }
 
