@@ -2,7 +2,7 @@
  * Retry policy and execution runner.
  */
 
-import { OllamaClientError } from '../errors.js';
+import { OllamaAbortError, OllamaClientError } from '../errors.js';
 import { calculateBackoff, type BackoffOptions, DEFAULT_BACKOFF } from './backoff.js';
 
 export interface RetryConfig {
@@ -24,7 +24,36 @@ function isRetryableDefault(error: Error): boolean {
   return false;
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new OllamaAbortError('Retry backoff aborted'),
+      );
+      return;
+    }
+
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const onAbort = (): void => {
+      if (timerId !== undefined) clearTimeout(timerId);
+      signal?.removeEventListener('abort', onAbort);
+      reject(
+        signal?.reason instanceof Error
+          ? signal.reason
+          : new OllamaAbortError('Retry backoff aborted'),
+      );
+    };
+
+    timerId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 /**
  * Executes an async operation with retries according to config.
@@ -32,9 +61,17 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 export async function withRetry<T>(
   operation: (attempt: number) => Promise<T>,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
+  signal?: AbortSignal,
 ): Promise<T> {
   let attempt = 0;
   while (true) {
+    if (signal?.aborted) {
+      throw (
+        signal.reason instanceof Error
+          ? signal.reason
+          : new OllamaAbortError('Retry aborted before attempt')
+      );
+    }
     try {
       return await operation(attempt);
     } catch (err) {
@@ -45,7 +82,7 @@ export async function withRetry<T>(
       }
       const delayMs = calculateBackoff(attempt, config.backoff);
       config.onRetry?.(error, attempt, delayMs);
-      await sleep(delayMs);
+      await sleep(delayMs, signal);
       attempt += 1;
     }
   }
