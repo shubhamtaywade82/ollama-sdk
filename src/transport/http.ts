@@ -114,7 +114,7 @@ export class HttpClient {
       const init: RequestInit = {
         method: req.method,
         headers: req.headers,
-        ...(req.body !== undefined ? { body: req.body as RequestInit['body'] } : {}),
+        ...(req.body !== undefined ? { body: req.body as NonNullable<RequestInit['body']> } : {}),
         ...(req.signal !== undefined ? { signal: req.signal } : {}),
       };
       const response = await this.fetchImpl(req.url, init);
