@@ -130,6 +130,45 @@ describe('Concurrency slot lifecycle: streaming', () => {
   });
 });
 
+describe('Concurrency slot lifecycle: retry cancellation', () => {
+  it('releases the endpoint slot when AbortSignal cancels retry backoff', async () => {
+    const controller = new AbortController();
+    let fetchCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ error: 'busy' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'only', baseUrl: 'http://only.local' }],
+      retries: {
+        maxRetries: 3,
+        backoff: { initialDelayMs: 10_000, maxDelayMs: 10_000, backoffFactor: 1 },
+      },
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const request = client.chat({
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hello' }],
+      signal: controller.signal,
+    });
+
+    await flush();
+    expect(fetchCalls).toBe(1);
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ code: 'aborted' });
+    expect(fetchCalls).toBe(1);
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+});
+
 describe('Concurrency slot lifecycle: maxConcurrentPerEndpoint queueing', () => {
   it('runs N requests immediately across N one-slot accounts and queues the (N+1)th', async () => {
     const deferreds: Array<{ account: string; resolve: () => void }> = [];
