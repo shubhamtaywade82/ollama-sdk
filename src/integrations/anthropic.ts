@@ -116,7 +116,7 @@ export interface AnthropicMessagesResponse {
   readonly role: 'assistant';
   readonly content: readonly AnthropicContentBlock[];
   readonly model: string;
-  readonly stop_reason: string;
+  readonly stop_reason: string | null;
   readonly stop_sequence?: string | null | undefined;
   readonly usage?: {
     readonly input_tokens: number;
@@ -196,19 +196,13 @@ function parseAnthropicEvent(event: SseEvent): AnthropicMessageStreamEvent {
 function mergeContentBlock(
   current: AnthropicContentBlock,
   delta: AnthropicContentBlockDelta,
+  rawJson?: string,
 ): AnthropicContentBlock {
   if (delta.type === 'text_delta' && current.type === 'text') {
     return { ...current, text: current.text + delta.text };
   }
   if (delta.type === 'input_json_delta' && current.type === 'tool_use') {
-    return {
-      ...current,
-      input: {
-        ...(Object.prototype.hasOwnProperty.call(current.input, '_raw_json')
-          ? { _raw_json: String((current.input as { _raw_json: unknown })._raw_json) + delta.partial_json }
-          : { _raw_json: delta.partial_json }),
-      },
-    };
+    return current;
   }
   if (delta.type === 'thinking_delta' && current.type === 'thinking') {
     return { ...current, thinking: current.thinking + delta.thinking };
@@ -240,6 +234,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
       | AnthropicMessagesResponse
       | undefined;
     const blocks = new Map<number, AnthropicContentBlock>();
+    const toolInputJson = new Map<number, string>();
 
     try {
       for await (const rawEvent of this.source) {
@@ -264,17 +259,20 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
           blocks.set(event.index, event.content_block);
         } else if (event.type === 'content_block_delta') {
           const current = blocks.get(event.index);
-          if (current) blocks.set(event.index, mergeContentBlock(current, event.delta));
+          if (event.delta.type === 'input_json_delta') {
+            toolInputJson.set(event.index, (toolInputJson.get(event.index) ?? '') + event.delta.partial_json);
+          }
+          if (current) blocks.set(event.index, mergeContentBlock(current, event.delta, toolInputJson.get(event.index)));
         } else if (event.type === 'content_block_stop') {
           const current = blocks.get(event.index);
           if (current?.type === 'tool_use') {
-            const rawJson = (current.input as { _raw_json?: unknown })._raw_json;
-            if (typeof rawJson === 'string') {
+            const rawJson = toolInputJson.get(event.index);
+            if (rawJson !== undefined && rawJson !== '') {
               try {
                 const parsed = JSON.parse(rawJson) as Record<string, unknown>;
                 blocks.set(event.index, { ...current, input: parsed });
               } catch {
-                // Preserve the stream content until a provider/client can decide how to handle malformed JSON.
+                // Keep the provider-provided partial object when the accumulated JSON is malformed.
                 blocks.set(event.index, current);
               }
             }
@@ -366,6 +364,9 @@ export class AnthropicCompatClient {
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream> {
-    return this.createMessage(request as never, signal);
+    if (request.stream) {
+      return this.createMessage(request, signal);
+    }
+    return this.createMessage(request, signal);
   }
 }
