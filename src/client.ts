@@ -258,8 +258,7 @@ export class OllamaClient {
                       timestamp: Date.now(),
                     });
                   },
-                  timeout.signal,
-                ),
+                }, timeout.signal),
             );
             this.registry.reportSuccess(endpoint.name);
             if (options?.holdUntil) {
