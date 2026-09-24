@@ -28,11 +28,20 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
     private readonly mapChunk: ChunkMapper<TChunk, TFinal>,
     private readonly aggregate: Aggregator<TChunk, TFinal>,
     private readonly initial: TFinal,
+    signal?: AbortSignal,
   ) {
     this.finalResultPromise = new Promise<TFinal>((resolve, reject) => {
       this.resolveFinal = resolve;
       this.rejectFinal = reject;
     });
+
+    if (signal !== undefined) {
+      if (signal.aborted) {
+        this.abort();
+      } else {
+        signal.addEventListener('abort', () => this.abort(), { once: true });
+      }
+    }
   }
 
   get finalResult(): Promise<TFinal> {
