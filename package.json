@@ -95,6 +95,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
+    "verify:api-parity": "tsx scripts/verify-api-parity.ts",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
