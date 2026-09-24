@@ -801,3 +801,15 @@ npm run verify
 ## License
 
 MIT © [Shubham Taywade](https://github.com/shubhamtaywade82)
+
+## Compatibility routing and stream lifecycle
+
+OpenAI and Anthropic compatibility requests use the same endpoint registry, model-scoped
+routing, failover, concurrency limits, and request cancellation as native inference calls.
+When `stream: true`, an endpoint capacity slot remains held until the compatibility stream
+finishes, errors, or is explicitly aborted.
+
+Compatibility stream objects expose `.abort()` and `finalResult`. The configured request
+timeout remains active for the lifetime of the stream rather than ending when HTTP headers
+arrive.
+
