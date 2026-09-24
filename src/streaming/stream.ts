@@ -2,7 +2,7 @@
  * Dual-mode (AsyncIterator and EventEmitter-like) stream wrapper.
  */
 
-import { mapError, type OllamaClientError } from '../errors.js';
+import { mapError, OllamaAbortError, type OllamaClientError } from '../errors.js';
 import type { AbortableAsyncIterable, OllamaStreamEvent, OllamaStreamEventType } from './types.js';
 
 type ChunkMapper<TChunk, TFinal> = (
@@ -41,9 +41,7 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
 
   abort(): void {
     this.source.abort?.();
-    this.rejectFinal(new (class extends Error {
-      name = 'OllamaStreamAbortError';
-    })('Ollama stream aborted')());
+    this.rejectFinal(new OllamaAbortError('Ollama stream aborted'));
   }
 
   on<TType extends OllamaStreamEventType>(
@@ -111,12 +109,14 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
     }
     this.mode = 'iterator';
     let accumulated = this.initial;
+    let completed = false;
     try {
       for await (const chunk of this.source) {
         accumulated = this.aggregate(accumulated, chunk);
         const events = this.mapChunk(chunk, accumulated);
         for (const event of events) {
           if (event.type === 'done') {
+            completed = true;
             this.resolveFinal(event.data.result);
           }
           yield event;
@@ -126,6 +126,11 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
       const mapped = mapError(error);
       this.rejectFinal(mapped);
       yield { type: 'error', data: { error: mapped } };
+    } finally {
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('Ollama stream ended before completion'));
+      }
     }
   }
 }
