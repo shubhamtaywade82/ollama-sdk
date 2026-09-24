@@ -37,7 +37,16 @@ export interface Message {
    */
   readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
-  /** Set on a `role: 'tool'` message to identify which {@link ToolCall.id} this answers. */
+  /**
+   * Ollama's native `/api/chat` field identifying which tool produced this result.
+   * For `role: 'tool'` messages this should be the registered tool's name.
+   */
+  readonly tool_name?: string | undefined;
+  /**
+   * @deprecated SDK-local correlation metadata only. Ollama's native `/api/chat` protocol
+   * does not use `tool_call_id`; native requests strip this field before transmission.
+   * OpenAI compatibility uses its own `OpenAIMessage.tool_call_id` type.
+   */
   readonly tool_call_id?: string | undefined;
   readonly thinking?: string | undefined;
 }
