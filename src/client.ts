@@ -601,7 +601,13 @@ export class OllamaClient {
     return inferRuntimeMode(ep?.baseUrl ?? DEFAULT_BASE_URL);
   }
   healthCheck(): Promise<EndpointHealthCheckResult[]> {
-    return Promise.all(this.registry.list().map((ep) => checkEndpointHealth(ep, this.fetchImpl)));
+    return Promise.all(
+      this.registry
+        .list()
+        .map((ep) =>
+          checkEndpointHealth(ep, this.fetchImpl, 5000, this.middleware, this.onLifecycleEvent),
+        ),
+    );
   }
   endpointStatus(): EndpointHealth[] {
     return this.registry.status();
