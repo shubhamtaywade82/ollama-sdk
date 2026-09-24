@@ -44,6 +44,19 @@ function createRequestId(): string {
   return `ollama-http-${requestSequence}`;
 }
 
+function sameHeaders(actual: Record<string, string>, expected: Headers): boolean {
+  const actualEntries = Object.fromEntries(
+    Object.entries(actual).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+  const expectedEntries = Object.fromEntries(expected.entries());
+  const actualKeys = Object.keys(actualEntries);
+  const expectedKeys = Object.keys(expectedEntries);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => actualEntries[key] === expectedEntries[key]),
+  );
+}
+
 export interface HttpClientOptions {
   readonly baseUrl: string;
   readonly apiKey?: string | undefined;
