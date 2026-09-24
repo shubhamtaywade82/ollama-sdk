@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from '../transport/http.js';
-import type { ListResponse, ModelResponse, ShowResponse } from '../types.js';
+import type { ListResponse, ModelResponse, ShowResponse, ThinkingMetadata } from '../types.js';
 
 export type RuntimeMode = 'local' | 'cloud' | 'unknown';
 
@@ -15,6 +15,8 @@ export interface ModelCapabilities {
   readonly supportsEmbedding: boolean;
   readonly supportsCompletion: boolean;
   readonly supportsThinking: boolean;
+  /** Model-defined thinking values and default, when /api/show reports them. */
+  readonly thinking?: ThinkingMetadata | undefined;
   readonly supportsStreaming: true;
   /**
    * Best-effort inference, not a guarantee: Ollama's `/api/show` does not report structured
@@ -69,6 +71,7 @@ export async function detectModelCapabilities(
     supportsEmbedding: reportedSet.has('embedding'),
     supportsCompletion: reportedSet.has('completion') || !reportedSet.has('embedding'),
     supportsThinking: reportedSet.has('thinking'),
+    ...(showRes.thinking !== undefined ? { thinking: showRes.thinking } : {}),
     supportsStreaming: true,
     supportsStructuredOutputRequest: inferRuntimeMode(http.baseUrl) !== 'cloud',
   };
