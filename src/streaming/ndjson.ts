@@ -41,6 +41,11 @@ export async function* parseNdjsonStream<T>(
       yield JSON.parse(buffer.trim()) as T;
     }
   } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // The stream may already be closed or errored.
+    }
     reader.releaseLock();
   }
 }
