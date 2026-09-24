@@ -518,17 +518,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
   }
 }
 
-export class OpenAICompletionStream implements AsyncIterable<{
-  readonly id: string;
-  readonly object: 'text_completion';
-  readonly created: number;
-  readonly model: string;
-  readonly choices: readonly OpenAICompletionChoice[];
-  readonly usage?:
-    | { readonly prompt_tokens: number; readonly completion_tokens: number; readonly total_tokens: number }
-    | null
-    | undefined;
-}> {
+export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChunk> {
   private readonly finalResultPromise: Promise<OpenAICompletionResponse>;
   private resolveFinal!: (value: OpenAICompletionResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
@@ -549,7 +539,7 @@ export class OpenAICompletionStream implements AsyncIterable<{
     this.rejectFinal(new OllamaAbortError('OpenAI Completion stream aborted'));
   }
 
-  async *[Symbol.asyncIterator](): AsyncGenerator<Awaited<ReturnType<typeof JSON.parse>>, void, undefined> {
+  async *[Symbol.asyncIterator](): AsyncGenerator<OpenAICompletionChunk, void, undefined> {
     const texts = new Map<number, OpenAICompletionChoice>();
     let id = '';
     let model = '';
