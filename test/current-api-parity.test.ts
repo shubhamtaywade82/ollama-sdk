@@ -1,0 +1,240 @@
+import { describe, expect, it, vi } from 'vitest';
+import { OllamaClient } from '../src/client.js';
+import { extractUsage } from '../src/usage.js';
+import { normalizeChatStream } from '../src/streaming/normalize.js';
+import type { ChatResponse } from '../src/types.js';
+
+function jsonFetchMock(body: unknown) {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => body,
+  });
+}
+
+describe('current native Ollama API parity', () => {
+  it('exposes model-defined thinking metadata from api/show', async () => {
+    const fetchMock = jsonFetchMock({
+      details: {
+        format: 'gguf',
+        family: 'gptoss',
+        parameter_size: '20B',
+        quantization_level: 'Q4_K_M',
+      },
+      capabilities: ['completion', 'thinking', 'tools'],
+      thinking: {
+        values: ['low', 'medium', 'high'],
+        default: 'medium',
+      },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const capabilities = await client.capabilities('gpt-oss:20b');
+
+    expect(capabilities.supportsThinking).toBe(true);
+    expect(capabilities.thinking).toEqual({
+      values: ['low', 'medium', 'high'],
+      default: 'medium',
+    });
+  });
+
+  it('accepts boolean, null, and model-defined thinking values', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'gemma4:31b',
+      created_at: '2026-09-24T00:00:00Z',
+      message: { role: 'assistant', content: 'ok' },
+      done: true,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    for (const think of [true, false, null, 'ultra'] as const) {
+      await client.chat({
+        model: 'gemma4:31b',
+        messages: [{ role: 'user', content: 'hello' }],
+        think,
+        stream: false,
+      });
+
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [
+        string,
+        { body: string },
+      ];
+      expect(JSON.parse(lastCall[1].body).think).toBe(think);
+    }
+  });
+
+  it('extracts cached prompt tokens without changing total token accounting', () => {
+    const usage = extractUsage({
+      prompt_eval_count: 120,
+      prompt_eval_cached_count: 80,
+      eval_count: 12,
+    });
+
+    expect(usage.promptTokens).toBe(120);
+    expect(usage.cachedPromptTokens).toBe(80);
+    expect(usage.completionTokens).toBe(12);
+    expect(usage.totalTokens).toBe(132);
+  });
+
+  it('preserves cached prompt tokens in stream usage', async () => {
+    async function* chunks(): AsyncGenerator<ChatResponse, void, undefined> {
+      yield {
+        model: 'gpt-oss:20b',
+        created_at: '2026-09-24T00:00:00Z',
+        message: { role: 'assistant', content: 'ok' },
+        done: true,
+        prompt_eval_count: 120,
+        prompt_eval_cached_count: 80,
+        eval_count: 12,
+      };
+    }
+
+    const stream = normalizeChatStream(chunks());
+    for await (const _ of stream) {
+      // drain
+    }
+
+    const final = await stream.finalResult;
+    expect(final.usage?.cachedPromptTokens).toBe(80);
+  });
+
+  it('forwards current create-model fields', async () => {
+    const fetchMock = jsonFetchMock({ status: 'success' });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.createModel({
+      model: 'custom',
+      from: 'gemma4',
+      files: { 'model.gguf': 'sha256:abc' },
+      draft_files: { 'draft.gguf': 'sha256:def' },
+      quantize: 'q4_K_M',
+      draft_quantize: 'q8_0',
+      requires: '0.13.5',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body)).toMatchObject({
+      draft_files: { 'draft.gguf': 'sha256:def' },
+      draft_quantize: 'q8_0',
+      requires: '0.13.5',
+    });
+  });
+});
+
+describe('current OpenAI compatibility parity', () => {
+  it('supports chat response format, seed, logit bias, n, vision, and model-defined reasoning', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'chat-1',
+      object: 'chat.completion',
+      created: 0,
+      model: 'qwen3-vl:8b',
+      choices: [],
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.openai.chatCompletions({
+      model: 'qwen3-vl:8b',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is in this image?' },
+            { type: 'image_url', image_url: 'data:image/png;base64,abc' },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      seed: 42,
+      logit_bias: { '123': 1 },
+      n: 2,
+      reasoning_effort: 'ultra',
+      reasoning: { effort: 'custom-level' },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const body = JSON.parse(init.body);
+
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.seed).toBe(42);
+    expect(body.logit_bias).toEqual({ '123': 1 });
+    expect(body.n).toBe(2);
+    expect(body.messages[0].content[1].image_url).toBe('data:image/png;base64,abc');
+    expect(body.reasoning_effort).toBe('ultra');
+    expect(body.reasoning).toEqual({ effort: 'custom-level' });
+  });
+
+  it('supports non-streaming /v1/completions', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'cmpl-1',
+      object: 'text_completion',
+      created: 0,
+      model: 'llama3.2',
+      choices: [{ text: 'hello', index: 0, finish_reason: 'stop' }],
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.openai.completions({
+      model: 'llama3.2',
+      prompt: 'Say hello',
+      seed: 7,
+      max_tokens: 8,
+      suffix: '!',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/v1/completions');
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: 'llama3.2',
+      prompt: 'Say hello',
+      seed: 7,
+      max_tokens: 8,
+      suffix: '!',
+    });
+    expect(result.choices[0]?.text).toBe('hello');
+  });
+
+  it('supports non-streaming /v1/embeddings', async () => {
+    const fetchMock = jsonFetchMock({
+      object: 'list',
+      data: [{ object: 'embedding', embedding: [0.1, 0.2], index: 0 }],
+      model: 'nomic-embed-text',
+      usage: { prompt_tokens: 4, total_tokens: 4 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.openai.embeddings({
+      model: 'nomic-embed-text',
+      input: ['hello', 'world'],
+      encoding_format: 'float',
+      dimensions: 2,
+      user: 'test',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/v1/embeddings');
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: 'nomic-embed-text',
+      input: ['hello', 'world'],
+      encoding_format: 'float',
+      dimensions: 2,
+      user: 'test',
+    });
+    expect(result.data[0]?.embedding).toEqual([0.1, 0.2]);
+  });
+
+  it('retrieves one model through /v1/models/{model}', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'llama3.2',
+      object: 'model',
+      created: 0,
+      owned_by: 'library',
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const model = await client.openai.getModel('llama3.2');
+
+    const [url] = fetchMock.mock.calls[0] as [string, { body?: string }];
+    expect(url).toContain('/v1/models/llama3.2');
+    expect(model.id).toBe('llama3.2');
+  });
+});
