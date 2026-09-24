@@ -634,10 +634,7 @@ export class OllamaClient {
       new HttpClient({
         baseUrl: ep?.baseUrl ?? DEFAULT_BASE_URL,
         apiKey: ep?.apiKey,
-        headers: {
-          'anthropic-version': '2023-06-01',
-          ...(ep?.headers ?? {}),
-        },
+        headers: ep?.headers,
         fetch: this.fetchImpl,
         middleware: this.middleware,
         onLifecycleEvent: this.onLifecycleEvent,
