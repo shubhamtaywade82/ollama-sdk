@@ -57,7 +57,7 @@ console.log(answer);
 
 ### Thinking & Reasoning Token Streams
 
-`think` is Ollama's native reasoning-effort parameter, exposed directly on `chat()`/`generate()` — no bridge translation needed. It accepts `true`/`false` or a level (`'low' | 'medium' | 'high' | 'max'`); the OpenAI bridge's `reasoning_effort` (see below) is a compatibility alias for the same underlying knob.
+`think` is Ollama's native reasoning-effort parameter, exposed directly on `chat()`/`generate()`. It accepts `true`, `false`, `null` (model default), or a model-defined string. Use `client.capabilities(model).thinking` to discover the exact string values and default reported by `/api/show`. The OpenAI bridge's `reasoning_effort`/`reasoning.effort` follows the same model-defined convention.
 
 ```typescript
 const stream = await client.chatStream({
@@ -77,6 +77,20 @@ for await (const event of stream) {
 
 const final = await stream.finalResult;
 console.log(`\nEval tokens/sec: ${final.usage?.tokensPerSecond}`);
+```
+
+### Cached Prompt Tokens
+
+Ollama reports `prompt_eval_cached_count` as the number of prompt tokens read from the KV cache. The raw value is preserved on native chat/generate responses, and normalized stream usage exposes it as `cachedPromptTokens`.
+
+```typescript
+const res = await client.chat({
+  model: 'gpt-oss:20b',
+  messages: [{ role: 'user', content: 'hello' }],
+});
+
+console.log(res.prompt_eval_count, res.prompt_eval_cached_count);
+console.log(res.prompt_eval_cached_count ?? 0);
 ```
 
 ### Token Log Probabilities (`logprobs`)
