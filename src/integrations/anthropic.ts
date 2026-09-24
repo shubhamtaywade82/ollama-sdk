@@ -6,6 +6,7 @@
 import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
+import type { RequestRunner } from '../transport/runner.js';
 
 export interface AnthropicCacheControl {
   readonly type: 'ephemeral';
@@ -322,7 +323,29 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
 }
 
 export class AnthropicCompatClient {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly runner?: RequestRunner | undefined,
+  ) {}
+
+  private request<T>(
+    operation: (http: HttpClient, signal?: AbortSignal) => Promise<T>,
+    model: string,
+    signal?: AbortSignal,
+    holdUntil?: ((result: T) => Promise<unknown>) | undefined,
+  ): Promise<T> {
+    if (this.runner) {
+      return this.runner(
+        (http, runnerSignal) => operation(http, runnerSignal),
+        {
+          model,
+          ...(signal !== undefined ? { signal } : {}),
+          ...(holdUntil !== undefined ? { holdUntil } : {}),
+        },
+      );
+    }
+    return operation(this.http, signal);
+  }
 
   async createMessage(
     request: AnthropicMessagesRequest & { stream: true },
@@ -337,18 +360,28 @@ export class AnthropicCompatClient {
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream> {
     if (request.stream) {
-      const source = await this.http.requestSseStream({
-        path: '/v1/messages',
-        body: request,
+      return this.request(
+        (http, requestSignal) =>
+          http.requestSseStream({
+            path: '/v1/messages',
+            body: request,
+            signal: requestSignal,
+          }).then((source) => new AnthropicMessagesStream(source)),
+        request.model,
         signal,
-      });
-      return new AnthropicMessagesStream(source);
+        (stream) => stream.finalResult,
+      );
     }
-    return this.http.request<AnthropicMessagesResponse>({
-      path: '/v1/messages',
-      body: request,
+    return this.request(
+      (http, requestSignal) =>
+        http.request<AnthropicMessagesResponse>({
+          path: '/v1/messages',
+          body: request,
+          signal: requestSignal,
+        }),
+      request.model,
       signal,
-    });
+    );
   }
 
   async messages(
