@@ -15,6 +15,8 @@
  * {@link OpenAIResponsesRequest}.
  */
 
+import type { AbortableAsyncIterable } from '../streaming/types.js';
+import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 
 export interface OpenAIToolCall {
@@ -134,6 +136,47 @@ export interface OpenAIChatCompletionChoice {
   readonly index: number;
   readonly message: OpenAIMessage;
   readonly finish_reason: string;
+  readonly logprobs?: Record<string, unknown> | null | undefined;
+}
+
+export interface OpenAIToolCallDelta {
+  readonly index: number;
+  readonly id?: string | undefined;
+  readonly type?: 'function' | undefined;
+  readonly function?: {
+    readonly name?: string | undefined;
+    readonly arguments?: string | undefined;
+  } | undefined;
+}
+
+export interface OpenAIChatCompletionDelta {
+  readonly role?: OpenAIMessage['role'] | undefined;
+  readonly content?: string | null | undefined;
+  readonly refusal?: string | null | undefined;
+  readonly tool_calls?: readonly OpenAIToolCallDelta[] | undefined;
+}
+
+export interface OpenAIChatCompletionChunkChoice {
+  readonly index: number;
+  readonly delta: OpenAIChatCompletionDelta;
+  readonly finish_reason?: string | null | undefined;
+  readonly logprobs?: Record<string, unknown> | null | undefined;
+}
+
+export interface OpenAIChatCompletionChunk {
+  readonly id: string;
+  readonly object: 'chat.completion.chunk';
+  readonly created: number;
+  readonly model: string;
+  readonly choices: readonly OpenAIChatCompletionChunkChoice[];
+  readonly usage?:
+    | {
+        readonly prompt_tokens: number;
+        readonly completion_tokens: number;
+        readonly total_tokens: number;
+      }
+    | null
+    | undefined;
 }
 
 export interface OpenAIChatCompletionResponse {
@@ -273,13 +316,33 @@ export interface OpenAIResponsesOutputMessage {
   readonly content: readonly OpenAIResponsesOutputTextContent[];
 }
 
+export interface OpenAIResponsesOutputFunctionCall {
+  readonly type: 'function_call';
+  readonly id?: string | undefined;
+  readonly call_id?: string | undefined;
+  readonly name: string;
+  readonly arguments: string;
+}
+
+export interface OpenAIResponsesOutputReasoning {
+  readonly type: 'reasoning';
+  readonly id?: string | undefined;
+  readonly summary?: readonly { readonly type: 'summary_text'; readonly text: string }[] | undefined;
+  readonly text?: string | undefined;
+}
+
+export type OpenAIResponsesOutputItem =
+  | OpenAIResponsesOutputMessage
+  | OpenAIResponsesOutputFunctionCall
+  | OpenAIResponsesOutputReasoning;
+
 /** Non-stateful response shape for `/v1/responses`; see {@link OpenAIResponsesRequest}. */
 export interface OpenAIResponsesResponse {
   readonly id: string;
   readonly object: 'response';
   readonly created: number;
   readonly model: string;
-  readonly output: readonly OpenAIResponsesOutputMessage[];
+  readonly output: readonly OpenAIResponsesOutputItem[];
   readonly usage?:
     | {
         readonly input_tokens: number;
@@ -289,13 +352,295 @@ export interface OpenAIResponsesResponse {
     | undefined;
 }
 
+export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompletionChunk> {
+  private readonly finalResultPromise: Promise<OpenAIChatCompletionResponse>;
+  private resolveFinal!: (value: OpenAIChatCompletionResponse) => void;
+  private rejectFinal!: (reason: unknown) => void;
+
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+    this.finalResultPromise = new Promise<OpenAIChatCompletionResponse>((resolve, reject) => {
+      this.resolveFinal = resolve;
+      this.rejectFinal = reject;
+    });
+  }
+
+  get finalResult(): Promise<OpenAIChatCompletionResponse> {
+    return this.finalResultPromise;
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIChatCompletionChunk, void, undefined> {
+    const choices = new Map<number, {
+      message: OpenAIMessage;
+      finish_reason: string;
+      logprobs?: Record<string, unknown> | null | undefined;
+    }>();
+    let id = '';
+    let model = '';
+    let created = 0;
+    let usage:
+      | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+      | undefined;
+
+    try {
+      for await (const event of this.source) {
+        if (event.data === '[DONE]') break;
+        let chunk: OpenAIChatCompletionChunk;
+        try {
+          chunk = JSON.parse(event.data) as OpenAIChatCompletionChunk;
+        } catch (error) {
+          throw new Error('Failed to parse OpenAI chat completion SSE payload', { cause: error });
+        }
+        id = chunk.id || id;
+        model = chunk.model || model;
+        created = chunk.created || created;
+        if (chunk.usage !== null && chunk.usage !== undefined) usage = chunk.usage;
+
+        for (const choice of chunk.choices) {
+          const existing = choices.get(choice.index);
+          const delta = choice.delta;
+          if (!existing) {
+            const toolCalls = delta.tool_calls?.map((toolCall) => ({
+              id: toolCall.id ?? '',
+              type: 'function' as const,
+              function: {
+                name: toolCall.function?.name ?? '',
+                arguments: toolCall.function?.arguments ?? '',
+              },
+            }));
+            choices.set(choice.index, {
+              message: {
+                role: delta.role ?? 'assistant',
+                content: delta.content ?? '',
+                ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+              },
+              finish_reason: choice.finish_reason ?? '',
+              ...(choice.logprobs !== undefined ? { logprobs: choice.logprobs } : {}),
+            });
+            continue;
+          }
+
+          const priorToolCalls = [...(existing.message.tool_calls ?? [])];
+          for (const toolCall of delta.tool_calls ?? []) {
+            const position = toolCall.index;
+            const current = priorToolCalls[position];
+            if (current) {
+              priorToolCalls[position] = {
+                ...current,
+                ...(toolCall.id !== undefined ? { id: toolCall.id } : {}),
+                function: {
+                  name: current.function?.name ?? toolCall.function?.name ?? '',
+                  arguments:
+                    (current.function?.arguments ?? '') + (toolCall.function?.arguments ?? ''),
+                },
+              };
+            } else {
+              priorToolCalls[position] = {
+                id: toolCall.id ?? '',
+                type: 'function',
+                function: {
+                  name: toolCall.function?.name ?? '',
+                  arguments: toolCall.function?.arguments ?? '',
+                },
+              };
+            }
+          }
+          choices.set(choice.index, {
+            message: {
+              ...existing.message,
+              ...(delta.content !== undefined && delta.content !== null
+                ? { content: existing.message.content + delta.content }
+                : {}),
+              ...(priorToolCalls.length ? { tool_calls: priorToolCalls } : {}),
+            },
+            finish_reason: choice.finish_reason ?? existing.finish_reason,
+            ...(choice.logprobs !== undefined ? { logprobs: choice.logprobs } : {}),
+          });
+        }
+
+        yield chunk;
+      }
+
+      const response: OpenAIChatCompletionResponse = {
+        id,
+        object: 'chat.completion',
+        created,
+        model,
+        choices: [...choices.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([index, choice]) => ({
+            index,
+            message: choice.message,
+            finish_reason: choice.finish_reason,
+            ...(choice.logprobs !== undefined ? { logprobs: choice.logprobs } : {}),
+          })),
+        ...(usage !== undefined ? { usage } : {}),
+      };
+      this.resolveFinal(response);
+    } catch (error) {
+      this.rejectFinal(error);
+      throw error;
+    }
+  }
+}
+
+export class OpenAICompletionStream implements AsyncIterable<{
+  readonly id: string;
+  readonly object: 'text_completion';
+  readonly created: number;
+  readonly model: string;
+  readonly choices: readonly OpenAICompletionChoice[];
+  readonly usage?:
+    | { readonly prompt_tokens: number; readonly completion_tokens: number; readonly total_tokens: number }
+    | null
+    | undefined;
+}> {
+  private readonly finalResultPromise: Promise<OpenAICompletionResponse>;
+  private resolveFinal!: (value: OpenAICompletionResponse) => void;
+  private rejectFinal!: (reason: unknown) => void;
+
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+    this.finalResultPromise = new Promise<OpenAICompletionResponse>((resolve, reject) => {
+      this.resolveFinal = resolve;
+      this.rejectFinal = reject;
+    });
+  }
+
+  get finalResult(): Promise<OpenAICompletionResponse> {
+    return this.finalResultPromise;
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<Awaited<ReturnType<typeof JSON.parse>>, void, undefined> {
+    const texts = new Map<number, OpenAICompletionChoice>();
+    let id = '';
+    let model = '';
+    let created = 0;
+    let usage:
+      | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+      | undefined;
+
+    try {
+      for await (const event of this.source) {
+        if (event.data === '[DONE]') break;
+        const chunk = JSON.parse(event.data) as {
+          id: string;
+          object: 'text_completion';
+          created: number;
+          model: string;
+          choices: readonly Array<{
+            text: string;
+            index: number;
+            logprobs?: Record<string, unknown> | null | undefined;
+            finish_reason?: string | null | undefined;
+          }>[number][];
+          usage?: {
+            prompt_tokens: number;
+            completion_tokens: number;
+            total_tokens: number;
+          } | null;
+        };
+        id = chunk.id || id;
+        model = chunk.model || model;
+        created = chunk.created || created;
+        if (chunk.usage !== null && chunk.usage !== undefined) usage = chunk.usage;
+
+        for (const choice of chunk.choices) {
+          const existing = texts.get(choice.index);
+          texts.set(choice.index, {
+            text: (existing?.text ?? '') + (choice.text ?? ''),
+            index: choice.index,
+            finish_reason: choice.finish_reason ?? existing?.finish_reason ?? null,
+            ...(choice.logprobs !== undefined ? { logprobs: choice.logprobs } : {}),
+          });
+        }
+        yield chunk;
+      }
+
+      const response: OpenAICompletionResponse = {
+        id,
+        object: 'text_completion',
+        created,
+        model,
+        choices: [...texts.values()].sort((a, b) => a.index - b.index),
+        ...(usage !== undefined ? { usage } : {}),
+      };
+      this.resolveFinal(response);
+    } catch (error) {
+      this.rejectFinal(error);
+      throw error;
+    }
+  }
+}
+
+export interface OpenAIResponsesStreamEvent {
+  readonly type: string;
+  readonly [key: string]: unknown;
+}
+
+export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
+  private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
+  private resolveFinal!: (value: OpenAIResponsesResponse) => void;
+  private rejectFinal!: (reason: unknown) => void;
+
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+    this.finalResultPromise = new Promise<OpenAIResponsesResponse>((resolve, reject) => {
+      this.resolveFinal = resolve;
+      this.rejectFinal = reject;
+    });
+  }
+
+  get finalResult(): Promise<OpenAIResponsesResponse> {
+    return this.finalResultPromise;
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined> {
+    let finalResponse: OpenAIResponsesResponse | undefined;
+    try {
+      for await (const event of this.source) {
+        if (event.data === '[DONE]') break;
+        const payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent;
+        if (payload.type === 'response.completed' || payload.type === 'response.done') {
+          const candidate = payload.response;
+          if (candidate && typeof candidate === 'object') {
+            finalResponse = candidate as OpenAIResponsesResponse;
+          }
+        }
+        yield payload;
+      }
+
+      if (!finalResponse) {
+        throw new Error('OpenAI Responses stream ended without a completed response payload');
+      }
+      this.resolveFinal(finalResponse);
+    } catch (error) {
+      this.rejectFinal(error);
+      throw error;
+    }
+  }
+}
+
 export class OpenAICompatClient {
   constructor(private readonly http: HttpClient) {}
 
   async createChatCompletion(
+    request: OpenAIChatCompletionRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAIChatCompletionStream>;
+  async createChatCompletion(
+    request: OpenAIChatCompletionRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAIChatCompletionResponse>;
+  async createChatCompletion(
     request: OpenAIChatCompletionRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAIChatCompletionResponse> {
+  ): Promise<OpenAIChatCompletionResponse | OpenAIChatCompletionStream> {
+    if (request.stream) {
+      const source = await this.http.requestSseStream({
+        path: '/v1/chat/completions',
+        body: request,
+        signal,
+      });
+      return new OpenAIChatCompletionStream(source);
+    }
     return this.http.request<OpenAIChatCompletionResponse>({
       path: '/v1/chat/completions',
       body: request,
@@ -334,9 +679,25 @@ export class OpenAICompatClient {
   }
 
   async createCompletion(
+    request: OpenAICompletionRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionStream>;
+  async createCompletion(
+    request: OpenAICompletionRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionResponse>;
+  async createCompletion(
     request: OpenAICompletionRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAICompletionResponse> {
+  ): Promise<OpenAICompletionResponse | OpenAICompletionStream> {
+    if (request.stream) {
+      const source = await this.http.requestSseStream({
+        path: '/v1/completions',
+        body: request,
+        signal,
+      });
+      return new OpenAICompletionStream(source);
+    }
     return this.http.request<OpenAICompletionResponse>({
       path: '/v1/completions',
       body: request,
@@ -370,9 +731,25 @@ export class OpenAICompatClient {
   }
 
   async createResponses(
+    request: OpenAIResponsesRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesStream>;
+  async createResponses(
+    request: OpenAIResponsesRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesResponse>;
+  async createResponses(
     request: OpenAIResponsesRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAIResponsesResponse> {
+  ): Promise<OpenAIResponsesResponse | OpenAIResponsesStream> {
+    if (request.stream) {
+      const source = await this.http.requestSseStream({
+        path: '/v1/responses',
+        body: request,
+        signal,
+      });
+      return new OpenAIResponsesStream(source);
+    }
     return this.http.request<OpenAIResponsesResponse>({
       path: '/v1/responses',
       body: request,
