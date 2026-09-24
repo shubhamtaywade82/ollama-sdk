@@ -126,3 +126,89 @@ describe('Compatibility bridge request typing (mocked network)', () => {
     expect(body.messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
   });
 });
+
+
+describe('Compatibility endpoint routing and streaming lifecycle', () => {
+  it('uses model-scoped failover for OpenAI compatibility calls', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('primary')) {
+        return { ok: false, status: 503, text: async () => 'primary unavailable' };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: 'chat-2',
+            object: 'chat.completion',
+            created: 0,
+            model: 'gpt-oss:20b',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: 'secondary' },
+                finish_reason: 'stop',
+              },
+            ],
+          }),
+      };
+    });
+
+    const client = new OllamaClient({
+      endpoints: [
+        { name: 'primary', baseUrl: 'http://primary', models: ['gpt-oss:20b'] },
+        { name: 'secondary', baseUrl: 'http://secondary', models: ['gpt-oss:20b'] },
+      ],
+      fetch: fetchMock as never,
+    });
+
+    const result = await client.openai.chatCompletions({
+      model: 'gpt-oss:20b',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(result.choices[0]?.message.content).toBe('secondary');
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('http://primary');
+    expect(fetchMock.mock.calls[1]?.[0]).toContain('http://secondary');
+  });
+
+  it('keeps a compatibility stream slot until the stream final result resolves', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(
+            encoder.encode(
+              'data: {"id":"chat-3","object":"chat.completion.chunk","created":1,"model":"qwen3","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"}}]}\n\n',
+            ),
+          );
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        },
+      }),
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'compat', baseUrl: 'http://compat' }],
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const stream = await client.openai.chatCompletions({
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+    });
+
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+
+    for await (const _ of stream) {
+      // drain
+    }
+
+    await stream.finalResult;
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+});
