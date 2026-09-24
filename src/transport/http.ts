@@ -212,13 +212,26 @@ export class HttpClient {
         });
       }
 
-      this.onLifecycleEvent?.({
-        type: 'success',
-        requestId,
-        durationMs: Date.now() - startedAt,
-        status: context.status,
-        timestamp: Date.now(),
-      });
+      if (context.status >= 200 && context.status < 300) {
+        this.onLifecycleEvent?.({
+          type: 'success',
+          requestId,
+          durationMs: Date.now() - startedAt,
+          status: context.status,
+          timestamp: Date.now(),
+        });
+      } else {
+        this.onLifecycleEvent?.({
+          type: 'error',
+          requestId,
+          durationMs: Date.now() - startedAt,
+          error: mapError(new Error(`HTTP ${context.status}`), {
+            request: { method: request.method, url: request.url },
+            response: { status: context.status, headers: context.headers },
+          }),
+          timestamp: Date.now(),
+        });
+      }
       return response;
     } catch (error) {
       const mapped = mapError(error, {
