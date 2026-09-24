@@ -154,13 +154,26 @@ export class HttpClient {
             : {}),
           ...(request.signal !== undefined ? { signal: request.signal } : {}),
         });
-        this.onLifecycleEvent?.({
-          type: 'success',
-          requestId,
-          durationMs: Date.now() - startedAt,
-          status: response.status,
-          timestamp: Date.now(),
-        });
+        if (response.status >= 200 && response.status < 300) {
+          this.onLifecycleEvent?.({
+            type: 'success',
+            requestId,
+            durationMs: Date.now() - startedAt,
+            status: response.status,
+            timestamp: Date.now(),
+          });
+        } else {
+          this.onLifecycleEvent?.({
+            type: 'error',
+            requestId,
+            durationMs: Date.now() - startedAt,
+            error: mapError(new Error(`HTTP ${response.status}`), {
+              request: { method: request.method, url: request.url },
+              response: { status: response.status },
+            }),
+            timestamp: Date.now(),
+          });
+        }
         return response;
       }
 
