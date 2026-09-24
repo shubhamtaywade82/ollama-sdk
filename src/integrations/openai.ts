@@ -748,12 +748,13 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
         }
 
         if (payload.type === 'response.created') {
-          responseMeta = payload.response;
+          responseMeta = (payload as OpenAIResponsesCreatedEvent).response;
         } else if (payload.type === 'response.completed' || payload.type === 'response.done') {
-          const candidate = payload.response;
+          const candidate = (payload as OpenAIResponsesCompletedEvent).response;
           if (candidate && typeof candidate === 'object') finalResponse = candidate;
         } else if (payload.type === 'response.output_text.delta') {
-          const state = outputs.get(payload.output_index) ?? {
+          const event = payload as OpenAIResponsesOutputTextDeltaEvent;
+          const state = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'message' as const,
             content: new Map<number, string>(),
@@ -761,15 +762,16 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             arguments: '',
             reasoningText: '',
           };
-          state.itemId = payload.item_id;
+          state.itemId = event.item_id;
           state.kind = 'message';
           state.content.set(
-            payload.content_index,
-            (state.content.get(payload.content_index) ?? '') + payload.delta,
+            event.content_index,
+            (state.content.get(event.content_index) ?? '') + event.delta,
           );
           outputs.set(payload.output_index, state);
         } else if (payload.type === 'response.output_text.done') {
-          const state = outputs.get(payload.output_index) ?? {
+          const event = payload as OpenAIResponsesOutputTextDoneEvent;
+          const state = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'message' as const,
             content: new Map<number, string>(),
@@ -777,12 +779,13 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             arguments: '',
             reasoningText: '',
           };
-          state.itemId = payload.item_id;
+          state.itemId = event.item_id;
           state.kind = 'message';
-          state.content.set(payload.content_index, payload.text);
+          state.content.set(event.content_index, event.text);
           outputs.set(payload.output_index, state);
         } else if (payload.type === 'response.function_call_arguments.delta') {
-          const state = outputs.get(payload.output_index) ?? {
+          const event = payload as OpenAIResponsesFunctionCallArgumentsDeltaEvent;
+          const state = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'function_call' as const,
             content: new Map<number, string>(),
@@ -790,12 +793,13 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             arguments: '',
             reasoningText: '',
           };
-          state.itemId = payload.item_id;
+          state.itemId = event.item_id;
           state.kind = 'function_call';
-          state.arguments += payload.delta;
+          state.arguments += event.delta;
           outputs.set(payload.output_index, state);
         } else if (payload.type === 'response.function_call_arguments.done') {
-          const state = outputs.get(payload.output_index) ?? {
+          const event = payload as OpenAIResponsesFunctionCallArgumentsDoneEvent;
+          const state = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'function_call' as const,
             content: new Map<number, string>(),
@@ -803,16 +807,20 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             arguments: '',
             reasoningText: '',
           };
-          state.itemId = payload.item_id;
+          state.itemId = event.item_id;
           state.kind = 'function_call';
-          state.name = payload.name;
-          state.arguments = payload.arguments;
-          outputs.set(payload.output_index, state);
+          state.name = event.name;
+          state.arguments = event.arguments;
+          outputs.set(event.output_index, state);
         } else if (
           payload.type === 'response.reasoning_text.delta' ||
           payload.type === 'response.reasoning_summary_text.delta'
         ) {
-          const state = outputs.get(payload.output_index) ?? {
+          const event =
+            payload.type === 'response.reasoning_text.delta'
+              ? (payload as OpenAIResponsesReasoningTextDeltaEvent)
+              : (payload as OpenAIResponsesReasoningSummaryTextDeltaEvent);
+          const state = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'reasoning' as const,
             content: new Map<number, string>(),
@@ -820,17 +828,17 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             arguments: '',
             reasoningText: '',
           };
-          state.itemId = payload.item_id;
+          state.itemId = event.item_id;
           state.kind = 'reasoning';
-          if (payload.type === 'response.reasoning_text.delta') {
-            state.reasoningText += payload.delta;
+          if (event.type === 'response.reasoning_text.delta') {
+            state.reasoningText += event.delta;
           } else {
             state.summary.set(
-              payload.summary_index,
-              (state.summary.get(payload.summary_index) ?? '') + payload.delta,
+              event.summary_index,
+              (state.summary.get(event.summary_index) ?? '') + event.delta,
             );
           }
-          outputs.set(payload.output_index, state);
+          outputs.set(event.output_index, state);
         }
 
         yield payload;
@@ -940,7 +948,7 @@ export class OpenAICompatClient {
           }).then((source) => new OpenAIChatCompletionStream(source, requestSignal)),
         request.model,
         signal,
-        (stream) => stream.finalResult,
+        (stream: OpenAIChatCompletionStream) => stream.finalResult,
       );
     }
     return this.request(
@@ -1025,7 +1033,7 @@ export class OpenAICompatClient {
           }).then((source) => new OpenAICompletionStream(source, requestSignal)),
         request.model,
         signal,
-        (stream) => stream.finalResult,
+        (stream: OpenAICompletionStream) => stream.finalResult,
       );
     }
     return this.request(
@@ -1100,7 +1108,7 @@ export class OpenAICompatClient {
           }).then((source) => new OpenAIResponsesStream(source, requestSignal)),
         request.model,
         signal,
-        (stream) => stream.finalResult,
+        (stream: OpenAIResponsesStream) => stream.finalResult,
       );
     }
     return this.request(
