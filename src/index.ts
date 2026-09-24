@@ -198,10 +198,10 @@ export {
   type OpenAIChatCompletionDelta,
   type OpenAIChatCompletionChunkChoice,
   type OpenAIChatCompletionChunk,
-  type OpenAIChatCompletionStream,
-  type OpenAICompletionStream,
+  OpenAIChatCompletionStream,
+  OpenAICompletionStream,
   type OpenAIResponsesStreamEvent,
-  type OpenAIResponsesStream,
+  OpenAIResponsesStream,
   type OpenAIStreamOptions,
   type OpenAIFunctionDefinition,
   type OpenAITool,
@@ -241,7 +241,7 @@ export {
   type AnthropicMessagesRequest,
   type AnthropicMessagesResponse,
   type AnthropicMessageStreamEvent,
-  type AnthropicMessagesStream,
+  AnthropicMessagesStream,
 } from './integrations/index.js';
 
 // Skills (core prompt functions)
