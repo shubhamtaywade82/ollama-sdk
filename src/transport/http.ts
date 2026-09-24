@@ -206,7 +206,14 @@ export class HttpClient {
             });
           }
 
-          const stream = parseSseStream(response.body);
+          const stream = (async function* (): AsyncGenerator<SseEvent, void, undefined> {
+            try {
+              yield* parseSseStream(response.body!);
+            } finally {
+              removeAbortListener?.();
+            }
+          })();
+
           return {
             [Symbol.asyncIterator]() {
               return stream[Symbol.asyncIterator]();
