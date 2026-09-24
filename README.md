@@ -821,6 +821,9 @@ const client = new OllamaClient({
 });
 ```
 
+Retry backoff is also cancellation-aware: passing an `AbortSignal` to `withRetry` or cancelling an `OllamaClient` request interrupts an in-progress backoff immediately instead of waiting for the next retry delay.
+
+
 ## Compatibility routing and stream lifecycle
 
 OpenAI and Anthropic compatibility requests use the same endpoint registry, model-scoped
