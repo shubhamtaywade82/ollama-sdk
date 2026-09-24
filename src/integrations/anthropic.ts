@@ -196,7 +196,6 @@ function parseAnthropicEvent(event: SseEvent): AnthropicMessageStreamEvent {
 function mergeContentBlock(
   current: AnthropicContentBlock,
   delta: AnthropicContentBlockDelta,
-  rawJson?: string,
 ): AnthropicContentBlock {
   if (delta.type === 'text_delta' && current.type === 'text') {
     return { ...current, text: current.text + delta.text };
