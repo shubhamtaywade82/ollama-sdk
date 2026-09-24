@@ -384,9 +384,9 @@ export class AnthropicCompatClient {
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse>;
   async createMessage(
-    request: AnthropicMessagesRequest & ({ stream: true } | { stream?: false | undefined }),
+    request: AnthropicMessagesRequest,
     signal?: AbortSignal,
-  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream>; 
+  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream>;
   async createMessage(
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
@@ -424,6 +424,10 @@ export class AnthropicCompatClient {
     request: AnthropicMessagesRequest & { stream?: false | undefined },
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse>;
+  async messages(
+    request: AnthropicMessagesRequest,
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream>;
   async messages(
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
