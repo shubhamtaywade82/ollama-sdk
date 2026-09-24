@@ -131,7 +131,7 @@ describe('Request lifecycle hooks', () => {
   });
 
   it('assigns a fresh lifecycle id to each standalone HttpClient request', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ ok: true }));
     const ids: string[] = [];
     const http = new HttpClient({
       baseUrl: 'http://localhost:11434',
