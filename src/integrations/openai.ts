@@ -27,9 +27,24 @@ export interface OpenAIToolCall {
   };
 }
 
+export interface OpenAITextContentPart {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+export interface OpenAIImageUrlContentPart {
+  readonly type: 'image_url';
+  /** Ollama accepts a data/image URL string or the standard OpenAI URL object. */
+  readonly image_url:
+    | string
+    | { readonly url: string; readonly detail?: 'auto' | 'low' | 'high' | 'original' | undefined };
+}
+
+export type OpenAIContentPart = OpenAITextContentPart | OpenAIImageUrlContentPart;
+
 export interface OpenAIMessage {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
-  readonly content: string;
+  readonly content: string | readonly OpenAIContentPart[];
   readonly name?: string | undefined;
   readonly tool_calls?: readonly OpenAIToolCall[] | undefined;
   /** Set on a `role: 'tool'` message to identify which call this is a result for. */
@@ -52,6 +67,22 @@ export interface OpenAITool {
   readonly function: OpenAIFunctionDefinition;
 }
 
+export type OpenAIReasoningEffort =
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'max'
+  | 'none'
+  | 'minimal'
+  | 'xhigh'
+  | 'ultra'
+  | (string & {});
+
+export type OpenAIResponseFormat =
+  | { readonly type: 'text' }
+  | { readonly type: 'json_object' }
+  | { readonly type: 'json_schema'; readonly json_schema: Record<string, unknown> };
+
 export interface OpenAIChatCompletionRequest {
   readonly model: string;
   readonly messages: readonly OpenAIMessage[];
@@ -62,9 +93,13 @@ export interface OpenAIChatCompletionRequest {
   readonly stream_options?: OpenAIStreamOptions | undefined;
   readonly max_tokens?: number | undefined;
   readonly stop?: readonly string[] | undefined;
+  readonly response_format?: OpenAIResponseFormat | undefined;
+  readonly seed?: number | undefined;
   readonly presence_penalty?: number | undefined;
   readonly frequency_penalty?: number | undefined;
   readonly user?: string | undefined;
+  readonly logit_bias?: Record<string, number> | undefined;
+  readonly n?: number | undefined;
   readonly tools?: readonly OpenAITool[] | undefined;
   /**
    * @remarks Accepted for OpenAI compatibility but ignored by Ollama — every tool the
@@ -85,14 +120,14 @@ export interface OpenAIChatCompletionRequest {
    * Effort level for thinking models (e.g. `deepseek-r1`, `qwen3`). Equivalent to
    * `reasoning.effort`; only effective for models that support reasoning/thinking.
    */
-  readonly reasoning_effort?: 'high' | 'medium' | 'low' | 'max' | 'none' | undefined;
+  readonly reasoning_effort?: OpenAIReasoningEffort | undefined;
   /**
    * Effort level for thinking models (e.g. `deepseek-r1`, `qwen3`), nested OpenAI-style.
    * Equivalent to `reasoning_effort`; only effective for models that support
    * reasoning/thinking.
    */
   readonly reasoning?:
-    { readonly effort?: 'high' | 'medium' | 'low' | 'max' | 'none' | undefined } | undefined;
+    { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
 export interface OpenAIChatCompletionChoice {
@@ -128,6 +163,77 @@ export interface OpenAIListModelsResponse {
   readonly data: readonly OpenAIModelItem[];
 }
 
+export interface OpenAICompletionRequest {
+  readonly model: string;
+  /** Ollama currently accepts a string prompt for /v1/completions. */
+  readonly prompt: string;
+  readonly frequency_penalty?: number | undefined;
+  readonly presence_penalty?: number | undefined;
+  readonly seed?: number | undefined;
+  readonly stop?: readonly string[] | undefined;
+  readonly stream?: boolean | undefined;
+  readonly stream_options?: OpenAIStreamOptions | undefined;
+  readonly temperature?: number | undefined;
+  readonly top_p?: number | undefined;
+  readonly max_tokens?: number | undefined;
+  readonly suffix?: string | undefined;
+  readonly best_of?: number | undefined;
+  readonly echo?: boolean | undefined;
+  readonly logit_bias?: Record<string, number> | undefined;
+  readonly user?: string | undefined;
+  readonly n?: number | undefined;
+}
+
+export interface OpenAICompletionChoice {
+  readonly text: string;
+  readonly index: number;
+  readonly logprobs?: Record<string, unknown> | null | undefined;
+  readonly finish_reason: string | null;
+}
+
+export interface OpenAICompletionResponse {
+  readonly id: string;
+  readonly object: 'text_completion';
+  readonly created: number;
+  readonly model: string;
+  readonly choices: readonly OpenAICompletionChoice[];
+  readonly usage?: {
+    readonly prompt_tokens: number;
+    readonly completion_tokens: number;
+    readonly total_tokens: number;
+  } | undefined;
+}
+
+export type OpenAIEmbeddingInput =
+  | string
+  | readonly string[]
+  | readonly number[]
+  | readonly (readonly number[])[];
+
+export interface OpenAIEmbeddingRequest {
+  readonly model: string;
+  readonly input: OpenAIEmbeddingInput;
+  readonly encoding_format?: 'float' | 'base64' | undefined;
+  readonly dimensions?: number | undefined;
+  readonly user?: string | undefined;
+}
+
+export interface OpenAIEmbeddingItem {
+  readonly object: 'embedding';
+  readonly embedding: readonly number[] | string;
+  readonly index: number;
+}
+
+export interface OpenAIEmbeddingResponse {
+  readonly object: 'list';
+  readonly data: readonly OpenAIEmbeddingItem[];
+  readonly model: string;
+  readonly usage?: {
+    readonly prompt_tokens: number;
+    readonly total_tokens: number;
+  } | undefined;
+}
+
 /**
  * Request body for OpenAI's Responses API (`/v1/responses`), added in Ollama v0.13.3.
  *
@@ -151,6 +257,9 @@ export interface OpenAIResponsesRequest {
   /** @remarks Not supported by Ollama, which is stateless across calls — accepted but ignored. */
   readonly conversation?: string | undefined;
   readonly truncation?: string | undefined;
+  readonly reasoning?: { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
+  /** Ollama extension: boolean, model-defined string, or null for model default. */
+  readonly think?: boolean | string | null | undefined;
 }
 
 export interface OpenAIResponsesOutputTextContent {
@@ -207,6 +316,57 @@ export class OpenAICompatClient {
       method: 'GET',
       signal,
     });
+  }
+
+  async retrieveModel(
+    model: string,
+    signal?: AbortSignal,
+  ): Promise<OpenAIModelItem> {
+    return this.http.request<OpenAIModelItem>({
+      path: `/v1/models/${encodeURIComponent(model)}`,
+      method: 'GET',
+      signal,
+    });
+  }
+
+  async getModel(model: string, signal?: AbortSignal): Promise<OpenAIModelItem> {
+    return this.retrieveModel(model, signal);
+  }
+
+  async createCompletion(
+    request: OpenAICompletionRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionResponse> {
+    return this.http.request<OpenAICompletionResponse>({
+      path: '/v1/completions',
+      body: request,
+      signal,
+    });
+  }
+
+  async completions(
+    request: OpenAICompletionRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionResponse> {
+    return this.createCompletion(request, signal);
+  }
+
+  async createEmbedding(
+    request: OpenAIEmbeddingRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAIEmbeddingResponse> {
+    return this.http.request<OpenAIEmbeddingResponse>({
+      path: '/v1/embeddings',
+      body: request,
+      signal,
+    });
+  }
+
+  async embeddings(
+    request: OpenAIEmbeddingRequest,
+    signal?: AbortSignal,
+  ): Promise<OpenAIEmbeddingResponse> {
+    return this.createEmbedding(request, signal);
   }
 
   async createResponses(
