@@ -755,7 +755,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
         } else if (payload.type === 'response.output_text.delta') {
           const event = payload as OpenAIResponsesOutputTextDeltaEvent;
           const state = outputs.get(event.output_index) ?? {
-            itemId: payload.item_id,
+            itemId: event.item_id,
             kind: 'message' as const,
             content: new Map<number, string>(),
             summary: new Map<number, string>(),
@@ -768,7 +768,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
             event.content_index,
             (state.content.get(event.content_index) ?? '') + event.delta,
           );
-          outputs.set(payload.output_index, state);
+          outputs.set(event.output_index, state);
         } else if (payload.type === 'response.output_text.done') {
           const event = payload as OpenAIResponsesOutputTextDoneEvent;
           const state = outputs.get(event.output_index) ?? {
