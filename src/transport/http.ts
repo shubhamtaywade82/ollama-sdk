@@ -3,6 +3,8 @@
  */
 
 import { mapError } from '../errors.js';
+import { composeMiddleware, type Middleware } from '../middleware.js';
+import type { RequestLifecycleHook } from '../logger.js';
 import { parseNdjsonStream } from '../streaming/ndjson.js';
 import { parseSseStream, type SseEvent } from '../streaming/sse.js';
 import type { AbortableAsyncIterable } from '../streaming/types.js';
@@ -35,11 +37,22 @@ export type FetchLike = typeof globalThis.fetch;
 export type BinaryBody = Uint8Array | ArrayBuffer | string | Blob | ReadableStream<Uint8Array>;
 export type HttpBody = unknown;
 
+let requestSequence = 0;
+
+function createRequestId(): string {
+  requestSequence += 1;
+  return `ollama-http-${requestSequence}`;
+}
+
 export interface HttpClientOptions {
   readonly baseUrl: string;
   readonly apiKey?: string | undefined;
   readonly headers?: Record<string, string> | undefined;
   readonly fetch?: FetchLike | undefined;
+  readonly middleware?: readonly Middleware[] | undefined;
+  readonly onLifecycleEvent?: RequestLifecycleHook | undefined;
+  /** Reuse a logical request id across endpoint failover/retry attempts. */
+  readonly requestId?: string | undefined;
 }
 
 export interface HttpRequestOptions {
@@ -56,12 +69,18 @@ export class HttpClient {
   private readonly apiKey?: string | undefined;
   private readonly defaultHeaders: Record<string, string>;
   private readonly fetchImpl: FetchLike;
+  private readonly middleware: readonly Middleware[];
+  private readonly onLifecycleEvent?: RequestLifecycleHook;
+  private readonly defaultRequestId: string;
 
   constructor(options: HttpClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this.defaultHeaders = options.headers ?? {};
     this.fetchImpl = options.fetch ?? globalThis.fetch;
+    this.middleware = options.middleware ?? [];
+    this.onLifecycleEvent = options.onLifecycleEvent;
+    this.defaultRequestId = options.requestId ?? createRequestId();
   }
 
   private buildHeaders(customHeaders?: Record<string, string> | undefined): Record<string, string> {
@@ -74,6 +93,77 @@ export class HttpClient {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
     return headers;
+  }
+
+  private async fetchWithMiddleware(
+    request: {
+      readonly url: string;
+      readonly method: string;
+      readonly headers: Record<string, string>;
+      readonly body?: unknown;
+      readonly signal?: AbortSignal | undefined;
+    },
+  ): Promise<Response> {
+    const requestId = this.defaultRequestId;
+    const startedAt = Date.now();
+    this.onLifecycleEvent?.({
+      type: 'start',
+      requestId,
+      method: request.method,
+      url: request.url,
+      timestamp: startedAt,
+    });
+
+    const finalHandler = async (req: typeof request): Promise<{
+      status: number;
+      headers: Record<string, string>;
+      body: Response;
+    }> => {
+      const init: RequestInit = {
+        method: req.method,
+        headers: req.headers,
+        ...(req.body !== undefined ? { body: req.body as BodyInit } : {}),
+        ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      };
+      const response = await this.fetchImpl(req.url, init);
+      return {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: response,
+      };
+    };
+
+    try {
+      const pipeline = composeMiddleware(this.middleware, finalHandler);
+      const context = await pipeline(request);
+      const response = context.body instanceof Response
+        ? context.body
+        : new Response(context.body as BodyInit | null, {
+            status: context.status,
+            headers: context.headers,
+          });
+
+      this.onLifecycleEvent?.({
+        type: 'success',
+        requestId,
+        durationMs: Date.now() - startedAt,
+        status: context.status,
+        timestamp: Date.now(),
+      });
+      return response;
+    } catch (error) {
+      const mapped = mapError(error, {
+        request: { method: request.method, url: request.url },
+      });
+      this.onLifecycleEvent?.({
+        type: 'error',
+        requestId,
+        durationMs: Date.now() - startedAt,
+        error: mapped,
+        timestamp: Date.now(),
+      });
+      throw mapped;
+    }
   }
 
   async request<T>(options: HttpRequestOptions): Promise<T> {
@@ -99,14 +189,13 @@ export class HttpClient {
                 ? JSON.stringify(options.body)
                 : undefined;
 
-          const init: RequestInit = {
+          const response = await this.fetchWithMiddleware({
+            url,
             method,
             headers,
             ...(bodyInit !== undefined ? { body: bodyInit } : {}),
             ...(options.signal !== undefined ? { signal: options.signal } : {}),
-          };
-
-          const response = await this.fetchImpl(url, init);
+          });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
@@ -180,14 +269,13 @@ export class HttpClient {
                 })()
               : undefined;
 
-          const init: RequestInit = {
+          const response = await this.fetchWithMiddleware({
+            url,
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
             signal: controller.signal,
-          };
-
-          const response = await this.fetchImpl(url, init);
+          });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
@@ -255,14 +343,13 @@ export class HttpClient {
                 })()
               : undefined;
 
-          const init: RequestInit = {
+          const response = await this.fetchWithMiddleware({
+            url,
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
             signal: controller.signal,
-          };
-
-          const response = await this.fetchImpl(url, init);
+          });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
