@@ -88,13 +88,14 @@ function withStableToolCallIds(
 
 export function normalizeChatStream(
   source: AbortableAsyncIterable<ChatResponse>,
+  signal?: AbortSignal,
 ): OllamaStream<ChatResponse, ChatStreamResult> {
   const initial: ChatStreamResult = {
     message: { role: 'assistant', content: '' },
     model: '',
     done: false,
   };
-  return new OllamaStream(withStableToolCallIds(source), mapChatChunk, aggregateChat, initial);
+  return new OllamaStream(withStableToolCallIds(source), mapChatChunk, aggregateChat, initial, signal);
 }
 
 function aggregateGenerate(
@@ -136,9 +137,10 @@ function mapGenerateChunk(
 
 export function normalizeGenerateStream(
   source: AbortableAsyncIterable<GenerateResponse>,
+  signal?: AbortSignal,
 ): OllamaStream<GenerateResponse, GenerateStreamResult> {
   const initial: GenerateStreamResult = { response: '', model: '', done: false };
-  return new OllamaStream(source, mapGenerateChunk, aggregateGenerate, initial);
+  return new OllamaStream(source, mapGenerateChunk, aggregateGenerate, initial, signal);
 }
 
 function aggregateProgress(
@@ -169,7 +171,8 @@ function mapProgressChunk(
 
 export function normalizeProgressStream(
   source: AbortableAsyncIterable<ProgressResponse>,
+  signal?: AbortSignal,
 ): OllamaStream<ProgressResponse, ProgressStreamResult> {
   const initial: ProgressStreamResult = { status: '', done: false };
-  return new OllamaStream(source, mapProgressChunk, aggregateProgress, initial);
+  return new OllamaStream(source, mapProgressChunk, aggregateProgress, initial, signal);
 }
