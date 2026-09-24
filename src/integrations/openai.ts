@@ -829,10 +829,18 @@ export class OpenAICompatClient {
   }
 
   async completions(
+    request: OpenAICompletionRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionStream>;
+  async completions(
+    request: OpenAICompletionRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAICompletionResponse>;
+  async completions(
     request: OpenAICompletionRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAICompletionResponse> {
-    return this.createCompletion(request, signal);
+  ): Promise<OpenAICompletionResponse | OpenAICompletionStream> {
+    return this.createCompletion(request as never, signal);
   }
 
   async createEmbedding(
