@@ -35,7 +35,10 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       return;
     }
 
-    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const timerId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
     const onAbort = (): void => {
       if (timerId !== undefined) clearTimeout(timerId);
       signal?.removeEventListener('abort', onAbort);
@@ -45,11 +48,6 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
           : new OllamaAbortError('Retry backoff aborted'),
       );
     };
-
-    timerId = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
 
     signal?.addEventListener('abort', onAbort, { once: true });
   });
