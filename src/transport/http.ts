@@ -3,7 +3,7 @@
  */
 
 import { mapError } from '../errors.js';
-import { composeMiddleware, type Middleware } from '../middleware.js';
+import { composeMiddleware, type Middleware, type RequestContext } from '../middleware.js';
 import type { RequestLifecycleHook } from '../logger.js';
 import { parseNdjsonStream } from '../streaming/ndjson.js';
 import { parseSseStream, type SseEvent } from '../streaming/sse.js';
@@ -70,7 +70,7 @@ export class HttpClient {
   private readonly defaultHeaders: Record<string, string>;
   private readonly fetchImpl: FetchLike;
   private readonly middleware: readonly Middleware[];
-  private readonly onLifecycleEvent?: RequestLifecycleHook;
+  private readonly onLifecycleEvent: RequestLifecycleHook | undefined;
   private readonly requestId?: string | undefined;
 
   constructor(options: HttpClientOptions) {
@@ -96,7 +96,8 @@ export class HttpClient {
   }
 
   private async fetchWithMiddleware(
-    request: {
+    request: RequestContext,
+
       readonly url: string;
       readonly method: string;
       readonly headers: Record<string, string>;
@@ -146,7 +147,7 @@ export class HttpClient {
               status: context.status,
               headers: context.headers,
             })
-          : new Response(context.body as BodyInit | null, {
+          : new Response(context.body as RequestInit['body'], {
               status: context.status,
               headers: context.headers,
             });
