@@ -59,8 +59,8 @@ describe('OpenAI compatibility streaming', () => {
 describe('OpenAI Responses compatibility streaming', () => {
   it('exposes typed response SSE events and preserves the completed response', async () => {
     const fetchMock = sseFetchMock([
-      'event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}\\n\\n',
-      'event: response.completed\\ndata: {"type":"response.completed","response":{"id":"resp_1","object":"response","created":1,"model":"qwen3","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}\\n\\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}\n\n',
+      'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_1","object":"response","created":1,"model":"qwen3","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}\n\n',
     ]);
     const client = new OllamaClient({ fetch: fetchMock as never });
 
@@ -83,13 +83,13 @@ describe('OpenAI Responses compatibility streaming', () => {
 
   it('reconstructs output items when the terminal response payload is omitted', async () => {
     const fetchMock = sseFetchMock([
-      'event: response.created\\ndata: {"type":"response.created","response":{"id":"resp_2","object":"response","created":2,"model":"qwen3","output":[]}}\\n\\n',
-      'event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":"Hello"}\\n\\n',
-      'event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":" world"}\\n\\n',
-      'event: response.function_call_arguments.delta\\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_2","output_index":1,"delta":"{\\"city\\":"}\\n\\n',
-      'event: response.function_call_arguments.done\\ndata: {"type":"response.function_call_arguments.done","item_id":"call_2","output_index":1,"name":"get_weather","arguments":"{\\"city\\":\\"Bengaluru\\"}"}\\n\\n',
-      'event: response.reasoning_summary_text.delta\\ndata: {"type":"response.reasoning_summary_text.delta","item_id":"reason_2","output_index":2,"summary_index":0,"delta":"checked"}\\n\\n',
-      'data: [DONE]\\n\\n',
+      'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_2","object":"response","created":2,"model":"qwen3","output":[]}}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":"Hello"}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":" world"}\n\n',
+      'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_2","output_index":1,"delta":"{\\"city\\":"}\n\n',
+      'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"call_2","output_index":1,"name":"get_weather","arguments":"{\\"city\\":\\"Bengaluru\\"}"}\n\n',
+      'event: response.reasoning_summary_text.delta\ndata: {"type":"response.reasoning_summary_text.delta","item_id":"reason_2","output_index":2,"summary_index":0,"delta":"checked"}\n\n',
+      'data: [DONE]\n\n',
     ]);
     const client = new OllamaClient({ fetch: fetchMock as never });
 
@@ -130,7 +130,7 @@ describe('OpenAI Responses compatibility streaming', () => {
         start(controller) {
           controller.enqueue(
             new TextEncoder().encode(
-              'event: response.created\\ndata: {"type":"response.created","response":{"id":"resp_3","object":"response","created":3,"model":"qwen3","output":[]}}\\n\\n',
+              'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_3","object":"response","created":3,"model":"qwen3","output":[]}}\n\n',
             ),
           );
         },
