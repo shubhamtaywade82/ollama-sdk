@@ -69,6 +69,13 @@ import type {
   WebSearchResponse,
 } from './types.js';
 
+let logicalRequestSequence = 0;
+
+function createLogicalRequestId(): string {
+  logicalRequestSequence += 1;
+  return `ollama-request-${logicalRequestSequence}`;
+}
+
 export class OllamaClient {
   readonly registry: EndpointRegistry;
   readonly models: ModelsClient;
@@ -77,6 +84,8 @@ export class OllamaClient {
   private readonly failoverCodes: Set<string>;
   private readonly fetchImpl: FetchLike;
   private readonly logger: Logger;
+  private readonly middleware: OllamaClientConfig['middleware'];
+  private readonly onLifecycleEvent: OllamaClientConfig['onLifecycleEvent'];
   /**
    * API key for Ollama's hosted web tools (`webSearch`/`webFetch`), which always target
    * `OLLAMA_CLOUD_BASE_URL` regardless of `config.endpoints` — an Ollama account API key
@@ -107,6 +116,8 @@ export class OllamaClient {
     this.failoverCodes = new Set(config.failoverOn ?? DEFAULT_FAILOVER_CODES);
     this.fetchImpl = config.fetch ?? globalThis.fetch;
     this.logger = config.logger ?? (config.debug ? createConsoleLogger() : NOOP_LOGGER);
+    this.middleware = config.middleware;
+    this.onLifecycleEvent = config.onLifecycleEvent;
     this.retryConfig =
       typeof config.retries === 'number'
         ? { ...DEFAULT_RETRY_CONFIG, maxRetries: config.retries }
@@ -172,6 +183,7 @@ export class OllamaClient {
     },
   ): Promise<T> {
     const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
+    const requestId = createLogicalRequestId();
     let deferTimeoutCancel = false;
     try {
       let lastError: Error | undefined;
@@ -214,6 +226,9 @@ export class OllamaClient {
             ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
             ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
             fetch: this.fetchImpl,
+            middleware: this.middleware,
+            onLifecycleEvent: this.onLifecycleEvent,
+            requestId,
           });
 
           // Acquired synchronously, right after this endpoint was chosen from
@@ -229,7 +244,21 @@ export class OllamaClient {
                 [ATTR_OLLAMA_ENDPOINT_NAME]: endpoint.name,
                 [ATTR_OLLAMA_ENDPOINT_ATTEMPT]: attemptIndex,
               },
-              () => withRetry(() => operation(http, timeout.signal), this.retryConfig),
+              () =>
+                withRetry(() => operation(http, timeout.signal), {
+                  ...this.retryConfig,
+                  onRetry: (error, attempt, delayMs) => {
+                    this.retryConfig.onRetry?.(error, attempt, delayMs);
+                    this.onLifecycleEvent?.({
+                      type: 'retry',
+                      requestId,
+                      attempt: attempt + 1,
+                      error,
+                      delayMs,
+                      timestamp: Date.now(),
+                    });
+                  },
+                }),
             );
             this.registry.reportSuccess(endpoint.name);
             if (options?.holdUntil) {
@@ -536,6 +565,9 @@ export class OllamaClient {
         baseUrl: OLLAMA_CLOUD_BASE_URL,
         apiKey: this.cloudApiKey,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
+        requestId: createLogicalRequestId(),
       });
       return await withRetry(() => operation(http, timeout.signal), this.retryConfig);
     } finally {
@@ -570,6 +602,8 @@ export class OllamaClient {
         apiKey: ep?.apiKey,
         headers: ep?.headers,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
       }),
       (op, opts) => this.executeWithFailover(op, opts),
     );
@@ -582,6 +616,8 @@ export class OllamaClient {
         apiKey: ep?.apiKey,
         headers: ep?.headers,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
       }),
       (op, opts) => this.executeWithFailover(op, opts),
     );
