@@ -194,7 +194,7 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly options?: ModelOptions | undefined;
   readonly keep_alive?: string | number | undefined;
-  readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  readonly think?: ThinkValue | undefined;
   /** Whether to return log probabilities of the output tokens. See {@link GenerateResponse.logprobs}. */
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
