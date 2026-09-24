@@ -802,6 +802,25 @@ npm run verify
 
 MIT © [Shubham Taywade](https://github.com/shubhamtaywade82)
 
+## Middleware and request lifecycle
+
+`OllamaClient` accepts `middleware` and `onLifecycleEvent` configuration. Middleware runs
+around the underlying HTTP request for native endpoints, OpenAI/Anthropic compatibility,
+model health checks, and the hosted web tools. Lifecycle events expose `start`, `success`,
+`retry`, and `error` events with a request id, timing, and status/error information.
+
+```ts
+const client = new OllamaClient({
+  middleware: [async ({ request, next }) => {
+    request.headers['X-Request-Source'] = 'my-app';
+    return next();
+  }],
+  onLifecycleEvent: (event) => {
+    console.log(event.type, event.requestId);
+  },
+});
+```
+
 ## Compatibility routing and stream lifecycle
 
 OpenAI and Anthropic compatibility requests use the same endpoint registry, model-scoped
