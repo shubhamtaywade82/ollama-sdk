@@ -126,9 +126,13 @@ export class HttpClient {
         ...(req.signal !== undefined ? { signal: req.signal } : {}),
       };
       const response = await this.fetchImpl(req.url, init);
+      const responseHeaders =
+        response.headers && typeof response.headers.entries === 'function'
+          ? Object.fromEntries(response.headers.entries())
+          : {};
       return {
         status: response.status,
-        headers: Object.fromEntries(response.headers.entries()),
+        headers: responseHeaders,
         body: response,
       };
     };
