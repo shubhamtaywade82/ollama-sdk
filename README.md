@@ -802,6 +802,13 @@ npm run verify
 
 MIT © [Shubham Taywade](https://github.com/shubhamtaywade82)
 
+## API parity verification
+
+`npm run verify:api-parity` fetches the official Ollama API Markdown references during CI and
+checks that documented endpoint/request fields remain present in the SDK's TypeScript
+interfaces. The gate covers native `chat`, `generate`, `embed`, `create`, `show`, `tags`,
+`ps`, and `version` endpoints plus OpenAI and Anthropic compatibility request surfaces.
+
 ## Middleware and request lifecycle
 
 `OllamaClient` accepts `middleware` and `onLifecycleEvent` configuration. Middleware runs
