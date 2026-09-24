@@ -801,7 +801,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           outputs.set(event.output_index, state);
         } else if (payload.type === 'response.function_call_arguments.done') {
           const event = payload as OpenAIResponsesFunctionCallArgumentsDoneEvent;
-          const state = outputs.get(event.output_index) ?? {
+          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
             itemId: payload.item_id,
             kind: 'function_call' as const,
             content: new Map<number, string>(),
