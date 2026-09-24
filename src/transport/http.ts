@@ -53,7 +53,7 @@ function sameHeaders(actual: Record<string, string>, expected: Headers): boolean
   const expectedKeys = Object.keys(expectedEntries);
   return (
     actualKeys.length === expectedKeys.length &&
-    expectedKeys.every((key) => actualEntries[key] === expectedEntries[key]),
+    expectedKeys.every((key) => actualEntries[key] === expectedEntries[key])
   );
 }
 
