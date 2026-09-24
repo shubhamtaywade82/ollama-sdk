@@ -744,10 +744,18 @@ export class OpenAICompatClient {
   }
 
   async chatCompletions(
+    request: OpenAIChatCompletionRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAIChatCompletionStream>;
+  async chatCompletions(
+    request: OpenAIChatCompletionRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAIChatCompletionResponse>;
+  async chatCompletions(
     request: OpenAIChatCompletionRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAIChatCompletionResponse> {
-    return this.createChatCompletion(request, signal);
+  ): Promise<OpenAIChatCompletionResponse | OpenAIChatCompletionStream> {
+    return this.createChatCompletion(request as never, signal);
   }
 
   async listModels(signal?: AbortSignal): Promise<OpenAIListModelsResponse> {
