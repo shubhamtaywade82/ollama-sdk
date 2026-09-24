@@ -21,8 +21,8 @@ export async function checkEndpointHealth(
   endpoint: OllamaEndpoint,
   fetchImpl?: FetchLike,
   timeoutMs = 5000,
-  middleware?: readonly Middleware[],
-  onLifecycleEvent?: RequestLifecycleHook,
+  middleware?: readonly Middleware[] | undefined,
+  onLifecycleEvent?: RequestLifecycleHook | undefined,
 ): Promise<EndpointHealthCheckResult> {
   const client = new HttpClient({
     baseUrl: endpoint.baseUrl,
