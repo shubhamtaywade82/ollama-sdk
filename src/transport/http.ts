@@ -4,6 +4,7 @@
 
 import { mapError } from '../errors.js';
 import { parseNdjsonStream } from '../streaming/ndjson.js';
+import { parseSseStream, type SseEvent } from '../streaming/sse.js';
 import type { AbortableAsyncIterable } from '../streaming/types.js';
 import {
   withSpan,
@@ -138,6 +139,62 @@ export class HttpClient {
             return (await response.json()) as T;
           }
           return undefined as T;
+        } catch (err) {
+          throw mapError(err, { request: { method, url } });
+        }
+      },
+    );
+  }
+
+  /**
+   * Opens an event-stream response and exposes parsed SSE events.
+   *
+   * This is intentionally schema-agnostic so OpenAI and Anthropic compatibility layers
+   * can decode their provider-specific event payloads without duplicating transport logic.
+   */
+  async requestSseStream(options: HttpRequestOptions): Promise<AbortableAsyncIterable<SseEvent>> {
+    const url = `${this.baseUrl}${options.path}`;
+    const method = options.method ?? 'POST';
+    const headers = {
+      ...this.buildHeaders(options.headers),
+      Accept: 'text/event-stream',
+    };
+
+    return withSpan(
+      `${method} ${routeTemplate(options.path)}`,
+      httpSpanAttributes(method, url),
+      async (span) => {
+        try {
+          const init: RequestInit = {
+            method,
+            headers,
+            ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+            ...(options.signal !== undefined ? { signal: options.signal } : {}),
+          };
+
+          const response = await this.fetchImpl(url, init);
+          span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw mapError(new Error(errorText || `HTTP ${response.status}`), {
+              request: { method, url },
+              response: { status: response.status, body: errorText },
+            });
+          }
+
+          if (!response.body) {
+            throw mapError(new Error('Response body is null, cannot stream SSE'), {
+              request: { method, url },
+            });
+          }
+
+          const stream = parseSseStream(response.body);
+          return {
+            [Symbol.asyncIterator]() {
+              return stream[Symbol.asyncIterator]();
+            },
+          };
         } catch (err) {
           throw mapError(err, { request: { method, url } });
         }
