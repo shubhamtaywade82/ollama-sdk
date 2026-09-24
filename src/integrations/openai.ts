@@ -234,6 +234,27 @@ export interface OpenAICompletionChoice {
   readonly finish_reason: string | null;
 }
 
+export interface OpenAICompletionChunk {
+  readonly id: string;
+  readonly object: 'text_completion';
+  readonly created: number;
+  readonly model: string;
+  readonly choices: readonly Array<{
+    readonly text: string;
+    readonly index: number;
+    readonly logprobs?: Record<string, unknown> | null | undefined;
+    readonly finish_reason?: string | null | undefined;
+  }>[number][];
+  readonly usage?:
+    | {
+        readonly prompt_tokens: number;
+        readonly completion_tokens: number;
+        readonly total_tokens: number;
+      }
+    | null
+    | undefined;
+}
+
 export interface OpenAICompletionResponse {
   readonly id: string;
   readonly object: 'text_completion';
@@ -521,23 +542,7 @@ export class OpenAICompletionStream implements AsyncIterable<{
     try {
       for await (const event of this.source) {
         if (event.data === '[DONE]') break;
-        const chunk = JSON.parse(event.data) as {
-          id: string;
-          object: 'text_completion';
-          created: number;
-          model: string;
-          choices: readonly Array<{
-            text: string;
-            index: number;
-            logprobs?: Record<string, unknown> | null | undefined;
-            finish_reason?: string | null | undefined;
-          }>[number][];
-          usage?: {
-            prompt_tokens: number;
-            completion_tokens: number;
-            total_tokens: number;
-          } | null;
-        };
+        const chunk = JSON.parse(event.data) as OpenAICompletionChunk;
         id = chunk.id || id;
         model = chunk.model || model;
         created = chunk.created || created;
@@ -571,10 +576,67 @@ export class OpenAICompletionStream implements AsyncIterable<{
   }
 }
 
-export interface OpenAIResponsesStreamEvent {
-  readonly type: string;
-  readonly [key: string]: unknown;
+export interface OpenAIResponsesOutputTextDeltaEvent {
+  readonly type: 'response.output_text.delta';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly content_index: number;
+  readonly delta: string;
 }
+
+export interface OpenAIResponsesOutputTextDoneEvent {
+  readonly type: 'response.output_text.done';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly content_index: number;
+  readonly text: string;
+}
+
+export interface OpenAIResponsesFunctionCallArgumentsDeltaEvent {
+  readonly type: 'response.function_call_arguments.delta';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly delta: string;
+}
+
+export interface OpenAIResponsesFunctionCallArgumentsDoneEvent {
+  readonly type: 'response.function_call_arguments.done';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly name: string;
+  readonly arguments: string;
+}
+
+export interface OpenAIResponsesReasoningTextDeltaEvent {
+  readonly type: 'response.reasoning_text.delta';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly content_index: number;
+  readonly delta: string;
+}
+
+export interface OpenAIResponsesReasoningSummaryTextDeltaEvent {
+  readonly type: 'response.reasoning_summary_text.delta';
+  readonly item_id: string;
+  readonly output_index: number;
+  readonly summary_index: number;
+  readonly delta: string;
+}
+
+export interface OpenAIResponsesCompletedEvent {
+  readonly type: 'response.completed' | 'response.done';
+  readonly response: OpenAIResponsesResponse;
+}
+
+export type OpenAIResponsesStreamEvent =
+  | OpenAIResponsesOutputTextDeltaEvent
+  | OpenAIResponsesOutputTextDoneEvent
+  | OpenAIResponsesFunctionCallArgumentsDeltaEvent
+  | OpenAIResponsesFunctionCallArgumentsDoneEvent
+  | OpenAIResponsesReasoningTextDeltaEvent
+  | OpenAIResponsesReasoningSummaryTextDeltaEvent
+  | OpenAIResponsesCompletedEvent
+  | { readonly type: string; readonly [key: string]: unknown };
 
 export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
   private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
