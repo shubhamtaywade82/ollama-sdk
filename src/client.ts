@@ -258,7 +258,8 @@ export class OllamaClient {
                       timestamp: Date.now(),
                     });
                   },
-                }),
+                  timeout.signal,
+                ),
             );
             this.registry.reportSuccess(endpoint.name);
             if (options?.holdUntil) {
@@ -583,7 +584,7 @@ export class OllamaClient {
             timestamp: Date.now(),
           });
         },
-      });
+      }, timeout.signal);
     } finally {
       timeout.cancel();
     }
