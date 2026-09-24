@@ -804,18 +804,28 @@ export class OpenAICompatClient {
     signal?: AbortSignal,
   ): Promise<OpenAICompletionResponse | OpenAICompletionStream> {
     if (request.stream) {
-      const source = await this.http.requestSseStream({
-        path: '/v1/completions',
-        body: request,
+      return this.request(
+        (http, requestSignal) =>
+          http.requestSseStream({
+            path: '/v1/completions',
+            body: request,
+            signal: requestSignal,
+          }).then((source) => new OpenAICompletionStream(source)),
+        request.model,
         signal,
-      });
-      return new OpenAICompletionStream(source);
+        (stream) => stream.finalResult,
+      );
     }
-    return this.http.request<OpenAICompletionResponse>({
-      path: '/v1/completions',
-      body: request,
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAICompletionResponse>({
+          path: '/v1/completions',
+          body: request,
+          signal: requestSignal,
+        }),
+      request.model,
       signal,
-    });
+    );
   }
 
   async completions(
