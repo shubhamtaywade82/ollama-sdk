@@ -118,4 +118,26 @@ describe('HttpClient SSE transport', () => {
     expect(init.headers.Accept).toBe('text/event-stream');
     expect(events).toEqual([{ event: 'message', data: '{"delta":"hi"}' }]);
   });
+  it('exposes abort and propagates it to the fetch signal after headers arrive', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: { signal?: AbortSignal }) => {
+      capturedSignal = init.signal;
+      return {
+        ok: true,
+        status: 200,
+        body: new ReadableStream<Uint8Array>({
+          start() {
+            // Intentionally keep the response open until abort().
+          },
+        }),
+      };
+    });
+
+    const http = new HttpClient({ baseUrl: 'http://localhost:11434', fetch: fetchMock as never });
+    const source = await http.requestSseStream({ path: '/v1/chat/completions' });
+
+    expect(capturedSignal?.aborted).toBe(false);
+    source.abort?.();
+    expect(capturedSignal?.aborted).toBe(true);
+  });
 });
