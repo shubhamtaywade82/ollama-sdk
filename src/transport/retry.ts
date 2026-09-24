@@ -24,7 +24,10 @@ function isRetryableDefault(error: Error): boolean {
   return false;
 }
 
-function abortError(signal: AbortSignal | undefined, fallbackMessage: string): OllamaAbortError | OllamaClientError {
+function abortError(
+  signal: AbortSignal | undefined,
+  fallbackMessage: string,
+): OllamaAbortError | OllamaClientError {
   const reason = signal?.reason;
   if (reason instanceof OllamaClientError) return reason;
   return new OllamaAbortError(
