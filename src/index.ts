@@ -18,6 +18,8 @@ export {
 // Protocol and message types
 export type {
   Role,
+  ThinkValue,
+  ThinkingMetadata,
   ToolCallFunction,
   ToolCall,
   Message,
