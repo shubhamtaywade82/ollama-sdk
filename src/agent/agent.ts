@@ -13,7 +13,7 @@ import {
   GEN_AI_SYSTEM_OLLAMA,
 } from '../telemetry/index.js';
 import { ensureToolCallIds } from '../tools/tool-call-id.js';
-import type { Message, ModelOptions, ToolDefinition } from '../types.js';
+import type { Message, ModelOptions, ThinkValue, ToolDefinition } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { AgentConfig, AgentHooks, AgentResult, AgentRunInput, AgentTurn } from './types.js';
 
@@ -23,7 +23,7 @@ export interface AgentChatClient {
     readonly messages: readonly Message[];
     readonly tools?: readonly ToolDefinition[] | undefined;
     readonly options?: ModelOptions | undefined;
-    readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+    readonly think?: ThinkValue | undefined;
     readonly stream?: false | undefined;
     readonly signal?: AbortSignal | undefined;
   }): Promise<{ readonly message: Message }>;
