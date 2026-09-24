@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Native tool-result protocol parity:** `Agent` now appends Ollama-native `role: "tool"` messages with `tool_name` instead of the OpenAI-specific `tool_call_id`. SDK-generated `toolCallId` values remain available for local execution/tracing correlation, while legacy `tool_call_id` values are stripped from native `/api/chat` request bodies.
+
 All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
