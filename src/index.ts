@@ -94,6 +94,9 @@ export {
   type FetchLike,
   type HttpBody,
 } from './transport/http.js';
+
+export type { RequestRunner } from './transport/runner.js';
+
 export { calculateBackoff, DEFAULT_BACKOFF, type BackoffOptions } from './transport/backoff.js';
 export { withRetry, DEFAULT_RETRY_CONFIG, type RetryConfig } from './transport/retry.js';
 export { createTimeoutSignal, type TimeoutSignal } from './transport/timeout.js';
