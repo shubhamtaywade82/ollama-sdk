@@ -97,7 +97,7 @@ export class ModelsClient {
             body: { ...request, stream: true },
             signal,
           });
-          return normalizeProgressStream(stream);
+          return normalizeProgressStream(stream, signal);
         },
         { ...request, singleEndpoint: true, holdUntil: (stream) => stream.finalResult },
       );
