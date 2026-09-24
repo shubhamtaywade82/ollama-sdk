@@ -95,16 +95,7 @@ export class HttpClient {
     return headers;
   }
 
-  private async fetchWithMiddleware(
-    request: RequestContext,
-
-      readonly url: string;
-      readonly method: string;
-      readonly headers: Record<string, string>;
-      readonly body?: unknown;
-      readonly signal?: AbortSignal | undefined;
-    },
-  ): Promise<Response> {
+  private async fetchWithMiddleware(request: RequestContext): Promise<Response> {
     const requestId = this.requestId ?? createRequestId();
     const startedAt = Date.now();
     this.onLifecycleEvent?.({
