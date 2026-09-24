@@ -12,6 +12,7 @@ interface SurfaceContract {
   readonly interfaceName?: string;
   readonly endpoint: string;
   readonly fields: readonly string[];
+  readonly docAliases?: Readonly<Record<string, readonly string[]>>;
 }
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -19,7 +20,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const CONTRACTS: readonly SurfaceContract[] = [
   { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIChatCompletionRequest', endpoint: '/v1/chat/completions', fields: ['model','messages','frequency_penalty','presence_penalty','response_format','seed','stop','stream','stream_options','temperature','top_p','max_tokens','tools','reasoning_effort','reasoning','tool_choice','logit_bias','user','n'] },
   { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAICompletionRequest', endpoint: '/v1/completions', fields: ['model','prompt','frequency_penalty','presence_penalty','seed','stop','stream','stream_options','temperature','top_p','max_tokens','suffix','best_of','echo','logit_bias','user','n'] },
-  { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIEmbeddingRequest', endpoint: '/v1/embeddings', fields: ['model','input','encoding_format','dimensions','user'] },
+  { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIEmbeddingRequest', endpoint: '/v1/embeddings', fields: ['model','input','encoding_format','dimensions','user'], docAliases: { encoding_format: ['encoding_format', 'encoding format'] } },
   { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIResponsesRequest', endpoint: '/v1/responses', fields: ['model','input','instructions','tools','stream','temperature','top_p','max_output_tokens','reasoning','think','previous_response_id','conversation','truncation'] },
   { docsUrl: 'https://docs.ollama.com/api/anthropic-compatibility.md', sourceFile: 'src/integrations/anthropic.ts', interfaceName: 'AnthropicMessagesRequest', endpoint: '/v1/messages', fields: ['model','max_tokens','messages','system','stream','temperature','top_p','top_k','stop_sequences','tools','thinking','output_config','tool_choice','metadata'] },
   { docsUrl: 'https://docs.ollama.com/api/chat.md', sourceFile: 'src/types.ts', interfaceName: 'ChatRequestOptions', endpoint: '/api/chat', fields: ['model','messages','tools','format','options','stream','think','keep_alive','logprobs','top_logprobs'] },
@@ -57,7 +58,7 @@ function assertContract(contract: SurfaceContract, docs: string, properties: Set
   if (!docs.includes(contract.endpoint)) throw new Error('Documented endpoint ' + contract.endpoint + ' is missing from ' + contract.docsUrl);
   const missingSource = contract.fields.filter((field) => !properties.has(field));
   if (missingSource.length > 0) throw new Error(contract.interfaceName + ' is missing documented field(s): ' + missingSource.join(', '));
-  const missingDocs = contract.fields.filter((field) => !docs.includes('`' + field + '`'));
+  const missingDocs = contract.fields.filter((field) => { const aliases = contract.docAliases?.[field] ?? [field]; return !aliases.some((alias) => docs.includes('`' + alias + '`')); });
   if (missingDocs.length > 0) throw new Error('Parity contract expects field(s) no longer documented by Ollama: ' + missingDocs.join(', '));
 }
 
