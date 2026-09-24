@@ -86,8 +86,8 @@ describe('OpenAI Responses compatibility streaming', () => {
       'event: response.created\\ndata: {"type":"response.created","response":{"id":"resp_2","object":"response","created":2,"model":"qwen3","output":[]}}\\n\\n',
       'event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":"Hello"}\\n\\n',
       'event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":" world"}\\n\\n',
-      'event: response.function_call_arguments.delta\\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_2","output_index":1,"delta":"{\"city\":"}\\n\\n',
-      'event: response.function_call_arguments.done\\ndata: {"type":"response.function_call_arguments.done","item_id":"call_2","output_index":1,"name":"get_weather","arguments":"{\"city\":\"Bengaluru\"}"}\\n\\n',
+      'event: response.function_call_arguments.delta\\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_2","output_index":1,"delta":"{\\"city\\":"}\\n\\n',
+      'event: response.function_call_arguments.done\\ndata: {"type":"response.function_call_arguments.done","item_id":"call_2","output_index":1,"name":"get_weather","arguments":"{\\"city\\":\\"Bengaluru\\"}"}\\n\\n',
       'event: response.reasoning_summary_text.delta\\ndata: {"type":"response.reasoning_summary_text.delta","item_id":"reason_2","output_index":2,"summary_index":0,"delta":"checked"}\\n\\n',
       'data: [DONE]\\n\\n',
     ]);
