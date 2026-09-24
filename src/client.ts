@@ -293,7 +293,7 @@ export class OllamaClient {
             body: { ...req, messages, stream: true },
             signal,
           });
-          return normalizeChatStream(stream);
+          return normalizeChatStream(stream, signal);
         },
         {
           signal: req.signal,
@@ -383,7 +383,7 @@ export class OllamaClient {
             body: { ...encodedReq, stream: true },
             signal,
           });
-          return normalizeGenerateStream(stream);
+          return normalizeGenerateStream(stream, signal);
         },
         {
           signal: encodedReq.signal,
