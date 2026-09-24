@@ -1,42 +1,113 @@
 /**
  * Anthropic Compatibility interfaces and client helpers for Ollama.
- * Ollama supports Anthropic Messages API format.
- *
- * @remarks
- * This is a typed pass-through to Ollama's Anthropic-compatible `/v1/messages` endpoint
- * — a subset of Anthropic's Messages API (text content, system prompt, sampling
- * parameters, ephemeral prompt-caching hints via `cache_control`), not the full Anthropic
- * surface. Tool use (`tool_use`/`tool_result` content blocks), extended thinking,
- * citations, files, token counting, and the Batches API are not modeled here.
+ * Ollama supports the Anthropic Messages API format.
  */
 
+import type { AbortableAsyncIterable } from '../streaming/types.js';
+import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 
 export interface AnthropicCacheControl {
   readonly type: 'ephemeral';
 }
 
-export interface AnthropicContentBlock {
+export interface AnthropicTextContentBlock {
   readonly type: 'text';
   readonly text: string;
-  /** Marks this block as a prompt-caching breakpoint (Anthropic's ephemeral cache). */
   readonly cache_control?: AnthropicCacheControl | undefined;
 }
+
+export interface AnthropicImageContentBlock {
+  readonly type: 'image';
+  readonly source: {
+    readonly type: 'base64';
+    readonly media_type: string;
+    readonly data: string;
+  };
+}
+
+export interface AnthropicToolUseContentBlock {
+  readonly type: 'tool_use';
+  readonly id: string;
+  readonly name: string;
+  readonly input: Record<string, unknown>;
+}
+
+export interface AnthropicToolResultContentBlock {
+  readonly type: 'tool_result';
+  readonly tool_use_id: string;
+  readonly content?: string | readonly AnthropicTextContentBlock[] | undefined;
+  readonly is_error?: boolean | undefined;
+}
+
+export interface AnthropicThinkingContentBlock {
+  readonly type: 'thinking';
+  readonly thinking: string;
+  readonly signature?: string | undefined;
+}
+
+export interface AnthropicRedactedThinkingContentBlock {
+  readonly type: 'redacted_thinking';
+  readonly data: string;
+}
+
+export type AnthropicContentBlock =
+  | AnthropicTextContentBlock
+  | AnthropicImageContentBlock
+  | AnthropicToolUseContentBlock
+  | AnthropicToolResultContentBlock
+  | AnthropicThinkingContentBlock
+  | AnthropicRedactedThinkingContentBlock;
 
 export interface AnthropicMessage {
   readonly role: 'user' | 'assistant';
   readonly content: string | readonly AnthropicContentBlock[];
 }
 
+export interface AnthropicSystemTextBlock {
+  readonly type: 'text';
+  readonly text: string;
+  readonly cache_control?: AnthropicCacheControl | undefined;
+}
+
+export type AnthropicSystem = string | readonly AnthropicSystemTextBlock[];
+
+export interface AnthropicTool {
+  readonly name: string;
+  readonly description?: string | undefined;
+  readonly input_schema: Record<string, unknown>;
+  readonly eager_input_streaming?: boolean | undefined;
+}
+
+export type AnthropicToolChoice =
+  | { readonly type: 'auto' }
+  | { readonly type: 'any' }
+  | { readonly type: 'tool'; readonly name: string };
+
+export interface AnthropicThinkingConfig {
+  readonly type: 'enabled' | 'disabled' | 'adaptive';
+  readonly display?: 'omitted' | 'summarized' | 'updates' | undefined;
+}
+
+export interface AnthropicOutputConfig {
+  readonly effort?: string | undefined;
+}
+
 export interface AnthropicMessagesRequest {
   readonly model: string;
   readonly messages: readonly AnthropicMessage[];
-  readonly system?: string | undefined;
+  readonly system?: AnthropicSystem | undefined;
   readonly max_tokens?: number | undefined;
   readonly temperature?: number | undefined;
   readonly top_p?: number | undefined;
   readonly top_k?: number | undefined;
+  readonly stop_sequences?: readonly string[] | undefined;
   readonly stream?: boolean | undefined;
+  readonly tools?: readonly AnthropicTool[] | undefined;
+  readonly thinking?: AnthropicThinkingConfig | undefined;
+  readonly output_config?: AnthropicOutputConfig | undefined;
+  readonly tool_choice?: AnthropicToolChoice | undefined;
+  readonly metadata?: Record<string, unknown> | undefined;
 }
 
 export interface AnthropicMessagesResponse {
@@ -46,21 +117,236 @@ export interface AnthropicMessagesResponse {
   readonly content: readonly AnthropicContentBlock[];
   readonly model: string;
   readonly stop_reason: string;
-  readonly usage?:
-    | {
-        readonly input_tokens: number;
-        readonly output_tokens: number;
+  readonly stop_sequence?: string | null | undefined;
+  readonly usage?: {
+    readonly input_tokens: number;
+    readonly output_tokens: number;
+  } | undefined;
+}
+
+export interface AnthropicMessageStartEvent {
+  readonly type: 'message_start';
+  readonly message: AnthropicMessagesResponse;
+}
+
+export interface AnthropicContentBlockStartEvent {
+  readonly type: 'content_block_start';
+  readonly index: number;
+  readonly content_block: AnthropicContentBlock;
+}
+
+export type AnthropicContentBlockDelta =
+  | { readonly type: 'text_delta'; readonly text: string }
+  | { readonly type: 'input_json_delta'; readonly partial_json: string }
+  | { readonly type: 'thinking_delta'; readonly thinking: string }
+  | { readonly type: 'signature_delta'; readonly signature: string };
+
+export interface AnthropicContentBlockDeltaEvent {
+  readonly type: 'content_block_delta';
+  readonly index: number;
+  readonly delta: AnthropicContentBlockDelta;
+}
+
+export interface AnthropicContentBlockStopEvent {
+  readonly type: 'content_block_stop';
+  readonly index: number;
+}
+
+export interface AnthropicMessageDeltaEvent {
+  readonly type: 'message_delta';
+  readonly delta: {
+    readonly stop_reason?: string | null | undefined;
+    readonly stop_sequence?: string | null | undefined;
+  };
+  readonly usage?: {
+    readonly output_tokens: number;
+  } | undefined;
+}
+
+export interface AnthropicMessageStopEvent {
+  readonly type: 'message_stop';
+}
+
+export interface AnthropicPingEvent {
+  readonly type: 'ping';
+}
+
+export interface AnthropicErrorEvent {
+  readonly type: 'error';
+  readonly error: {
+    readonly type: string;
+    readonly message: string;
+  };
+}
+
+export type AnthropicMessageStreamEvent =
+  | AnthropicMessageStartEvent
+  | AnthropicContentBlockStartEvent
+  | AnthropicContentBlockDeltaEvent
+  | AnthropicContentBlockStopEvent
+  | AnthropicMessageDeltaEvent
+  | AnthropicMessageStopEvent
+  | AnthropicPingEvent
+  | AnthropicErrorEvent;
+
+function parseAnthropicEvent(event: SseEvent): AnthropicMessageStreamEvent {
+  return JSON.parse(event.data) as AnthropicMessageStreamEvent;
+}
+
+function mergeContentBlock(
+  current: AnthropicContentBlock,
+  delta: AnthropicContentBlockDelta,
+): AnthropicContentBlock {
+  if (delta.type === 'text_delta' && current.type === 'text') {
+    return { ...current, text: current.text + delta.text };
+  }
+  if (delta.type === 'input_json_delta' && current.type === 'tool_use') {
+    return {
+      ...current,
+      input: {
+        ...(Object.prototype.hasOwnProperty.call(current.input, '_raw_json')
+          ? { _raw_json: String((current.input as { _raw_json: unknown })._raw_json) + delta.partial_json }
+          : { _raw_json: delta.partial_json }),
+      },
+    };
+  }
+  if (delta.type === 'thinking_delta' && current.type === 'thinking') {
+    return { ...current, thinking: current.thinking + delta.thinking };
+  }
+  if (delta.type === 'signature_delta' && current.type === 'thinking') {
+    return { ...current, signature: (current.signature ?? '') + delta.signature };
+  }
+  return current;
+}
+
+export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageStreamEvent> {
+  private readonly finalResultPromise: Promise<AnthropicMessagesResponse>;
+  private resolveFinal!: (value: AnthropicMessagesResponse) => void;
+  private rejectFinal!: (reason: unknown) => void;
+
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+    this.finalResultPromise = new Promise<AnthropicMessagesResponse>((resolve, reject) => {
+      this.resolveFinal = resolve;
+      this.rejectFinal = reject;
+    });
+  }
+
+  get finalResult(): Promise<AnthropicMessagesResponse> {
+    return this.finalResultPromise;
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<AnthropicMessageStreamEvent, void, undefined> {
+    let message:
+      | AnthropicMessagesResponse
+      | undefined;
+    const blocks = new Map<number, AnthropicContentBlock>();
+
+    try {
+      for await (const rawEvent of this.source) {
+        let event: AnthropicMessageStreamEvent;
+        try {
+          event = parseAnthropicEvent(rawEvent);
+        } catch (error) {
+          throw new Error('Failed to parse Anthropic message SSE payload', { cause: error });
+        }
+
+        if (event.type === 'error') {
+          throw new Error(event.error.message);
+        }
+
+        if (event.type === 'message_start') {
+          message = {
+            ...event.message,
+            content: [],
+            ...(event.message.usage !== undefined ? { usage: event.message.usage } : {}),
+          };
+        } else if (event.type === 'content_block_start') {
+          blocks.set(event.index, event.content_block);
+        } else if (event.type === 'content_block_delta') {
+          const current = blocks.get(event.index);
+          if (current) blocks.set(event.index, mergeContentBlock(current, event.delta));
+        } else if (event.type === 'content_block_stop') {
+          const current = blocks.get(event.index);
+          if (current?.type === 'tool_use') {
+            const rawJson = (current.input as { _raw_json?: unknown })._raw_json;
+            if (typeof rawJson === 'string') {
+              try {
+                const parsed = JSON.parse(rawJson) as Record<string, unknown>;
+                blocks.set(event.index, { ...current, input: parsed });
+              } catch {
+                // Preserve the stream content until a provider/client can decide how to handle malformed JSON.
+                blocks.set(event.index, current);
+              }
+            }
+          }
+        } else if (event.type === 'message_delta') {
+          if (message) {
+            message = {
+              ...message,
+              stop_reason:
+                event.delta.stop_reason !== undefined && event.delta.stop_reason !== null
+                  ? event.delta.stop_reason
+                  : message.stop_reason,
+              stop_sequence: event.delta.stop_sequence ?? message.stop_sequence,
+              ...(event.usage !== undefined
+                ? {
+                    usage: {
+                      input_tokens: message.usage?.input_tokens ?? 0,
+                      output_tokens: event.usage.output_tokens,
+                    },
+                  }
+                : {}),
+            };
+          }
+        } else if (event.type === 'message_stop' && message) {
+          message = {
+            ...message,
+            content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
+          };
+        }
+
+        yield event;
       }
-    | undefined;
+
+      if (!message) {
+        throw new Error('Anthropic Messages stream ended without message_start');
+      }
+
+      const final: AnthropicMessagesResponse = {
+        ...message,
+        content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
+      };
+      this.resolveFinal(final);
+    } catch (error) {
+      this.rejectFinal(error);
+      throw error;
+    }
+  }
 }
 
 export class AnthropicCompatClient {
   constructor(private readonly http: HttpClient) {}
 
   async createMessage(
+    request: AnthropicMessagesRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesStream>;
+  async createMessage(
+    request: AnthropicMessagesRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesResponse>;
+  async createMessage(
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
-  ): Promise<AnthropicMessagesResponse> {
+  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream> {
+    if (request.stream) {
+      const source = await this.http.requestSseStream({
+        path: '/v1/messages',
+        body: request,
+        signal,
+      });
+      return new AnthropicMessagesStream(source);
+    }
     return this.http.request<AnthropicMessagesResponse>({
       path: '/v1/messages',
       body: request,
@@ -69,9 +355,17 @@ export class AnthropicCompatClient {
   }
 
   async messages(
+    request: AnthropicMessagesRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesStream>;
+  async messages(
+    request: AnthropicMessagesRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesResponse>;
+  async messages(
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
-  ): Promise<AnthropicMessagesResponse> {
-    return this.createMessage(request, signal);
+  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream> {
+    return this.createMessage(request as never, signal);
   }
 }
