@@ -28,6 +28,10 @@
 
 ---
 
+### SSE Streaming Foundation
+
+Compatibility endpoints such as OpenAI Chat Completions, OpenAI Completions, OpenAI Responses, and Anthropic Messages use Server-Sent Events when `stream: true`. The SDK now exposes a provider-neutral `parseSseStream()` and `HttpClient.requestSseStream()` so provider-specific adapters can share one standards-compliant SSE transport without coupling it to native Ollama NDJSON streaming.
+
 ## Installation
 
 ```bash
