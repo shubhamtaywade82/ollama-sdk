@@ -57,6 +57,78 @@ describe('OpenAI compatibility streaming', () => {
 });
 
 describe('OpenAI Responses compatibility streaming', () => {
+  it('reconstructs output items when the terminal response payload is omitted', async () => {
+    const fetchMock = sseFetchMock([
+      'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_2","object":"response","created":2,"model":"qwen3","output":[]}}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":"Hello"}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_2","output_index":0,"content_index":0,"delta":" world"}\n\n',
+      'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_2","output_index":1,"delta":"{\"city\":"}\n\n',
+      'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"call_2","output_index":1,"name":"get_weather","arguments":"{\"city\":\"Bengaluru\"}"}\n\n',
+      'event: response.reasoning_summary_text.delta\ndata: {"type":"response.reasoning_summary_text.delta","item_id":"reason_2","output_index":2,"summary_index":0,"delta":"checked"}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const stream = await client.openai.responses({
+      model: 'qwen3',
+      input: 'Hi',
+      stream: true,
+    });
+
+    for await (const _ of stream) {
+      // drain
+    }
+
+    const final = await stream.finalResult;
+    expect(final.output[0]).toEqual({
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'output_text', text: 'Hello world' }],
+    });
+    expect(final.output[1]).toEqual({
+      type: 'function_call',
+      id: 'call_2',
+      name: 'get_weather',
+      arguments: '{"city":"Bengaluru"}',
+    });
+    expect(final.output[2]).toEqual({
+      type: 'reasoning',
+      id: 'reason_2',
+      summary: [{ type: 'summary_text', text: 'checked' }],
+    });
+  });
+
+  it('rejects finalResult and releases endpoint capacity when aborted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(
+            'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_3","object":"response","created":3,"model":"qwen3","output":[]}}\n\n',
+          ));
+        },
+      }),
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'compat', baseUrl: 'http://compat' }],
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const stream = await client.openai.responses({
+      model: 'qwen3',
+      input: 'Hi',
+      stream: true,
+    });
+
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+    stream.abort();
+    await expect(stream.finalResult).rejects.toMatchObject({ code: 'aborted' });
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+});
   it('exposes typed response SSE events and preserves the completed response', async () => {
     const fetchMock = sseFetchMock([
       'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}\n\n',
@@ -80,6 +152,7 @@ describe('OpenAI Responses compatibility streaming', () => {
     expect((events[0] as { delta: string }).delta).toBe('Hello');
     expect((await stream.finalResult).usage?.total_tokens).toBe(3);
   });
+});
 });
 
 describe('OpenAI completion compatibility streaming', () => {
