@@ -129,6 +129,11 @@ export async function* parseSseStream(
     const terminal = dispatch(eventType, data, lastEventId, retry);
     if (terminal) yield terminal;
   } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // The stream may already be closed or errored.
+    }
     reader.releaseLock();
   }
 }
