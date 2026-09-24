@@ -18,6 +18,7 @@
 import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
+import type { RequestRunner } from '../models-client.js';
 
 export interface OpenAIToolCall {
   readonly id: string;
@@ -681,7 +682,29 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
 }
 
 export class OpenAICompatClient {
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly runner?: RequestRunner | undefined,
+  ) {}
+
+  private request<T>(
+    operation: (http: HttpClient, signal?: AbortSignal) => Promise<T>,
+    model: string | undefined,
+    signal?: AbortSignal,
+    holdUntil?: ((result: T) => Promise<unknown>) | undefined,
+  ): Promise<T> {
+    if (this.runner) {
+      return this.runner(
+        (http, runnerSignal) => operation(http, runnerSignal),
+        {
+          ...(model !== undefined ? { model } : {}),
+          ...(signal !== undefined ? { signal } : {}),
+          ...(holdUntil !== undefined ? { holdUntil } : {}),
+        },
+      );
+    }
+    return operation(this.http, signal);
+  }
 
   async createChatCompletion(
     request: OpenAIChatCompletionRequest & { stream: true },
