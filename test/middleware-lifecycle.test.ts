@@ -130,6 +130,21 @@ describe('Request lifecycle hooks', () => {
     expect(new Set(events.map((event) => event.requestId)).size).toBe(1);
   });
 
+  it('assigns a fresh lifecycle id to each standalone HttpClient request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    const ids: string[] = [];
+    const http = new HttpClient({
+      baseUrl: 'http://localhost:11434',
+      onLifecycleEvent: (event) => ids.push(event.requestId),
+      fetch: fetchMock as never,
+    });
+
+    await http.request({ path: '/api/version' });
+    await http.request({ path: '/api/version' });
+
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it('emits retry events with the same logical id across retries', async () => {
     let calls = 0;
     const fetchMock = vi.fn().mockImplementation(async () => {
