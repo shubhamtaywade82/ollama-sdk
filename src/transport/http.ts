@@ -145,18 +145,72 @@ export class HttpClient {
     };
 
     try {
+      if (this.middleware.length === 0) {
+        const response = await this.fetchImpl(request.url, {
+          method: request.method,
+          headers: request.headers,
+          ...(request.body !== undefined
+            ? { body: request.body as NonNullable<RequestInit['body']> }
+            : {}),
+          ...(request.signal !== undefined ? { signal: request.signal } : {}),
+        });
+        this.onLifecycleEvent?.({
+          type: 'success',
+          requestId,
+          durationMs: Date.now() - startedAt,
+          status: response.status,
+          timestamp: Date.now(),
+        });
+        return response;
+      }
+
       const pipeline = composeMiddleware(this.middleware, finalHandler);
       const context = await pipeline(request);
-      const response =
-        context.body instanceof Response
-          ? new Response(context.body.body, {
-              status: context.status,
-              headers: context.headers,
-            })
-          : new Response(context.body as RequestInit['body'], {
-              status: context.status,
-              headers: context.headers,
-            });
+
+      let response: Response;
+      if (rawResponse !== undefined && context.body === rawResponse) {
+        response = rawResponse as Response;
+        if (
+          context.status !== response.status ||
+          !sameHeaders(context.headers, response.headers)
+        ) {
+          const cloned = response.clone();
+          response = new Response(cloned.body, {
+            status: context.status,
+            headers: context.headers,
+          });
+        }
+      } else if (context.body instanceof Response) {
+        if (
+          context.status === context.body.status &&
+          sameHeaders(context.headers, context.body.headers)
+        ) {
+          response = context.body;
+        } else {
+          const cloned = context.body.clone();
+          response = new Response(cloned.body, {
+            status: context.status,
+            headers: context.headers,
+          });
+        }
+      } else if (
+        context.body === undefined ||
+        typeof context.body === 'string' ||
+        context.body instanceof ArrayBuffer ||
+        ArrayBuffer.isView(context.body) ||
+        context.body instanceof Blob ||
+        context.body instanceof ReadableStream
+      ) {
+        response = new Response(context.body as RequestInit['body'], {
+          status: context.status,
+          headers: context.headers,
+        });
+      } else {
+        response = new Response(JSON.stringify(context.body), {
+          status: context.status,
+          headers: context.headers,
+        });
+      }
 
       this.onLifecycleEvent?.({
         type: 'success',
