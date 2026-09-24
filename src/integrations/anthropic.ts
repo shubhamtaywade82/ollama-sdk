@@ -404,6 +404,7 @@ export class AnthropicCompatClient {
           http.requestSseStream({
             path: '/v1/messages',
             body: request,
+            headers: { 'anthropic-version': '2023-06-01' },
             signal: requestSignal,
           }).then((source) => new AnthropicMessagesStream(source, requestSignal)),
         request.model,
@@ -416,6 +417,7 @@ export class AnthropicCompatClient {
         http.request<AnthropicMessagesResponse>({
           path: '/v1/messages',
           body: request,
+          headers: { 'anthropic-version': '2023-06-01' },
           signal: requestSignal,
         }),
       request.model,
