@@ -63,6 +63,31 @@ describe('current native Ollama API parity', () => {
     }
   });
 
+  it('accepts dynamic thinking values on /api/generate', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'gemma4',
+      created_at: '2026-09-24T00:00:00Z',
+      response: 'ok',
+      done: true,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    for (const think of [true, false, null, 'custom-level'] as const) {
+      await client.generate({
+        model: 'gemma4',
+        prompt: 'hello',
+        think,
+        stream: false,
+      });
+
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [
+        string,
+        { body: string },
+      ];
+      expect(JSON.parse(lastCall[1].body).think).toBe(think);
+    }
+  });
+
   it('extracts cached prompt tokens without changing total token accounting', () => {
     const usage = extractUsage({
       prompt_eval_count: 120,
