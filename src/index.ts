@@ -4,7 +4,7 @@
 
 // Core client and config
 export { OllamaClient } from './client.js';
-export { ModelsClient, type RequestRunner } from './models-client.js';
+export { ModelsClient } from './models-client.js';
 export {
   DEFAULT_BASE_URL,
   DEFAULT_TIMEOUT_MS,
