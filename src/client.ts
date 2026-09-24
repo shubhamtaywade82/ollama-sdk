@@ -172,6 +172,7 @@ export class OllamaClient {
     },
   ): Promise<T> {
     const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
+    let deferTimeoutCancel = false;
     try {
       let lastError: Error | undefined;
 
@@ -231,7 +232,10 @@ export class OllamaClient {
               () => withRetry(() => operation(http, timeout.signal), this.retryConfig),
             );
             this.registry.reportSuccess(endpoint.name);
-            if (options?.holdUntil) holdPromise = options.holdUntil(result);
+            if (options?.holdUntil) {
+              holdPromise = options.holdUntil(result);
+              deferTimeoutCancel = true;
+            }
             return result;
           } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
@@ -244,7 +248,10 @@ export class OllamaClient {
             if (holdPromise) {
               void holdPromise
                 .catch(() => undefined)
-                .finally(() => this.registry.release(endpoint.name));
+                .finally(() => {
+                  timeout.cancel();
+                  this.registry.release(endpoint.name);
+                });
             } else {
               this.registry.release(endpoint.name);
             }
@@ -253,7 +260,7 @@ export class OllamaClient {
         throw lastError ?? new Error('No healthy Ollama endpoints available');
       }
     } finally {
-      timeout.cancel();
+      if (!deferTimeoutCancel) timeout.cancel();
     }
   }
 
