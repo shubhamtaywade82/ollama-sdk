@@ -775,11 +775,16 @@ export class OpenAICompatClient {
     model: string,
     signal?: AbortSignal,
   ): Promise<OpenAIModelItem> {
-    return this.http.request<OpenAIModelItem>({
-      path: `/v1/models/${encodeURIComponent(model)}`,
-      method: 'GET',
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAIModelItem>({
+          path: `/v1/models/${encodeURIComponent(model)}`,
+          method: 'GET',
+          signal: requestSignal,
+        }),
+      model,
       signal,
-    });
+    );
   }
 
   async getModel(model: string, signal?: AbortSignal): Promise<OpenAIModelItem> {
