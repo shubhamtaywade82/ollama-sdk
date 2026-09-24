@@ -8,8 +8,8 @@ import ts from 'typescript';
 
 interface SurfaceContract {
   readonly docsUrl: string;
-  readonly sourceFile: string;
-  readonly interfaceName: string;
+  readonly sourceFile?: string;
+  readonly interfaceName?: string;
   readonly endpoint: string;
   readonly fields: readonly string[];
 }
@@ -22,6 +22,14 @@ const CONTRACTS: readonly SurfaceContract[] = [
   { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIEmbeddingRequest', endpoint: '/v1/embeddings', fields: ['model','input','encoding_format','dimensions','user'] },
   { docsUrl: 'https://docs.ollama.com/api/openai-compatibility.md', sourceFile: 'src/integrations/openai.ts', interfaceName: 'OpenAIResponsesRequest', endpoint: '/v1/responses', fields: ['model','input','instructions','tools','stream','temperature','top_p','max_output_tokens','reasoning','think','previous_response_id','conversation','truncation'] },
   { docsUrl: 'https://docs.ollama.com/api/anthropic-compatibility.md', sourceFile: 'src/integrations/anthropic.ts', interfaceName: 'AnthropicMessagesRequest', endpoint: '/v1/messages', fields: ['model','max_tokens','messages','system','stream','temperature','top_p','top_k','stop_sequences','tools','thinking','output_config','tool_choice','metadata'] },
+  { docsUrl: 'https://docs.ollama.com/api/chat.md', sourceFile: 'src/types.ts', interfaceName: 'ChatRequestOptions', endpoint: '/api/chat', fields: ['model','messages','tools','format','options','stream','think','keep_alive','logprobs','top_logprobs'] },
+  { docsUrl: 'https://docs.ollama.com/api/generate.md', sourceFile: 'src/types.ts', interfaceName: 'GenerateRequestOptions', endpoint: '/api/generate', fields: ['model','prompt','suffix','images','format','system','stream','think','raw','keep_alive','options','logprobs','top_logprobs'] },
+  { docsUrl: 'https://docs.ollama.com/api/embed.md', sourceFile: 'src/types.ts', interfaceName: 'EmbedRequestOptions', endpoint: '/api/embed', fields: ['model','input','truncate','dimensions','keep_alive','options'] },
+  { docsUrl: 'https://docs.ollama.com/api/create.md', sourceFile: 'src/types.ts', interfaceName: 'CreateRequestOptions', endpoint: '/api/create', fields: ['model','from','template','renderer','parser','files','draft_files','license','system','parameters','messages','quantize','draft_quantize','requires','stream'] },
+  { docsUrl: 'https://docs.ollama.com/api-reference/show-model-details.md', sourceFile: 'src/types.ts', interfaceName: 'ShowRequestOptions', endpoint: '/api/show', fields: ['model','verbose'] },
+  { docsUrl: 'https://docs.ollama.com/api/tags.md', endpoint: '/api/tags', fields: [] },
+  { docsUrl: 'https://docs.ollama.com/api/ps.md', endpoint: '/api/ps', fields: [] },
+  { docsUrl: 'https://docs.ollama.com/api-reference/get-version.md', endpoint: '/api/version', fields: [] },
 ];
 
 function sourceProperties(sourceFile: string, interfaceName: string): Set<string> {
@@ -56,7 +64,9 @@ function assertContract(contract: SurfaceContract, docs: string, properties: Set
 async function main(): Promise<void> {
   const docsCache = new Map<string, string>();
   for (const contract of CONTRACTS) {
-    const sourceProps = sourceProperties(contract.sourceFile, contract.interfaceName);
+    const sourceProps = contract.interfaceName && contract.sourceFile
+      ? sourceProperties(contract.sourceFile, contract.interfaceName)
+      : new Set<string>();
     let docs = docsCache.get(contract.docsUrl);
     if (docs === undefined) { docs = await fetchDocs(contract.docsUrl); docsCache.set(contract.docsUrl, docs); }
     assertContract(contract, docs, sourceProps);
