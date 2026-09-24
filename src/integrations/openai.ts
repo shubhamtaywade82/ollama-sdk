@@ -401,6 +401,8 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('OpenAI Chat Completion stream aborted'));
   }
@@ -514,8 +516,12 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
         ...(usage !== undefined ? { usage } : {}),
       };
       completed = true;
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.resolveFinal(response);
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.rejectFinal(error);
       throw error;
     } finally {
@@ -553,6 +559,8 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('OpenAI Completion stream aborted'));
   }
@@ -597,8 +605,12 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
         ...(usage !== undefined ? { usage } : {}),
       };
       completed = true;
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.resolveFinal(response);
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.rejectFinal(error);
       throw error;
     } finally {
@@ -704,6 +716,8 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('OpenAI Responses stream aborted'));
   }
@@ -862,8 +876,12 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
       }
 
       completed = true;
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.resolveFinal(finalResponse);
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.rejectFinal(error);
       throw error;
     } finally {
@@ -919,7 +937,7 @@ export class OpenAICompatClient {
             path: '/v1/chat/completions',
             body: request,
             signal: requestSignal,
-          }).then((source) => new OpenAIChatCompletionStream(source)),
+          }).then((source) => new OpenAIChatCompletionStream(source, requestSignal)),
         request.model,
         signal,
         (stream) => stream.finalResult,
@@ -1004,7 +1022,7 @@ export class OpenAICompatClient {
             path: '/v1/completions',
             body: request,
             signal: requestSignal,
-          }).then((source) => new OpenAICompletionStream(source)),
+          }).then((source) => new OpenAICompletionStream(source, requestSignal)),
         request.model,
         signal,
         (stream) => stream.finalResult,
@@ -1079,7 +1097,7 @@ export class OpenAICompatClient {
             path: '/v1/responses',
             body: request,
             signal: requestSignal,
-          }).then((source) => new OpenAIResponsesStream(source)),
+          }).then((source) => new OpenAIResponsesStream(source, requestSignal)),
         request.model,
         signal,
         (stream) => stream.finalResult,
