@@ -218,12 +218,21 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   private readonly finalResultPromise: Promise<AnthropicMessagesResponse>;
   private resolveFinal!: (value: AnthropicMessagesResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
+  private removeAbortListener: (() => void) | undefined;
 
-  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>, signal?: AbortSignal) {
     this.finalResultPromise = new Promise<AnthropicMessagesResponse>((resolve, reject) => {
       this.resolveFinal = resolve;
       this.rejectFinal = reject;
     });
+    if (signal !== undefined) {
+      const onAbort = (): void => this.abort();
+      if (signal.aborted) onAbort();
+      else {
+        signal.addEventListener('abort', onAbort, { once: true });
+        this.removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+      }
+    }
   }
 
   get finalResult(): Promise<AnthropicMessagesResponse> {
@@ -231,6 +240,8 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('Anthropic Messages stream aborted'));
   }
@@ -322,8 +333,12 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
         content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
       };
       completed = true;
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.resolveFinal(final);
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       this.rejectFinal(error);
       throw error;
     } finally {
@@ -379,7 +394,7 @@ export class AnthropicCompatClient {
             path: '/v1/messages',
             body: request,
             signal: requestSignal,
-          }).then((source) => new AnthropicMessagesStream(source)),
+          }).then((source) => new AnthropicMessagesStream(source, requestSignal)),
         request.model,
         signal,
         (stream) => stream.finalResult,
