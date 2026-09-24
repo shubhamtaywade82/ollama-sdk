@@ -408,6 +408,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
     let usage:
       | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
       | undefined;
+    let completed = false;
 
     try {
       for await (const event of this.source) {
@@ -503,10 +504,16 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
           })),
         ...(usage !== undefined ? { usage } : {}),
       };
+      completed = true;
       this.resolveFinal(response);
     } catch (error) {
       this.rejectFinal(error);
       throw error;
+    } finally {
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('OpenAI Chat Completion stream ended before completion'));
+      }
     }
   }
 }
@@ -550,6 +557,7 @@ export class OpenAICompletionStream implements AsyncIterable<{
     let usage:
       | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
       | undefined;
+    let completed = false;
 
     try {
       for await (const event of this.source) {
@@ -580,10 +588,16 @@ export class OpenAICompletionStream implements AsyncIterable<{
         choices: [...texts.values()].sort((a, b) => a.index - b.index),
         ...(usage !== undefined ? { usage } : {}),
       };
+      completed = true;
       this.resolveFinal(response);
     } catch (error) {
       this.rejectFinal(error);
       throw error;
+    } finally {
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('OpenAI Completion stream ended before completion'));
+      }
     }
   }
 }
@@ -690,6 +704,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
       callId?: string;
       reasoningText: string;
     }>();
+    let completed = false;
 
     try {
       for await (const event of this.source) {
@@ -829,10 +844,16 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
         finalResponse = { ...responseMeta, output };
       }
 
+      completed = true;
       this.resolveFinal(finalResponse);
     } catch (error) {
       this.rejectFinal(error);
       throw error;
+    } finally {
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('OpenAI Responses stream ended before completion'));
+      }
     }
   }
 }
