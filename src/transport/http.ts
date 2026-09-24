@@ -240,17 +240,33 @@ export class HttpClient {
       httpSpanAttributes(method, url),
       async (span) => {
         try {
+          const controller = new AbortController();
+          const removeAbortListener =
+            options.signal !== undefined
+              ? (() => {
+                  if (options.signal.aborted) {
+                    controller.abort(options.signal.reason);
+                  } else {
+                    const onAbort = (): void => controller.abort(options.signal?.reason);
+                    options.signal.addEventListener('abort', onAbort, { once: true });
+                    return () => options.signal?.removeEventListener('abort', onAbort);
+                  }
+                  return undefined;
+                })()
+              : undefined;
+
           const init: RequestInit = {
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-            ...(options.signal !== undefined ? { signal: options.signal } : {}),
+            signal: controller.signal,
           };
 
           const response = await this.fetchImpl(url, init);
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
+            removeAbortListener?.();
             const errorText = await response.text();
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
@@ -259,6 +275,7 @@ export class HttpClient {
           }
 
           if (!response.body) {
+            removeAbortListener?.();
             throw mapError(new Error('Response body is null, cannot stream'), {
               request: { method, url },
             });
@@ -267,7 +284,17 @@ export class HttpClient {
           const stream = parseNdjsonStream<T>(response.body);
           const abortable: AbortableAsyncIterable<T> = {
             [Symbol.asyncIterator]() {
-              return stream[Symbol.asyncIterator]();
+              return (async function* (): AsyncGenerator<T, void, undefined> {
+                try {
+                  yield* stream;
+                } finally {
+                  removeAbortListener?.();
+                }
+              })()[Symbol.asyncIterator]();
+            },
+            abort: () => {
+              removeAbortListener?.();
+              controller.abort();
             },
           };
           return abortable;
