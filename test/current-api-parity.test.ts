@@ -146,6 +146,38 @@ describe('current native Ollama API parity', () => {
   });
 });
 
+describe('current Anthropic compatibility parity', () => {
+  it('sends the documented Anthropic version header and accepts budget_tokens', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-1',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
+      thinking: { type: 'enabled', budget_tokens: 128 },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ];
+    expect(init.headers['anthropic-version']).toBe('2023-06-01');
+    expect(JSON.parse(init.body).thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 128,
+    });
+  });
+});
+
 describe('current OpenAI compatibility parity', () => {
   it('supports chat response format, seed, logit bias, n, vision, and model-defined reasoning', async () => {
     const fetchMock = jsonFetchMock({
