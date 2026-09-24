@@ -22,6 +22,7 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
   private readonly finalResultPromise: Promise<TFinal>;
   private resolveFinal!: (value: TFinal) => void;
   private rejectFinal!: (reason: OllamaClientError) => void;
+  private removeAbortListener: (() => void) | undefined;
 
   constructor(
     private readonly source: AbortableAsyncIterable<TChunk>,
@@ -36,10 +37,12 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
     });
 
     if (signal !== undefined) {
+      const onAbort = (): void => this.abort();
       if (signal.aborted) {
-        this.abort();
+        onAbort();
       } else {
-        signal.addEventListener('abort', () => this.abort(), { once: true });
+        signal.addEventListener('abort', onAbort, { once: true });
+        this.removeAbortListener = () => signal.removeEventListener('abort', onAbort);
       }
     }
   }
@@ -49,6 +52,8 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('Ollama stream aborted'));
   }
@@ -99,7 +104,11 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
           }
         }
       }
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       const mapped = mapError(error);
       this.emit({ type: 'error', data: { error: mapped } });
       this.rejectFinal(mapped);
@@ -136,6 +145,8 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
       this.rejectFinal(mapped);
       yield { type: 'error', data: { error: mapped } };
     } finally {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       if (!completed) {
         this.source.abort?.();
         this.rejectFinal(new OllamaAbortError('Ollama stream ended before completion'));
