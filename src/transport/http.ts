@@ -111,6 +111,7 @@ export class HttpClient {
   private async fetchWithMiddleware(request: RequestContext): Promise<Response> {
     const requestId = this.requestId ?? createRequestId();
     const startedAt = Date.now();
+    let rawResponse: unknown;
     this.onLifecycleEvent?.({
       type: 'start',
       requestId,
