@@ -7,6 +7,7 @@ import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
 import type { ProgressStreamResult } from './streaming/types.js';
 import type { BinaryBody, HttpClient } from './transport/http.js';
+import type { RequestRunner } from './transport/runner.js';
 import type {
   CopyRequestOptions,
   CreateRequestOptions,
@@ -21,18 +22,6 @@ import type {
   StatusResponse,
   VersionResponse,
 } from './types.js';
-
-export type RequestRunner = <T>(
-  op: (http: HttpClient, signal: AbortSignal) => Promise<T>,
-  opts?: {
-    signal?: AbortSignal | undefined;
-    timeoutMs?: number | undefined;
-    singleEndpoint?: boolean | undefined;
-    model?: string | undefined;
-    /** See `OllamaClient.executeWithFailover`'s `holdUntil` doc. */
-    holdUntil?: ((result: T) => Promise<unknown>) | undefined;
-  },
-) => Promise<T>;
 
 /**
  * Every operation here targets one specific Ollama server's local model catalog or blob
