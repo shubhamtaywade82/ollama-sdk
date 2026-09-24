@@ -115,6 +115,7 @@ export {
   normalizeGenerateStream,
   normalizeProgressStream,
   parseNdjsonStream,
+  parseSseStream,
   toTextStream,
   toDataStream,
   toResponse,
@@ -132,6 +133,7 @@ export type {
   GenerateStreamResult,
   ProgressStreamResult,
   AbortableAsyncIterable,
+  SseEvent,
 } from './streaming/index.js';
 
 // Usage
