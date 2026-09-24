@@ -140,12 +140,16 @@ export class HttpClient {
     try {
       const pipeline = composeMiddleware(this.middleware, finalHandler);
       const context = await pipeline(request);
-      const response = context.body instanceof Response
-        ? context.body
-        : new Response(context.body as BodyInit | null, {
-            status: context.status,
-            headers: context.headers,
-          });
+      const response =
+        context.body instanceof Response
+          ? new Response(context.body.body, {
+              status: context.status,
+              headers: context.headers,
+            })
+          : new Response(context.body as BodyInit | null, {
+              status: context.status,
+              headers: context.headers,
+            });
 
       this.onLifecycleEvent?.({
         type: 'success',
