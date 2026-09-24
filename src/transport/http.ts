@@ -71,7 +71,7 @@ export class HttpClient {
   private readonly fetchImpl: FetchLike;
   private readonly middleware: readonly Middleware[];
   private readonly onLifecycleEvent?: RequestLifecycleHook;
-  private readonly defaultRequestId: string;
+  private readonly requestId?: string | undefined;
 
   constructor(options: HttpClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
@@ -80,7 +80,7 @@ export class HttpClient {
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.middleware = options.middleware ?? [];
     this.onLifecycleEvent = options.onLifecycleEvent;
-    this.defaultRequestId = options.requestId ?? createRequestId();
+    this.requestId = options.requestId;
   }
 
   private buildHeaders(customHeaders?: Record<string, string> | undefined): Record<string, string> {
@@ -104,7 +104,7 @@ export class HttpClient {
       readonly signal?: AbortSignal | undefined;
     },
   ): Promise<Response> {
-    const requestId = this.defaultRequestId;
+    const requestId = this.requestId ?? createRequestId();
     const startedAt = Date.now();
     this.onLifecycleEvent?.({
       type: 'start',
