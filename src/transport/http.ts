@@ -132,6 +132,7 @@ export class HttpClient {
         ...(req.signal !== undefined ? { signal: req.signal } : {}),
       };
       const response = await this.fetchImpl(req.url, init);
+      rawResponse = response;
       const responseHeaders =
         response.headers && typeof response.headers.entries === 'function'
           ? Object.fromEntries(response.headers.entries())
