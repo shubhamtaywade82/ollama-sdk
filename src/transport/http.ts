@@ -206,25 +206,15 @@ export class HttpClient {
             });
           }
 
-          const controller = new AbortController();
-          const signal = options.signal;
-          let removeAbortListener: (() => void) | undefined;
-
-          if (signal !== undefined) {
-            if (signal.aborted) controller.abort(signal.reason);
-            else {
-              const onAbort = (): void => controller.abort(signal.reason);
-              signal.addEventListener('abort', onAbort, { once: true });
-              removeAbortListener = () => signal.removeEventListener('abort', onAbort);
-            }
-          }
-
           const stream = parseSseStream(response.body);
           return {
             [Symbol.asyncIterator]() {
               return stream[Symbol.asyncIterator]();
             },
-            abort: () => controller.abort(),
+            abort: () => {
+              removeAbortListener?.();
+              controller.abort();
+            },
           } as AbortableAsyncIterable<SseEvent>;
         } catch (err) {
           throw mapError(err, { request: { method, url } });
