@@ -847,11 +847,16 @@ export class OpenAICompatClient {
     request: OpenAIEmbeddingRequest,
     signal?: AbortSignal,
   ): Promise<OpenAIEmbeddingResponse> {
-    return this.http.request<OpenAIEmbeddingResponse>({
-      path: '/v1/embeddings',
-      body: request,
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAIEmbeddingResponse>({
+          path: '/v1/embeddings',
+          body: request,
+          signal: requestSignal,
+        }),
+      request.model,
       signal,
-    });
+    );
   }
 
   async embeddings(
