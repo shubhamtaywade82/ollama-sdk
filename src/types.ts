@@ -4,6 +4,15 @@
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool' | 'thought';
 
+/** Ollama native thinking control: booleans, null for model default, or model-defined levels. */
+export type ThinkValue = boolean | string | null;
+
+/** Thinking capability metadata returned by `/api/show`. */
+export interface ThinkingMetadata {
+  readonly values: readonly (boolean | string)[];
+  readonly default?: boolean | string | null | undefined;
+}
+
 export interface ToolCallFunction {
   readonly name: string;
   readonly arguments: Record<string, unknown>;
@@ -138,7 +147,11 @@ export interface ChatRequestOptions extends RequestCancellationOptions {
   readonly options?: ModelOptions | undefined;
   readonly stream?: boolean | undefined;
   readonly keep_alive?: string | number | undefined;
-  readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  /**
+   * Controls thinking output. Use `client.capabilities(model).thinking` to discover
+   * model-defined string levels and the model default.
+   */
+  readonly think?: ThinkValue | undefined;
   /** Whether to return log probabilities of the output tokens. See {@link ChatResponse.logprobs}. */
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
@@ -154,6 +167,8 @@ export interface ChatResponse {
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
   readonly prompt_eval_count?: number | undefined;
+  /** Number of prompt tokens read from the KV cache. */
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
@@ -274,6 +289,8 @@ export interface ShowResponse {
   readonly messages?: readonly Message[] | undefined;
   readonly model_info?: Record<string, unknown> | undefined;
   readonly capabilities?: readonly string[] | undefined;
+  /** Model-defined thinking levels and default, when reported by Ollama. */
+  readonly thinking?: ThinkingMetadata | undefined;
   readonly modified_at?: string | undefined;
 }
 
@@ -310,8 +327,12 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly modelfile?: string | undefined;
   readonly stream?: boolean | undefined;
   readonly quantize?: string | undefined;
+  /** Quantization level to apply to draft weights during import. */
+  readonly draft_quantize?: string | undefined;
   readonly from?: string | undefined;
   readonly files?: Record<string, string> | undefined;
+  /** Draft source file names mapped to their SHA-256 digests. */
+  readonly draft_files?: Record<string, string> | undefined;
   readonly adapters?: Record<string, string> | undefined;
   readonly template?: string | undefined;
   readonly renderer?: string | undefined;
@@ -321,6 +342,8 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   /** Modelfile `PARAMETER` instructions, e.g. `{ temperature: 0.7, stop: ['\n'] }`. */
   readonly parameters?: Record<string, unknown> | undefined;
   readonly messages?: readonly Message[] | undefined;
+  /** Minimum Ollama version required by the model. */
+  readonly requires?: string | undefined;
 }
 
 export interface DeleteRequestOptions extends RequestCancellationOptions {
