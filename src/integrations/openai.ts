@@ -879,24 +879,42 @@ export class OpenAICompatClient {
     signal?: AbortSignal,
   ): Promise<OpenAIResponsesResponse | OpenAIResponsesStream> {
     if (request.stream) {
-      const source = await this.http.requestSseStream({
-        path: '/v1/responses',
-        body: request,
+      return this.request(
+        (http, requestSignal) =>
+          http.requestSseStream({
+            path: '/v1/responses',
+            body: request,
+            signal: requestSignal,
+          }).then((source) => new OpenAIResponsesStream(source)),
+        request.model,
         signal,
-      });
-      return new OpenAIResponsesStream(source);
+        (stream) => stream.finalResult,
+      );
     }
-    return this.http.request<OpenAIResponsesResponse>({
-      path: '/v1/responses',
-      body: request,
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAIResponsesResponse>({
+          path: '/v1/responses',
+          body: request,
+          signal: requestSignal,
+        }),
+      request.model,
       signal,
-    });
+    );
   }
 
   async responses(
+    request: OpenAIResponsesRequest & { stream: true },
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesStream>;
+  async responses(
+    request: OpenAIResponsesRequest & { stream?: false | undefined },
+    signal?: AbortSignal,
+  ): Promise<OpenAIResponsesResponse>;
+  async responses(
     request: OpenAIResponsesRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAIResponsesResponse> {
-    return this.createResponses(request, signal);
+  ): Promise<OpenAIResponsesResponse | OpenAIResponsesStream> {
+    return this.createResponses(request as never, signal);
   }
 }
