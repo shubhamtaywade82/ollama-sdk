@@ -682,12 +682,21 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
   private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
   private resolveFinal!: (value: OpenAIResponsesResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
+  private removeAbortListener: (() => void) | undefined;
 
-  constructor(private readonly source: AbortableAsyncIterable<SseEvent>) {
+  constructor(private readonly source: AbortableAsyncIterable<SseEvent>, signal?: AbortSignal) {
     this.finalResultPromise = new Promise<OpenAIResponsesResponse>((resolve, reject) => {
       this.resolveFinal = resolve;
       this.rejectFinal = reject;
     });
+    if (signal !== undefined) {
+      const onAbort = (): void => this.abort();
+      if (signal.aborted) onAbort();
+      else {
+        signal.addEventListener('abort', onAbort, { once: true });
+        this.removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+      }
+    }
   }
 
   get finalResult(): Promise<OpenAIResponsesResponse> {
