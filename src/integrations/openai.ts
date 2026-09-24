@@ -239,12 +239,12 @@ export interface OpenAICompletionChunk {
   readonly object: 'text_completion';
   readonly created: number;
   readonly model: string;
-  readonly choices: readonly Array<{
+  readonly choices: readonly {
     readonly text: string;
     readonly index: number;
     readonly logprobs?: Record<string, unknown> | null | undefined;
     readonly finish_reason?: string | null | undefined;
-  }>[number][];
+  }[];
   readonly usage?:
     | {
         readonly prompt_tokens: number;
