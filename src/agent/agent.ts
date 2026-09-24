@@ -33,9 +33,9 @@ export interface AgentChatClient {
  * Runs a multi-turn `chat` + tool-execution loop until the model responds without
  * requesting further tool calls, or `maxIterations` is exceeded. Tool calls within a
  * single turn are handed to `ToolRegistry.executeToolCalls` and their results are
- * appended to history in the same order the model requested them, each tagged with the
- * originating call's `tool_call_id` — see the {@link ToolCall} type docs for how that id
- * is produced (Ollama's native tool-calling protocol has none; this SDK synthesizes one).
+ * appended to history in the same order the model requested them. Native Ollama tool-result
+ * messages use `tool_name` on the wire; the SDK-generated `toolCallId` remains execution
+ * metadata and is not sent to Ollama.
  * `Agent` assigns ids defensively even when `AgentChatClient` isn't `OllamaClient` (e.g. a
  * custom/test implementation), so this guarantee holds regardless of which chat client is
  * supplied.
@@ -115,7 +115,7 @@ export class Agent {
             this.hooks?.onToolCallEnd?.(res);
             history.push({
               role: 'tool',
-              ...(res.toolCallId !== undefined ? { tool_call_id: res.toolCallId } : {}),
+              tool_name: res.toolName,
               content: res.outputString,
             });
           }
