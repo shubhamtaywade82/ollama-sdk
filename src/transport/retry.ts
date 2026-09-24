@@ -24,14 +24,19 @@ function isRetryableDefault(error: Error): boolean {
   return false;
 }
 
+function abortError(signal: AbortSignal | undefined, fallbackMessage: string): OllamaAbortError | OllamaClientError {
+  const reason = signal?.reason;
+  if (reason instanceof OllamaClientError) return reason;
+  return new OllamaAbortError(
+    reason instanceof Error && reason.message ? reason.message : fallbackMessage,
+    { cause: reason },
+  );
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
-      reject(
-        signal.reason instanceof Error
-          ? signal.reason
-          : new OllamaAbortError('Retry backoff aborted'),
-      );
+      reject(abortError(signal, 'Retry backoff aborted'));
       return;
     }
 
@@ -42,11 +47,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     const onAbort = (): void => {
       if (timerId !== undefined) clearTimeout(timerId);
       signal?.removeEventListener('abort', onAbort);
-      reject(
-        signal?.reason instanceof Error
-          ? signal.reason
-          : new OllamaAbortError('Retry backoff aborted'),
-      );
+      reject(abortError(signal, 'Retry backoff aborted'));
     };
 
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -64,11 +65,7 @@ export async function withRetry<T>(
   let attempt = 0;
   while (true) {
     if (signal?.aborted) {
-      throw (
-        signal.reason instanceof Error
-          ? signal.reason
-          : new OllamaAbortError('Retry aborted before attempt')
-      );
+      throw abortError(signal, 'Retry aborted before attempt');
     }
     try {
       return await operation(attempt);
