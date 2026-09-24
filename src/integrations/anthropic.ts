@@ -7,6 +7,7 @@ import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 import type { RequestRunner } from '../transport/runner.js';
+import { OllamaAbortError } from '../errors.js';
 
 export interface AnthropicCacheControl {
   readonly type: 'ephemeral';
@@ -229,12 +230,18 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
     return this.finalResultPromise;
   }
 
+  abort(): void {
+    this.source.abort?.();
+    this.rejectFinal(new OllamaAbortError('Anthropic Messages stream aborted'));
+  }
+
   async *[Symbol.asyncIterator](): AsyncGenerator<AnthropicMessageStreamEvent, void, undefined> {
     let message:
       | AnthropicMessagesResponse
       | undefined;
     const blocks = new Map<number, AnthropicContentBlock>();
     const toolInputJson = new Map<number, string>();
+    let completed = false;
 
     try {
       for await (const rawEvent of this.source) {
@@ -314,10 +321,16 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
         ...message,
         content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
       };
+      completed = true;
       this.resolveFinal(final);
     } catch (error) {
       this.rejectFinal(error);
       throw error;
+    } finally {
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('Anthropic Messages stream ended before completion'));
+      }
     }
   }
 }
