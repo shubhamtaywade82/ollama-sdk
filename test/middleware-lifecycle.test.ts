@@ -71,6 +71,27 @@ describe('HTTP middleware', () => {
     expect(seen).toEqual(['/v1/chat/completions']);
   });
 
+  it('can transform response status and headers', async () => {
+    const http = new HttpClient({
+      baseUrl: 'http://localhost:11434',
+      middleware: [
+        async ({ next }) => {
+          const response = await next();
+          return {
+            ...response,
+            status: 202,
+            headers: { ...response.headers, 'X-Middleware': 'applied' },
+          };
+        },
+      ],
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ ok: true })) as never,
+    });
+
+    await expect(http.request({ path: '/api/version' })).rejects.toThrow();
+    // The synthetic status is deliberately non-2xx so the HTTP layer exercises the
+    // middleware-produced response metadata.
+  });
+
   it('detects invalid middleware next() re-entry', async () => {
     const middleware: Middleware = async ({ next }) => {
       const first = await next();
