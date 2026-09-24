@@ -18,7 +18,7 @@
 import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
-import type { RequestRunner } from '../models-client.js';
+import type { RequestRunner } from '../transport/runner.js';
 
 export interface OpenAIToolCall {
   readonly id: string;
