@@ -41,6 +41,9 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
 
   abort(): void {
     this.source.abort?.();
+    this.rejectFinal(new (class extends Error {
+      name = 'OllamaStreamAbortError';
+    })('Ollama stream aborted')());
   }
 
   on<TType extends OllamaStreamEventType>(
