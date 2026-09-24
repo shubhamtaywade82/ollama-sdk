@@ -19,6 +19,7 @@ import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 import type { RequestRunner } from '../transport/runner.js';
+import { OllamaAbortError } from '../errors.js';
 
 export interface OpenAIToolCall {
   readonly id: string;
@@ -390,6 +391,11 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
     return this.finalResultPromise;
   }
 
+  abort(): void {
+    this.source.abort?.();
+    this.rejectFinal(new OllamaAbortError('OpenAI Chat Completion stream aborted'));
+  }
+
   async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIChatCompletionChunk, void, undefined> {
     const choices = new Map<number, {
       message: OpenAIMessage;
@@ -531,6 +537,11 @@ export class OpenAICompletionStream implements AsyncIterable<{
     return this.finalResultPromise;
   }
 
+  abort(): void {
+    this.source.abort?.();
+    this.rejectFinal(new OllamaAbortError('OpenAI Completion stream aborted'));
+  }
+
   async *[Symbol.asyncIterator](): AsyncGenerator<Awaited<ReturnType<typeof JSON.parse>>, void, undefined> {
     const texts = new Map<number, OpenAICompletionChoice>();
     let id = '';
@@ -624,6 +635,11 @@ export interface OpenAIResponsesReasoningSummaryTextDeltaEvent {
   readonly delta: string;
 }
 
+export interface OpenAIResponsesCreatedEvent {
+  readonly type: 'response.created';
+  readonly response: OpenAIResponsesResponse;
+}
+
 export interface OpenAIResponsesCompletedEvent {
   readonly type: 'response.completed' | 'response.done';
   readonly response: OpenAIResponsesResponse;
@@ -636,6 +652,7 @@ export type OpenAIResponsesStreamEvent =
   | OpenAIResponsesFunctionCallArgumentsDoneEvent
   | OpenAIResponsesReasoningTextDeltaEvent
   | OpenAIResponsesReasoningSummaryTextDeltaEvent
+  | OpenAIResponsesCreatedEvent
   | OpenAIResponsesCompletedEvent
   | { readonly type: string; readonly [key: string]: unknown };
 
@@ -655,24 +672,163 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
     return this.finalResultPromise;
   }
 
+  abort(): void {
+    this.source.abort?.();
+    this.rejectFinal(new OllamaAbortError('OpenAI Responses stream aborted'));
+  }
+
   async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined> {
     let finalResponse: OpenAIResponsesResponse | undefined;
+    let responseMeta: OpenAIResponsesResponse | undefined;
+    const outputs = new Map<number, {
+      itemId: string;
+      kind: 'message' | 'function_call' | 'reasoning';
+      content: Map<number, string>;
+      summary: Map<number, string>;
+      arguments: string;
+      name?: string;
+      callId?: string;
+      reasoningText: string;
+    }>();
+
     try {
       for await (const event of this.source) {
         if (event.data === '[DONE]') break;
-        const payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent;
-        if (payload.type === 'response.completed' || payload.type === 'response.done') {
-          const candidate = payload.response;
-          if (candidate && typeof candidate === 'object') {
-            finalResponse = candidate as OpenAIResponsesResponse;
-          }
+        let payload: OpenAIResponsesStreamEvent;
+        try {
+          payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent;
+        } catch (error) {
+          throw new Error('Failed to parse OpenAI Responses SSE payload', { cause: error });
         }
+
+        if (payload.type === 'response.created') {
+          responseMeta = payload.response;
+        } else if (payload.type === 'response.completed' || payload.type === 'response.done') {
+          const candidate = payload.response;
+          if (candidate && typeof candidate === 'object') finalResponse = candidate;
+        } else if (payload.type === 'response.output_text.delta') {
+          const state = outputs.get(payload.output_index) ?? {
+            itemId: payload.item_id,
+            kind: 'message' as const,
+            content: new Map<number, string>(),
+            summary: new Map<number, string>(),
+            arguments: '',
+            reasoningText: '',
+          };
+          state.itemId = payload.item_id;
+          state.kind = 'message';
+          state.content.set(
+            payload.content_index,
+            (state.content.get(payload.content_index) ?? '') + payload.delta,
+          );
+          outputs.set(payload.output_index, state);
+        } else if (payload.type === 'response.output_text.done') {
+          const state = outputs.get(payload.output_index) ?? {
+            itemId: payload.item_id,
+            kind: 'message' as const,
+            content: new Map<number, string>(),
+            summary: new Map<number, string>(),
+            arguments: '',
+            reasoningText: '',
+          };
+          state.itemId = payload.item_id;
+          state.kind = 'message';
+          state.content.set(payload.content_index, payload.text);
+          outputs.set(payload.output_index, state);
+        } else if (payload.type === 'response.function_call_arguments.delta') {
+          const state = outputs.get(payload.output_index) ?? {
+            itemId: payload.item_id,
+            kind: 'function_call' as const,
+            content: new Map<number, string>(),
+            summary: new Map<number, string>(),
+            arguments: '',
+            reasoningText: '',
+          };
+          state.itemId = payload.item_id;
+          state.kind = 'function_call';
+          state.arguments += payload.delta;
+          outputs.set(payload.output_index, state);
+        } else if (payload.type === 'response.function_call_arguments.done') {
+          const state = outputs.get(payload.output_index) ?? {
+            itemId: payload.item_id,
+            kind: 'function_call' as const,
+            content: new Map<number, string>(),
+            summary: new Map<number, string>(),
+            arguments: '',
+            reasoningText: '',
+          };
+          state.itemId = payload.item_id;
+          state.kind = 'function_call';
+          state.name = payload.name;
+          state.arguments = payload.arguments;
+          outputs.set(payload.output_index, state);
+        } else if (
+          payload.type === 'response.reasoning_text.delta' ||
+          payload.type === 'response.reasoning_summary_text.delta'
+        ) {
+          const state = outputs.get(payload.output_index) ?? {
+            itemId: payload.item_id,
+            kind: 'reasoning' as const,
+            content: new Map<number, string>(),
+            summary: new Map<number, string>(),
+            arguments: '',
+            reasoningText: '',
+          };
+          state.itemId = payload.item_id;
+          state.kind = 'reasoning';
+          if (payload.type === 'response.reasoning_text.delta') {
+            state.reasoningText += payload.delta;
+          } else {
+            state.summary.set(
+              payload.summary_index,
+              (state.summary.get(payload.summary_index) ?? '') + payload.delta,
+            );
+          }
+          outputs.set(payload.output_index, state);
+        }
+
         yield payload;
       }
 
       if (!finalResponse) {
-        throw new Error('OpenAI Responses stream ended without a completed response payload');
+        if (!responseMeta) {
+          throw new Error('OpenAI Responses stream ended without a completed response payload');
+        }
+        const output = [...outputs.entries()].sort(([a], [b]) => a - b).map(([, state]) => {
+          if (state.kind === 'message') {
+            return {
+              type: 'message' as const,
+              role: 'assistant',
+              content: [...state.content.entries()]
+                .sort(([a], [b]) => a - b)
+                .map(([, text]) => ({ type: 'output_text' as const, text })),
+            };
+          }
+          if (state.kind === 'function_call') {
+            return {
+              type: 'function_call' as const,
+              ...(state.itemId ? { id: state.itemId } : {}),
+              ...(state.callId ? { call_id: state.callId } : {}),
+              name: state.name ?? '',
+              arguments: state.arguments,
+            };
+          }
+          return {
+            type: 'reasoning' as const,
+            ...(state.itemId ? { id: state.itemId } : {}),
+            ...(state.summary.size
+              ? {
+                  summary: [...state.summary.entries()]
+                    .sort(([a], [b]) => a - b)
+                    .map(([, text]) => ({ type: 'summary_text' as const, text })),
+                }
+              : {}),
+            ...(state.reasoningText ? { text: state.reasoningText } : {}),
+          };
+        });
+        finalResponse = { ...responseMeta, output };
       }
+
       this.resolveFinal(finalResponse);
     } catch (error) {
       this.rejectFinal(error);
