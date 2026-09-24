@@ -58,6 +58,38 @@ describe('Concurrency slot lifecycle: streaming', () => {
     expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
   });
 
+  it('releases the slot when an unconsumed native stream is aborted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              `{"model":"llama3","created_at":"t","message":{"role":"assistant","content":"hi"},"done":false}\n`,
+            ),
+          );
+        },
+      }),
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'a', baseUrl: 'http://a.local' }],
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const stream = await client.chatStream({
+      model: 'llama3',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+    stream.abort();
+    await expect(stream.finalResult).rejects.toMatchObject({ code: 'aborted' });
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+
   it('releases the slot if stream consumption errors partway through', async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
