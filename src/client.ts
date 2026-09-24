@@ -268,7 +268,14 @@ export class OllamaClient {
   async chat(
     req: ChatRequestOptions,
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
-    const messages = await withEncodedMessageImages(req.messages);
+    const encodedMessages = await withEncodedMessageImages(req.messages);
+    const messages = encodedMessages.map((message) => {
+      if (message.role === 'tool' && message.tool_call_id !== undefined) {
+        const { tool_call_id: _toolCallId, ...nativeMessage } = message;
+        return nativeMessage;
+      }
+      return message;
+    });
     if (req.stream) {
       return this.executeWithFailover(
         async (http, signal) => {
