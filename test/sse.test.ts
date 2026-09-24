@@ -68,6 +68,17 @@ describe('SSE parser', () => {
     expect(events).toEqual([{ id: 'first', data: 'one' }, { id: 'first', data: 'two' }]);
   });
 
+  it('handles a CRLF sequence split across byte chunks', async () => {
+    const stream = parseSseStream(
+      byteStream('data: hello\r', '\ndata: world\r\n\r\n'),
+    );
+
+    const events = [];
+    for await (const event of stream) events.push(event);
+
+    expect(events).toEqual([{ data: 'hello\nworld' }]);
+  });
+
   it('handles a UTF-8 code point split across byte chunks', async () => {
     const encoder = new TextEncoder();
     const bytes = encoder.encode('data: café\n\n');
