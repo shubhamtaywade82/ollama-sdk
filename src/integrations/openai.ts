@@ -759,11 +759,16 @@ export class OpenAICompatClient {
   }
 
   async listModels(signal?: AbortSignal): Promise<OpenAIListModelsResponse> {
-    return this.http.request<OpenAIListModelsResponse>({
-      path: '/v1/models',
-      method: 'GET',
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAIListModelsResponse>({
+          path: '/v1/models',
+          method: 'GET',
+          signal: requestSignal,
+        }),
+      undefined,
       signal,
-    });
+    );
   }
 
   async retrieveModel(
