@@ -564,6 +564,7 @@ export class OllamaClient {
         headers: ep?.headers,
         fetch: this.fetchImpl,
       }),
+      (op, opts) => this.executeWithFailover(op, opts),
     );
   }
   get anthropic(): AnthropicCompatClient {
@@ -575,6 +576,7 @@ export class OllamaClient {
         headers: ep?.headers,
         fetch: this.fetchImpl,
       }),
+      (op, opts) => this.executeWithFailover(op, opts),
     );
   }
 }
