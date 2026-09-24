@@ -773,7 +773,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           outputs.set(event.output_index, state);
         } else if (payload.type === 'response.output_text.done') {
           const event = payload as OpenAIResponsesOutputTextDoneEvent;
-          const state = outputs.get(event.output_index) ?? {
+          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
             itemId: event.item_id,
             kind: 'message' as const,
             content: new Map<number, string>(),
