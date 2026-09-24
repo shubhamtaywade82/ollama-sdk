@@ -71,7 +71,7 @@ describe('HTTP middleware', () => {
     expect(seen).toEqual(['/v1/chat/completions']);
   });
 
-  it('can transform response status and headers', async () => {
+  it('can transform response metadata and body', async () => {
     const http = new HttpClient({
       baseUrl: 'http://localhost:11434',
       middleware: [
@@ -81,15 +81,19 @@ describe('HTTP middleware', () => {
             ...response,
             status: 202,
             headers: { ...response.headers, 'X-Middleware': 'applied' },
+            body: new Response(JSON.stringify({ ok: 'middleware' }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
           };
         },
       ],
-      fetch: vi.fn().mockResolvedValue(jsonResponse({ ok: true })) as never,
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ ok: 'original' })) as never,
     });
 
-    await expect(http.request({ path: '/api/version' })).rejects.toThrow();
-    // The synthetic status is deliberately non-2xx so the HTTP layer exercises the
-    // middleware-produced response metadata.
+    await expect(http.request<{ ok: string }>({ path: '/api/version' })).resolves.toEqual({
+      ok: 'middleware',
+    });
   });
 
   it('detects invalid middleware next() re-entry', async () => {
