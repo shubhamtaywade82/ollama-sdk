@@ -165,17 +165,33 @@ export class HttpClient {
       httpSpanAttributes(method, url),
       async (span) => {
         try {
+          const controller = new AbortController();
+          const removeAbortListener =
+            options.signal !== undefined
+              ? (() => {
+                  if (options.signal.aborted) {
+                    controller.abort(options.signal.reason);
+                  } else {
+                    const onAbort = (): void => controller.abort(options.signal?.reason);
+                    options.signal.addEventListener('abort', onAbort, { once: true });
+                    return () => options.signal?.removeEventListener('abort', onAbort);
+                  }
+                  return undefined;
+                })()
+              : undefined;
+
           const init: RequestInit = {
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-            ...(options.signal !== undefined ? { signal: options.signal } : {}),
+            signal: controller.signal,
           };
 
           const response = await this.fetchImpl(url, init);
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
+            removeAbortListener?.();
             const errorText = await response.text();
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
@@ -184,9 +200,23 @@ export class HttpClient {
           }
 
           if (!response.body) {
+            removeAbortListener?.();
             throw mapError(new Error('Response body is null, cannot stream SSE'), {
               request: { method, url },
             });
+          }
+
+          const controller = new AbortController();
+          const signal = options.signal;
+          let removeAbortListener: (() => void) | undefined;
+
+          if (signal !== undefined) {
+            if (signal.aborted) controller.abort(signal.reason);
+            else {
+              const onAbort = (): void => controller.abort(signal.reason);
+              signal.addEventListener('abort', onAbort, { once: true });
+              removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+            }
           }
 
           const stream = parseSseStream(response.body);
@@ -194,7 +224,8 @@ export class HttpClient {
             [Symbol.asyncIterator]() {
               return stream[Symbol.asyncIterator]();
             },
-          };
+            abort: () => controller.abort(),
+          } as AbortableAsyncIterable<SseEvent>;
         } catch (err) {
           throw mapError(err, { request: { method, url } });
         }
