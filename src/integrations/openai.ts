@@ -690,6 +690,17 @@ export type OpenAIResponsesStreamEvent =
   | OpenAIResponsesCompletedEvent
   | { readonly type: string; readonly [key: string]: unknown };
 
+type OpenAIResponsesOutputState = {
+  itemId: string;
+  kind: 'message' | 'function_call' | 'reasoning';
+  content: Map<number, string>;
+  summary: Map<number, string>;
+  arguments: string;
+  name?: string;
+  callId?: string;
+  reasoningText: string;
+};
+
 export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
   private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
   private resolveFinal!: (value: OpenAIResponsesResponse) => void;
@@ -725,16 +736,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
   async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined> {
     let finalResponse: OpenAIResponsesResponse | undefined;
     let responseMeta: OpenAIResponsesResponse | undefined;
-    const outputs = new Map<number, {
-      itemId: string;
-      kind: 'message' | 'function_call' | 'reasoning';
-      content: Map<number, string>;
-      summary: Map<number, string>;
-      arguments: string;
-      name?: string;
-      callId?: string;
-      reasoningText: string;
-    }>();
+    const outputs = new Map<number, OpenAIResponsesOutputState>();
     let completed = false;
 
     try {
@@ -754,7 +756,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           if (candidate && typeof candidate === 'object') finalResponse = candidate;
         } else if (payload.type === 'response.output_text.delta') {
           const event = payload as OpenAIResponsesOutputTextDeltaEvent;
-          const state = outputs.get(event.output_index) ?? {
+          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
             itemId: event.item_id,
             kind: 'message' as const,
             content: new Map<number, string>(),
@@ -796,7 +798,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           state.itemId = event.item_id;
           state.kind = 'function_call';
           state.arguments += event.delta;
-          outputs.set(payload.output_index, state);
+          outputs.set(event.output_index, state);
         } else if (payload.type === 'response.function_call_arguments.done') {
           const event = payload as OpenAIResponsesFunctionCallArgumentsDoneEvent;
           const state = outputs.get(event.output_index) ?? {
