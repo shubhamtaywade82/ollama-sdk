@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Generic SSE transport:** added `parseSseStream()` and `HttpClient.requestSseStream()` for provider-neutral OpenAI/Anthropic-compatible streaming. Native Ollama NDJSON streaming remains unchanged.
 - **Native thinking metadata:** `ThinkValue` now accepts `null` and model-defined string levels; `client.capabilities(model).thinking` exposes the `/api/show` values/default instead of hard-coding a fixed list.
 - **Cached prompt-token usage:** native chat/generate responses and normalized stream usage now preserve `prompt_eval_cached_count` as `TokenUsage.cachedPromptTokens`.
 - **Current `/api/create` parity:** added `draft_files`, `draft_quantize`, and `requires`.
