@@ -159,6 +159,7 @@ describe('Compatibility endpoint routing and streaming lifecycle', () => {
         { name: 'primary', baseUrl: 'http://primary', models: ['gpt-oss:20b'] },
         { name: 'secondary', baseUrl: 'http://secondary', models: ['gpt-oss:20b'] },
       ],
+      retries: 0,
       fetch: fetchMock as never,
     });
 
