@@ -31,7 +31,6 @@ import { HttpClient, type BinaryBody, type FetchLike } from './transport/http.js
 import { DEFAULT_RETRY_CONFIG, withRetry, type RetryConfig } from './transport/retry.js';
 import { createTimeoutSignal } from './transport/timeout.js';
 import { ModelsClient } from './models-client.js';
-import type { RequestRunner } from './transport/runner.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
