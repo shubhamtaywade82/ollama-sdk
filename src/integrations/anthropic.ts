@@ -280,7 +280,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
           if (event.delta.type === 'input_json_delta') {
             toolInputJson.set(event.index, (toolInputJson.get(event.index) ?? '') + event.delta.partial_json);
           }
-          if (current) blocks.set(event.index, mergeContentBlock(current, event.delta, toolInputJson.get(event.index)));
+          if (current) blocks.set(event.index, mergeContentBlock(current, event.delta));
         } else if (event.type === 'content_block_stop') {
           const current = blocks.get(event.index);
           if (current?.type === 'tool_use') {
@@ -384,6 +384,10 @@ export class AnthropicCompatClient {
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse>;
   async createMessage(
+    request: AnthropicMessagesRequest & ({ stream: true } | { stream?: false | undefined }),
+    signal?: AbortSignal,
+  ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream>; 
+  async createMessage(
     request: AnthropicMessagesRequest,
     signal?: AbortSignal,
   ): Promise<AnthropicMessagesResponse | AnthropicMessagesStream> {
@@ -397,7 +401,7 @@ export class AnthropicCompatClient {
           }).then((source) => new AnthropicMessagesStream(source, requestSignal)),
         request.model,
         signal,
-        (stream) => stream.finalResult,
+        (stream: AnthropicMessagesStream) => stream.finalResult,
       );
     }
     return this.request(
