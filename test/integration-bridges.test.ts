@@ -34,12 +34,16 @@ describe('Compatibility bridge request typing (mocked network)', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({
-        id: 'x',
-        object: 'chat.completion',
-        created: 0,
-        model: 'llama3.2',
-        choices: [],
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              'data: {"id":"x","object":"chat.completion.chunk","created":0,"model":"llama3.2","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}\\n\\n',
+            ),
+          );
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\\n\\n'));
+          controller.close();
+        },
       }),
     });
     const client = new OllamaClient({ fetch: fetchMock as never });
