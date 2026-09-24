@@ -560,6 +560,7 @@ export class OllamaClient {
     options: RequestCancellationOptions,
   ): Promise<T> {
     const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, options.signal);
+    const requestId = createLogicalRequestId();
     try {
       const http = new HttpClient({
         baseUrl: OLLAMA_CLOUD_BASE_URL,
@@ -567,9 +568,22 @@ export class OllamaClient {
         fetch: this.fetchImpl,
         middleware: this.middleware,
         onLifecycleEvent: this.onLifecycleEvent,
-        requestId: createLogicalRequestId(),
+        requestId,
       });
-      return await withRetry(() => operation(http, timeout.signal), this.retryConfig);
+      return await withRetry(() => operation(http, timeout.signal), {
+        ...this.retryConfig,
+        onRetry: (error, attempt, delayMs) => {
+          this.retryConfig.onRetry?.(error, attempt, delayMs);
+          this.onLifecycleEvent?.({
+            type: 'retry',
+            requestId,
+            attempt: attempt + 1,
+            error,
+            delayMs,
+            timestamp: Date.now(),
+          });
+        },
+      });
     } finally {
       timeout.cancel();
     }
