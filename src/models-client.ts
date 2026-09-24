@@ -6,7 +6,7 @@ import { listAvailableModels } from './capabilities/capabilities.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
 import type { ProgressStreamResult } from './streaming/types.js';
-import type { BinaryBody, HttpClient } from './transport/http.js';
+import type { BinaryBody } from './transport/http.js';
 import type { RequestRunner } from './transport/runner.js';
 import type {
   CopyRequestOptions,
