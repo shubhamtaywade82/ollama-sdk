@@ -150,7 +150,12 @@ describe('Request lifecycle hooks', () => {
     const fetchMock = vi.fn().mockImplementation(async () => {
       calls += 1;
       if (calls === 1) return jsonResponse({ error: 'temporary' }, 503);
-      return jsonResponse({ ok: true });
+      return jsonResponse({
+        model: 'qwen3',
+        created_at: 't',
+        message: { role: 'assistant', content: 'ok' },
+        done: true,
+      });
     });
 
     const events: Array<{ type: string; requestId: string; attempt?: number }> = [];
