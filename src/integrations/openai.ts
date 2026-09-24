@@ -719,18 +719,28 @@ export class OpenAICompatClient {
     signal?: AbortSignal,
   ): Promise<OpenAIChatCompletionResponse | OpenAIChatCompletionStream> {
     if (request.stream) {
-      const source = await this.http.requestSseStream({
-        path: '/v1/chat/completions',
-        body: request,
+      return this.request(
+        (http, requestSignal) =>
+          http.requestSseStream({
+            path: '/v1/chat/completions',
+            body: request,
+            signal: requestSignal,
+          }).then((source) => new OpenAIChatCompletionStream(source)),
+        request.model,
         signal,
-      });
-      return new OpenAIChatCompletionStream(source);
+        (stream) => stream.finalResult,
+      );
     }
-    return this.http.request<OpenAIChatCompletionResponse>({
-      path: '/v1/chat/completions',
-      body: request,
+    return this.request(
+      (http, requestSignal) =>
+        http.request<OpenAIChatCompletionResponse>({
+          path: '/v1/chat/completions',
+          body: request,
+          signal: requestSignal,
+        }),
+      request.model,
       signal,
-    });
+    );
   }
 
   async chatCompletions(
