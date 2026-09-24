@@ -57,7 +57,6 @@ export async function* parseSseStream(
       const event = dispatch(eventType, data, lastEventId, retry);
       eventType = undefined;
       data = [];
-      retry = undefined;
       return event;
     }
 
