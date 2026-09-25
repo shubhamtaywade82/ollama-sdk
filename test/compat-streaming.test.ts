@@ -233,6 +233,24 @@ describe('Anthropic compatibility streaming', () => {
     expect(final.usage).toEqual({ input_tokens: 4, output_tokens: 8 });
   });
 
+  it('preserves unknown Anthropic SSE events for forward compatibility', async () => {
+    const fetchMock = sseFetchMock([
+      'event: future_event\ndata: {"type":"future_event","value":{"new_field":true}}\n\n',
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_future","type":"message","role":"assistant","model":"qwen3","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 32,
+      stream: true,
+    });
+    const events = [];
+    for await (const event of stream) events.push(event);
+    expect(events[0]).toEqual({ type: 'future_event', value: { new_field: true } });
+    await expect(stream.finalResult).resolves.toMatchObject({ id: 'msg_future' });
+  });
+
   it('aggregates thinking deltas and signatures', async () => {
     const fetchMock = sseFetchMock([
       'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_2","type":"message","role":"assistant","model":"qwen3","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
