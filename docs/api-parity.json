@@ -91,8 +91,6 @@
         "temperature",
         "top_p",
         "max_output_tokens",
-        "reasoning",
-        "think",
         "previous_response_id",
         "conversation",
         "truncation"
@@ -199,6 +197,51 @@
         "draft_quantize",
         "requires",
         "stream"
+      ]
+    },
+    {
+      "id": "native-delete",
+      "docsUrl": "https://docs.ollama.com/api/delete",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "DeleteRequestOptions",
+      "endpoint": "/api/delete",
+      "fields": [
+        "model"
+      ]
+    },
+    {
+      "id": "native-push",
+      "docsUrl": "https://docs.ollama.com/api/push",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "PushRequestOptions",
+      "endpoint": "/api/push",
+      "fields": [
+        "model",
+        "insecure",
+        "stream"
+      ]
+    },
+    {
+      "id": "native-pull",
+      "docsUrl": "https://docs.ollama.com/api/pull",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "PullRequestOptions",
+      "endpoint": "/api/pull",
+      "fields": [
+        "model",
+        "insecure",
+        "stream"
+      ]
+    },
+    {
+      "id": "native-copy",
+      "docsUrl": "https://docs.ollama.com/api/copy",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "CopyRequestOptions",
+      "endpoint": "/api/copy",
+      "fields": [
+        "source",
+        "destination"
       ]
     },
     {
