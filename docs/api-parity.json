@@ -176,10 +176,11 @@
           "model",
           "content",
           "stop_reason",
-          "stop_sequence",
           "usage"
         ],
-        "sdkOnlyFields": []
+        "sdkOnlyFields": [
+          "stop_sequence"
+        ]
       },
       "sdkOnlyFields": [],
       "stream": {
