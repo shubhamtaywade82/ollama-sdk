@@ -145,6 +145,7 @@ function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStat
     const matches = aliases.some((field) => {
       const forms = [
         '`' + field + '`',
+        '<code>' + field + '</code>',
         '"' + field + '":',
         "'" + field + "':",
         '| ' + field + ' |',
