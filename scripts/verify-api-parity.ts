@@ -152,8 +152,6 @@ function firstKnownStatus(
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
 
-type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
-
 function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStatus {
   const lines = docs.split(/\r?\n/);
   for (const field of aliases) {
