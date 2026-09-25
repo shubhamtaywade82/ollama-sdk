@@ -12,7 +12,15 @@ interface FieldSectionContract {
   readonly sourceFile: string;
   readonly interfaceName: string;
   readonly fields: readonly string[];
+  readonly unsupportedFields?: readonly string[];
+  readonly sdkOnlyFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
+}
+
+interface StreamContract {
+  readonly sourceFile: string;
+  readonly unionName: string;
+  readonly interfaceNames: readonly string[];
 }
 
 interface SurfaceContract {
@@ -26,6 +34,7 @@ interface SurfaceContract {
   readonly sdkOnlyFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
   readonly response?: FieldSectionContract;
+  readonly stream?: StreamContract;
 }
 
 interface ParityManifest {
@@ -66,6 +75,31 @@ function sourceProperties(sourceFile: string, interfaceName: string): Set<string
   throw new Error(`Interface ${interfaceName} was not found in ${sourceFile}`);
 }
 
+function sourceTypeReferences(sourceFile: string, typeAliasName: string): Set<string> {
+  const sourcePath = resolve(ROOT, sourceFile);
+  const source = readFileSync(sourcePath, 'utf8');
+  const file = ts.createSourceFile(
+    sourcePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  for (const statement of file.statements) {
+    if (!ts.isTypeAliasDeclaration(statement) || statement.name.text !== typeAliasName) continue;
+    if (!ts.isUnionTypeNode(statement.type)) return new Set();
+    return new Set(
+      statement.type.types.flatMap((member) =>
+        ts.isTypeReferenceNode(member) && ts.isIdentifier(member.typeName)
+          ? [member.typeName.text]
+          : [],
+      ),
+    );
+  }
+
+  throw new Error(`Type alias ${typeAliasName} was not found in ${sourceFile}`);
+}
 async function fetchDocs(url: string): Promise<string> {
   const response = await fetch(url, {
     headers: { Accept: 'text/plain, text/markdown, */*' },
@@ -187,9 +221,12 @@ function assertContract(
       contract.response.sourceFile,
       contract.response.interfaceName,
     );
-    const missingResponseSource = contract.response.fields.filter(
-      (field) => !responseProps.has(field),
-    );
+    const responseTracked = [
+      ...contract.response.fields,
+      ...(contract.response.unsupportedFields ?? []),
+      ...(contract.response.sdkOnlyFields ?? []),
+    ];
+    const missingResponseSource = responseTracked.filter((field) => !responseProps.has(field));
     if (missingResponseSource.length > 0) {
       throw new Error(
         `[${contract.id}] ${contract.response.interfaceName} is missing response field(s): ${missingResponseSource.join(', ')}`,
@@ -206,11 +243,41 @@ function assertContract(
         `[${contract.id}] Response field(s) are missing or marked unsupported by Ollama: ${missingResponseDocs.join(', ')}`,
       );
     }
+
+    const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
+      const aliases = contract.response?.docAliases?.[field] ?? [field];
+      return docsFieldStatus(responseSection, aliases) !== 'unsupported';
+    });
+    if (unsupportedResponseDocs.length > 0) {
+      throw new Error(
+        `[${contract.id}] Explicitly unsupported response field(s) changed status in Ollama docs: ${unsupportedResponseDocs.join(', ')}`,
+      );
+    }
+
+    const sdkOnlyResponseDocs = (contract.response.sdkOnlyFields ?? []).filter((field) => {
+      const aliases = contract.response?.docAliases?.[field] ?? [field];
+      return docsFieldStatus(responseSection, aliases) !== 'missing';
+    });
+    if (sdkOnlyResponseDocs.length > 0) {
+      throw new Error(
+        `[${contract.id}] SDK-only response field(s) are now documented by Ollama and need reclassification: ${sdkOnlyResponseDocs.join(', ')}`,
+      );
+    }
+  }
+
+  if (contract.stream) {
+    const refs = sourceTypeReferences(contract.stream.sourceFile, contract.stream.unionName);
+    const missingEventTypes = contract.stream.interfaceNames.filter((name) => !refs.has(name));
+    if (missingEventTypes.length > 0) {
+      throw new Error(
+        `[${contract.id}] ${contract.stream.unionName} is missing stream event type(s): ${missingEventTypes.join(', ')}`,
+      );
+    }
   }
 }
 
 async function main(): Promise<void> {
-  if (manifest.version !== 2) {
+  if (manifest.version !== 3) {
     throw new Error(`Unsupported parity manifest version: ${String(manifest.version)}`);
   }
 
