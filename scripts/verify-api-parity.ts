@@ -356,7 +356,8 @@ function assertContract(
         );
       }
     }
-  }}
+  }
+}
 
 async function main(): Promise<void> {
   if (manifest.version !== 4) {
