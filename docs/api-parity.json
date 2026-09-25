@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
@@ -23,14 +23,13 @@
         "max_tokens",
         "tools",
         "reasoning_effort",
-        "reasoning"
-      ],
-      "unsupportedFields": [
+        "reasoning",
         "tool_choice",
         "logit_bias",
         "user",
         "n"
       ],
+      "unsupportedFields": [],
       "sdkOnlyFields": [
         "parallel_tool_calls"
       ],
@@ -57,15 +56,14 @@
         "temperature",
         "top_p",
         "max_tokens",
-        "suffix"
-      ],
-      "unsupportedFields": [
+        "suffix",
         "best_of",
         "echo",
         "logit_bias",
         "user",
         "n"
       ],
+      "unsupportedFields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
     },
     {
@@ -78,7 +76,8 @@
         "model",
         "input",
         "encoding_format",
-        "dimensions"
+        "dimensions",
+        "user"
       ],
       "docAliases": {
         "encoding_format": [
@@ -86,9 +85,7 @@
           "encoding format"
         ]
       },
-      "unsupportedFields": [
-        "user"
-      ],
+      "unsupportedFields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
     },
     {
@@ -106,15 +103,17 @@
         "temperature",
         "top_p",
         "max_output_tokens",
-        "reasoning",
-        "think"
+        "truncation"
       ],
       "unsupportedFields": [
         "previous_response_id",
-        "conversation",
-        "truncation"
+        "conversation"
       ],
-      "sdkOnlyFields": [],
+      "sdkOnlyFields": [
+        "reasoning",
+        "think",
+        "parallel_tool_calls"
+      ],
       "stream": {
         "sourceFile": "src/integrations/openai.ts",
         "unionName": "OpenAIResponsesStreamEvent",
@@ -162,8 +161,7 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking",
-        "output_config"
+        "thinking"
       ],
       "unsupportedFields": [
         "tool_choice",
@@ -198,6 +196,16 @@
           "AnthropicMessageStopEvent",
           "AnthropicPingEvent",
           "AnthropicErrorEvent"
+        ],
+        "eventTypes": [
+          "message_start",
+          "content_block_start",
+          "content_block_delta",
+          "content_block_stop",
+          "message_delta",
+          "message_stop",
+          "ping",
+          "error"
         ]
       },
       "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
@@ -224,7 +232,26 @@
         "logprobs",
         "top_logprobs"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ChatResponse",
+        "fields": [
+          "model",
+          "created_at",
+          "message",
+          "done",
+          "done_reason",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count",
+          "prompt_eval_duration",
+          "eval_count",
+          "eval_duration",
+          "logprobs"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-generate",
@@ -247,7 +274,27 @@
         "logprobs",
         "top_logprobs"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "GenerateResponse",
+        "fields": [
+          "model",
+          "created_at",
+          "response",
+          "thinking",
+          "done",
+          "done_reason",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count",
+          "prompt_eval_duration",
+          "eval_count",
+          "eval_duration",
+          "logprobs"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-embed",
@@ -263,7 +310,19 @@
         "keep_alive",
         "options"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "EmbedResponse",
+        "fields": [
+          "model",
+          "embeddings",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-create",
@@ -277,18 +336,22 @@
         "template",
         "renderer",
         "parser",
-        "files",
-        "draft_files",
         "license",
         "system",
         "parameters",
         "messages",
         "quantize",
-        "draft_quantize",
-        "requires",
         "stream"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-delete",
@@ -312,7 +375,15 @@
         "insecure",
         "stream"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-pull",
@@ -325,7 +396,15 @@
         "insecure",
         "stream"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-copy",
@@ -349,28 +428,66 @@
         "model",
         "verbose"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ShowResponse",
+        "fields": [
+          "parameters",
+          "license",
+          "modified_at",
+          "details",
+          "template",
+          "capabilities",
+          "model_info"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-tags",
       "docsUrl": "https://docs.ollama.com/api/tags.md",
       "endpoint": "/api/tags",
       "fields": [],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ListResponse",
+        "fields": [
+          "models"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-ps",
       "docsUrl": "https://docs.ollama.com/api/ps.md",
       "endpoint": "/api/ps",
       "fields": [],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "PsResponse",
+        "fields": [
+          "models"
+        ],
+        "sdkOnlyFields": []
+      }
     },
     {
       "id": "native-version",
       "docsUrl": "https://docs.ollama.com/api-reference/get-version.md",
       "endpoint": "/api/version",
       "fields": [],
-      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "VersionResponse",
+        "fields": [
+          "version"
+        ],
+        "sdkOnlyFields": []
+      }
     }
   ]
 }
