@@ -115,20 +115,33 @@ async function fetchDocs(url: string): Promise<string> {
   return response.text();
 }
 
-function endpointSection(docs: string, endpoint: string): string {
-  const headings = [...docs.matchAll(/^### (.+)$/gm)];
-  const exact = headings.find((heading) => (heading[1] ?? '').trim() === endpoint);
-  const selected = exact ?? headings.find((heading) => {
-    const text = (heading[1] ?? '').trim();
-    return text === 'POST ' + endpoint || text.startsWith('POST ' + endpoint + ' ');
-  });
-  if (selected === undefined || selected.index === undefined) return '';
-
-  const selectedIndex = headings.indexOf(selected);
-  const end = headings[selectedIndex + 1]?.index ?? docs.length;
-  return docs.slice(selected.index, end);
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
 
+function endpointSection(docs: string, endpoint: string): string {
+  const escaped = escapeRegExp(endpoint);
+  const headingPatterns = [
+    new RegExp('^###\\s+`?' + escaped + '`?\\s*$', 'm'),
+    new RegExp('^###\\s+POST\\s+' + escaped + '\\s*$', 'm'),
+  ];
+  if (endpoint === '/v1/responses') {
+    headingPatterns.push(/^### Responses API\s*$/m);
+  }
+
+  for (const pattern of headingPatterns) {
+    const heading = pattern.exec(docs);
+    if (!heading || heading.index === undefined) continue;
+    const tail = docs.slice(heading.index + heading[0].length);
+    const nextHeading = tail.search(/^### /m);
+    return docs.slice(
+      heading.index,
+      nextHeading >= 0 ? heading.index + heading[0].length + nextHeading : docs.length,
+    );
+  }
+
+  return '';
+}
 function subsection(docs: string, pattern: RegExp): string {
   const heading = docs.match(pattern);
   if (!heading || heading.index === undefined) return '';
