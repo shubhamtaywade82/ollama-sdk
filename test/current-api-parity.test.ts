@@ -1,254 +1,485 @@
-# Changelog
+describe('API parity manifest contract', () => {
+  it('tracks current support classification and expanded native surfaces', async () => {
+    const manifest = JSON.parse(
+      await (await import('node:fs/promises')).readFile(
+        new URL('../docs/api-parity.json', import.meta.url),
+        'utf8',
+      ),
+    ) as {
+      version: number;
+      surfaces: Array<{
+        id: string;
+        unsupportedFields?: string[];
+        sdkOnlyFields?: string[];
+        response?: { fields: string[]; sdkOnlyFields?: string[] };
+        stream?: { unionName: string; interfaceNames: string[] };
+      }>;
+    };
 
-## [Unreleased]
+    const chat = manifest.surfaces.find((surface) => surface.id === 'openai-chat');
+    const embeddings = manifest.surfaces.find((surface) => surface.id === 'openai-embeddings');
+    const responses = manifest.surfaces.find((surface) => surface.id === 'openai-responses');
+    const anthropic = manifest.surfaces.find((surface) => surface.id === 'anthropic-messages');
 
-- **API parity v4.** Response fields for native endpoints and Anthropic, documented Anthropic stream event names, and live-doc precedence are now verified. `/api/ps` exposes `context_length`, and `/api/copy` is included in the parity surface.
-### Added
-- **Machine-readable API parity manifest and CI verification.** `docs/api-parity.json` defines the supported Ollama surface and `verify:api-parity` checks the manifest against the current official documentation; publishing now runs the same verification.
-- **Support-aware compatibility contract.** API parity manifest v3 now separates supported, explicitly unsupported, and SDK-only fields; verifies Anthropic response fields and the public OpenAI Responses/Anthropic stream unions; and exports strict Ollama-scoped request types without removing the broader compatibility request types.
-- **Automated Ollama API parity verifier.** CI now checks the documented native and OpenAI/Anthropic compatibility request surfaces against the SDK's TypeScript interfaces and current official documentation.
-- **Abort-aware retry backoff.** `withRetry` now accepts an optional `AbortSignal`, and `OllamaClient` propagates request cancellation through retry delays so cancelled work does not remain asleep in backoff.
-- **HTTP middleware and request lifecycle hooks.** The existing `middleware` and `onLifecycleEvent` client options are now wired through native, OpenAI/Anthropic compatibility, health-check, and hosted web HTTP paths; retries share the same logical request id.
-- **Shared compatibility endpoint routing.** OpenAI and Anthropic compatibility requests now use the same model-scoped endpoint selection, failover, concurrency limits, and cancellation path as native inference.
-- **Compatibility stream lifecycle.** OpenAI/Anthropic streams now expose `abort()`, hold endpoint capacity until `finalResult` settles, and remain covered by the request timeout for their full lifetime.
-- **OpenAI Responses stream reconstruction.** Responses streams can now reconstruct message, function-call, and reasoning output items from deltas when a terminal full response payload is absent.
-- **OpenAI Responses event/state parity.** Responses streams now understand output-item/content-part lifecycle events, refusal and reasoning-summary events, function-call `call_id` reconstruction, and `response.failed` / `response.incomplete` terminal states; failed or incomplete streams surface a typed `OpenAIResponsesStreamError` instead of a fabricated success response.
-- **Native model-management parity.** The live parity contract now also verifies the documented `/api/copy`, `/api/pull`, `/api/push`, and `/api/delete` request surfaces. The Responses contract now distinguishes Ollama-documented fields from SDK-only vendor extensions.
-- **Native stream cancellation propagation.** NDJSON and SSE readers are cancelled on iterator termination and parent `AbortSignal` cancellation.
+    expect(manifest.version).toBe(4);
+    expect(chat?.unsupportedFields).toEqual([]);
+    expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
+    expect(embeddings?.unsupportedFields).toEqual([]);
+    expect(responses?.unsupportedFields).toEqual(['previous_response_id', 'conversation']);
+    expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think', 'parallel_tool_calls']);
+    expect(responses?.stream?.interfaceNames).toHaveLength(22);
+    expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
+    expect(anthropic?.response?.fields).toEqual([
+      'id',
+      'type',
+      'role',
+      'model',
+      'content',
+      'stop_reason',
+      'usage',
+    ]);
+    expect(anthropic?.response?.sdkOnlyFields).toEqual(['stop_sequence']);
+    expect(anthropic?.stream?.unionName).toBe('AnthropicMessageStreamEvent');
+    expect(anthropic?.stream?.interfaceNames).toHaveLength(8);
+    expect(manifest.surfaces.find((surface) => surface.id === 'native-copy')).toBeDefined();
+    expect(manifest.surfaces.find((surface) => surface.id === 'native-ps')).toBeDefined();
+  });
+});
 
-### Added
+import { describe, expect, it, vi } from 'vitest';
+import { OllamaClient } from '../src/client.js';
+import { extractUsage } from '../src/usage.js';
+import { normalizeChatStream } from '../src/streaming/normalize.js';
+import type { ChatResponse } from '../src/types.js';
+import type {
+  OllamaOpenAIChatCompletionRequest,
+  OllamaOpenAIChatContentPart,
+  OllamaOpenAIEmbeddingRequest,
+  OllamaOpenAIResponsesRequest,
+} from '../src/index.js';
 
-- **Generic SSE transport:** added `parseSseStream()` and `HttpClient.requestSseStream()` for provider-neutral OpenAI/Anthropic-compatible streaming. Native Ollama NDJSON streaming remains unchanged.
-- **Typed compatibility streaming:** added OpenAI Chat/Completions/Responses and Anthropic Messages streaming adapters over the shared SSE transport, including text aggregation, tool-call JSON argument accumulation, reasoning/thinking deltas, and final usage/response aggregation.
-- **Native thinking metadata:** `ThinkValue` now accepts `null` and model-defined string levels; `client.capabilities(model).thinking` exposes the `/api/show` values/default instead of hard-coding a fixed list.
-- **Cached prompt-token usage:** native chat/generate responses and normalized stream usage now preserve `prompt_eval_cached_count` as `TokenUsage.cachedPromptTokens`.
-- **Current `/api/create` parity:** added `draft_files`, `draft_quantize`, and `requires`.
-- **OpenAI compatibility expansion:** added current non-streaming `/v1/completions`, `/v1/embeddings`, and `/v1/models/{model}` helpers; expanded chat request types for JSON response formats, seed, logit bias, `n`, multimodal content, and model-defined reasoning effort.
+type ExpectTrue<T extends true> = T;
+type _ChatImageUrlAllowed = ExpectTrue<
+  'image_url' extends OllamaOpenAIChatContentPart['type'] ? true : false
+>;
 
-### Fixed
+function jsonFetchMock(body: unknown) {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => body,
+  });
+}
 
-- **Native tool-result protocol parity:** `Agent` now appends Ollama-native `role: "tool"` messages with `tool_name` instead of the OpenAI-specific `tool_call_id`. SDK-generated `toolCallId` values remain available for local execution/tracing correlation, while legacy `tool_call_id` values are stripped from native `/api/chat` request bodies.
+describe('current native Ollama API parity', () => {
+  it('exposes model-defined thinking metadata from api/show', async () => {
+    const fetchMock = jsonFetchMock({
+      details: {
+        format: 'gguf',
+        family: 'gptoss',
+        parameter_size: '20B',
+        quantization_level: 'Q4_K_M',
+      },
+      capabilities: ['completion', 'thinking', 'tools'],
+      thinking: {
+        values: ['low', 'medium', 'high'],
+        default: 'medium',
+      },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-All notable changes to `@nemesis-oss/ollama-sdk` will be documented in this file.
+    const capabilities = await client.capabilities('gpt-oss:20b');
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+    expect(capabilities.supportsThinking).toBe(true);
+    expect(capabilities.thinking).toEqual({
+      values: ['low', 'medium', 'high'],
+      default: 'medium',
+    });
+  });
 
-## [1.3.0] - 2026-08-25
+  it('accepts boolean, null, and model-defined thinking values', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'gemma4:31b',
+      created_at: '2026-09-24T00:00:00Z',
+      message: { role: 'assistant', content: 'ok' },
+      done: true,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-### Added
+    for (const think of [true, false, null, 'ultra'] as const) {
+      await client.chat({
+        model: 'gemma4:31b',
+        messages: [{ role: 'user', content: 'hello' }],
+        think,
+        stream: false,
+      });
 
-- **Client-side quota monitoring (`QuotaManager`).** Ollama Cloud doesn't expose
-  account-level quota through the API — no response header or endpoint reports how much
-  of your plan's session/weekly limit is left (see
-  [ollama/ollama#15663](https://github.com/ollama/ollama/issues/15663)). `QuotaManager`
-  tracks usage you record (via `recordUsage`, which reads `extractUsage`-normalized token
-  counts off a raw response) against budgets you configure over one or more rolling
-  windows, and refuses to proceed (`canProceed`/`assertCanProceed`) once a window's budget
-  is spent — a local safety net to complement, not replace, catching the server's own
-  `OllamaRateLimitError`. `createOllamaCloudFreeTierQuota` is a convenience factory
-  wiring up the free tier's documented 5-hour session and 7-day weekly window cadence
-  (you still supply the token/request budgets, since Ollama doesn't publish the actual
-  ceilings). New `OllamaQuotaExceededError` (`code: 'quota_exceeded'`) is thrown by
-  `assertCanProceed`. See the [Quota Monitoring](./README.md#quota-monitoring) README
-  section.
-- **Credential-scoped multi-key routing.** `OllamaEndpoint` gains an optional `models`
-  allow-list, for the common case of several Ollama Cloud API keys each entitled to a
-  different model. `EndpointRegistry.candidates(model)` now filters to endpoints whose
-  `models` includes the requested model (endpoints without `models` stay eligible for
-  every model — fully backward compatible), so `chat`/`generate`/`embed`/`embeddings` and
-  model-lifecycle calls (`showModel`, `pullModel`, etc.) automatically resolve the
-  authorized credential for the model requested, and cross-endpoint failover between
-  differently-scoped endpoints never sends a request to a key that isn't entitled to that
-  model. Requesting a model no configured endpoint is scoped to throws the new
-  `OllamaModelRoutingError` (`code: 'model_routing_error'`) immediately, before any
-  network call — the SDK never probes unauthorized keys to see which one happens to
-  work. See the README's
-  ["Multiple API keys, each entitled to different models"](./README.md#multiple-api-keys-each-entitled-to-different-models)
-  and the
-  [multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md).
-- **`credentials` + `modelBindings` config.** An ergonomic, map-based alternative to
-  writing `endpoints` with per-entry `models` allow-lists by hand: `OllamaClientConfig`
-  gains `credentials` (named `{ apiKey, baseUrl?, headers? }` entries, keyed by an id you
-  choose), `modelBindings` (maps a model to the credential id, or ids, authorized to serve
-  it), and `defaultCredential` (a fallback credential for any model with no explicit
-  binding). Both config shapes compile down to the same `EndpointRegistry`/
-  `executeWithFailover` routing above — this is config sugar, not a second routing
-  mechanism — so behavior (including `OllamaModelRoutingError` on an unrouted model) is
-  identical either way. `modelBindings` referencing an unknown credential id throws at
-  construction. New `resolveCredentialEndpoints` export for anyone who wants the
-  translation without going through `OllamaClient`.
-- **Round-robin candidate selection.** `EndpointRegistryOptions` (passed via
-  `OllamaClientConfig.endpointHealth`) gains `strategy: 'priority' | 'round-robin'`
-  (default `'priority'`, unchanged prior behavior). With `'round-robin'`,
-  `EndpointRegistry.candidates()` rotates each same-priority group of healthy candidates
-  by one position per call, so consecutive `chat`/`generate`/`embed`/etc. calls spread
-  across a pool of interchangeable endpoints or unbound `credentials` (e.g. several
-  free-tier Ollama Cloud keys with no `models`/`modelBindings` restriction) instead of
-  always preferring the first one. Candidates at different priorities are unaffected —
-  a higher-priority candidate is still always tried first — and failover to the rest of
-  the (rotated) list still applies if the first pick fails. See the README's
-  ["A free pool of interchangeable keys — and spreading load across it"](./README.md#a-free-pool-of-interchangeable-keys--and-spreading-load-across-it).
-- **Least-connections candidate selection.** `EndpointRegistryOptions.strategy` gains a
-  third value, `'least-connections'`, alongside `'priority'` (default) and
-  `'round-robin'`. Each same-priority tier is ordered by ascending in-flight request
-  count (new `EndpointRegistry.acquire`/`release`, wired into `OllamaClient.executeWithFailover`
-  around each attempt) rather than a fixed rotation, so concurrent `Promise.all`-style
-  fan-out deterministically lands on distinct candidates — the motivating case being
-  several Ollama Cloud free-tier accounts, each capped at 1 concurrent request: `N`
-  concurrent requests against `N` such accounts land one-per-account rather than risking
-  two on the same still-busy one, because the endpoint choice and its `acquire()` happen
-  synchronously with no `await` in between (JS's single-threaded execution rules out the
-  race entirely). `EndpointHealth` gains `activeRequests`, also exposed via
-  `client.endpointStatus()`, for observability regardless of `strategy`. See the README's
-  ["Concurrent requests across single-slot accounts (least-connections)"](./README.md#concurrent-requests-across-single-slot-accounts-least-connections).
-- **`maxConcurrentPerEndpoint` — queueing past capacity.** `EndpointRegistryOptions`
-  gains `maxConcurrentPerEndpoint`, capping in-flight requests per endpoint exactly. Once
-  every otherwise-eligible candidate is at that cap, a request waits (FIFO, new
-  `EndpointRegistry.filterWithCapacity`/`waitForCapacity`) for one to free rather than
-  being routed to an already-saturated candidate — the gap `'least-connections'` alone
-  doesn't close for `N + 1` concurrent calls against `N` capacity-1 candidates. Waiting is
-  bounded by the request's own `timeoutMs`/`AbortSignal`; a queued call that times out or
-  is cancelled is dequeued and rejects without ever being sent.
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [
+        string,
+        { body: string },
+      ];
+      expect(JSON.parse(lastCall[1].body).think).toBe(think);
+    }
+  });
 
-### Fixed
+  it('accepts dynamic thinking values on /api/generate', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'gemma4',
+      created_at: '2026-09-24T00:00:00Z',
+      response: 'ok',
+      done: true,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-- **Streaming requests (`chatStream`/`generateStream`) now hold their endpoint's
-  concurrency slot for the lifetime of the stream, not just until it starts.**
-  Previously, `acquire`/`release` around a streaming call released the slot as soon as
-  `http.requestStream` resolved (response headers received) — before any tokens were
-  actually read — so `'least-connections'`/`maxConcurrentPerEndpoint` accounting stopped
-  reflecting reality the moment a stream was returned, undercounting real concurrency for
-  as long as the caller kept consuming it. `executeWithFailover` gains an internal
-  `holdUntil` hook, wired to the returned `OllamaStream`'s `finalResult` for `chatStream`/
-  `generateStream` (and the streaming `pull`/`push`/`create` progress endpoints), so the
-  slot now releases only once the stream is fully drained, errors, or is aborted.
+    for (const think of [true, false, null, 'custom-level'] as const) {
+      await client.generate({
+        model: 'gemma4',
+        prompt: 'hello',
+        think,
+        stream: false,
+      });
 
-## [1.2.0] - 2026-08-24
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [
+        string,
+        { body: string },
+      ];
+      expect(JSON.parse(lastCall[1].body).think).toBe(think);
+    }
+  });
 
-Closes gaps found during a documentation/API-parity review against the official Ollama
-API — two of which were genuine issues, the rest already covered (multimodal `images`,
-native `think`, `/api/embed`, and full model-lifecycle management all predate this
-release; see the new README sections documenting them).
+  it('extracts cached prompt tokens without changing total token accounting', () => {
+    const usage = extractUsage({
+      prompt_eval_count: 120,
+      prompt_eval_cached_count: 80,
+      eval_count: 12,
+    });
 
-### Fixed
+    expect(usage.promptTokens).toBe(120);
+    expect(usage.cachedPromptTokens).toBe(80);
+    expect(usage.completionTokens).toBe(12);
+    expect(usage.totalTokens).toBe(132);
+  });
 
-- **`webSearch`/`webFetch` were non-functional against real Ollama Cloud.** They
-  previously posted to `<configured-baseUrl>/api/websearch` and `/webfetch` — the wrong
-  host (Ollama's web tools only ever exist at `https://ollama.com`, never proxied through
-  a local server) _and_ the wrong path (missing the underscore: `/api/web_search`,
-  `/api/web_fetch`) _and_ the wrong request/response field names. Both methods now always
-  target `https://ollama.com` regardless of `baseUrl`/`endpoints`, using the resolved
-  `apiKey`/`OLLAMA_API_KEY`, and use the real field names (`max_results` request,
-  `content` response). `WebSearchRequestOptions.count` and `WebSearchResult.snippet` are
-  kept as `@deprecated` back-compat aliases (mapped to/mirrored from the correct fields)
-  rather than removed outright. `WebFetchResponse` gains the `title`/`links` fields the
-  real API actually returns.
+  it('preserves cached prompt tokens in stream usage', async () => {
+    async function* chunks(): AsyncGenerator<ChatResponse, void, undefined> {
+      yield {
+        model: 'gpt-oss:20b',
+        created_at: '2026-09-24T00:00:00Z',
+        message: { role: 'assistant', content: 'ok' },
+        done: true,
+        prompt_eval_count: 120,
+        prompt_eval_cached_count: 80,
+        eval_count: 12,
+      };
+    }
 
-### Added
+    const stream = normalizeChatStream(chunks());
+    for await (const _ of stream) {
+      // drain
+    }
 
-- **`logprobs`/`top_logprobs`:** Added to `ChatRequestOptions`/`GenerateRequestOptions`
-  (request) and `ChatResponse`/`GenerateResponse` (response, as a new `Logprob[]` typed
-  by the new `Logprob`/`LogprobToken` types), matching the official `/api/chat` and
-  `/api/generate` schemas.
-- `OLLAMA_CLOUD_BASE_URL` exported for consumers who want to reference the fixed web-tools
-  host directly.
+    const final = await stream.finalResult;
+    expect(final.usage?.cachedPromptTokens).toBe(80);
+  });
 
-## [1.1.0] - 2026-08-23
+  it('forwards current create-model fields', async () => {
+    const fetchMock = jsonFetchMock({ status: 'success' });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-Brings the SDK's typed surface up to date with Ollama v0.13.3+.
+    await client.createModel({
+      model: 'custom',
+      from: 'gemma4',
+      files: { 'model.gguf': 'sha256:abc' },
+      draft_files: { 'draft.gguf': 'sha256:def' },
+      quantize: 'q4_K_M',
+      draft_quantize: 'q8_0',
+      requires: '0.13.5',
+    });
 
-### Added
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body)).toMatchObject({
+      draft_files: { 'draft.gguf': 'sha256:def' },
+      draft_quantize: 'q8_0',
+      requires: '0.13.5',
+    });
+  });
+});
 
-- **`/api/create` field parity:** `CreateRequestOptions` now exposes the documented
-  `template`, `renderer`, `parser`, `license`, `system`, `parameters`, and `messages`
-  fields alongside the existing `from`/`files`/`adapters`/`quantize`. The old
-  `modelfile` string field is kept for backward compatibility but marked `@deprecated`
-  in favor of the discrete fields.
-- **OpenAI Responses API bridge:** `client.openai.responses()` / `createResponses()`
-  POST to `/v1/responses`. Ollama implements this non-statefully, so
-  `previous_response_id`/`conversation` are typed but documented as ignored.
-- **`reasoning_effort` / `reasoning.effort`:** Added to `OpenAIChatCompletionRequest`
-  for thinking models (`deepseek-r1`, `qwen3`, etc.), matching Ollama's OpenAI
-  compatibility docs.
-- **`tool_choice` / `parallel_tool_calls`:** Now typed as accepted-but-ignored on
-  `OpenAIChatCompletionRequest` (previously omitted entirely), so passing a standard
-  OpenAI request object type-checks without modification.
-- **Raw image bytes:** `Message.images` and `GenerateRequestOptions.images` accept
-  `Uint8Array` alongside base64 strings. `OllamaClient.chat()`/`generate()` encode any
-  `Uint8Array` entries to base64 automatically via the new `encodeImage` utility
-  (exported from the package root), using `Buffer` on Node and `btoa` elsewhere so it
-  stays Edge Runtime-safe.
-- **`doneReason` in stream results:** `ChatStreamResult`/`GenerateStreamResult` now
-  carry `doneReason`, mapped from the final chunk's `done_reason` (e.g. `"stop"`,
-  `"load"`, `"unload"`).
+describe('strict current OpenAI compatibility types', () => {
+  it('retain all currently documented request fields in Ollama-scoped aliases', () => {
+    const chat: OllamaOpenAIChatCompletionRequest = {
+      model: 'qwen3',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'hello' },
+          { type: 'image_url', image_url: 'data:image/png;base64,abc' },
+        ],
+      }],
+      tool_choice: 'auto',
+      logit_bias: { '123': 1 },
+      user: 'test-user',
+      n: 2,
+    };
+    const embeddings: OllamaOpenAIEmbeddingRequest = {
+      model: 'nomic-embed-text',
+      input: 'hello',
+      encoding_format: 'float',
+      dimensions: 2,
+      user: 'test-user',
+    };
+    const responses: OllamaOpenAIResponsesRequest = {
+      model: 'qwen3',
+      input: 'hello',
+      truncation: 'auto',
+    };
 
-### Fixed
+    expect(chat.messages[0]?.content).toHaveLength(2);
+    expect(embeddings.user).toBe('test-user');
+    expect(responses.truncation).toBe('auto');
+  });
+});
 
-- `package.json`'s `homepage`, `repository`, and `bugs` URLs now point at
-  `ollama-sdk` instead of the pre-rename `ollama-client-ts`.
+describe('Anthropic unsupported-feature sanitization', () => {
+  it('does not transmit features Ollama documents as unsupported', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-unsupported',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-## [1.0.0] - 2026-08-17
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 16,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: 'hello',
+          cache_control: { type: 'ephemeral' },
+        }],
+      }],
+      tool_choice: { type: 'any' },
+      metadata: { user_id: 'abc' },
+      system: [{
+        type: 'text',
+        text: 'system',
+        cache_control: { type: 'ephemeral' },
+      }],
+    });
 
-First public release. The version was `0.1.0` throughout development but was never
-published to npm, so the entire feature set below ships as the initial `1.0.0`.
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const body = JSON.parse(init.body);
+    expect(body.tool_choice).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
+    expect(body.messages[0].content[0].cache_control).toBeUndefined();
+    expect(body.system[0].cache_control).toBeUndefined();
+  });
+});
 
-`1.0.0` marks the public API surface (`OllamaClient`, `Agent`, `ToolRegistry`, the
-streaming adapters, the error hierarchy, and the compatibility bridges) as stable under
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html) — breaking changes to it now
-require a major version bump.
+describe('current Anthropic compatibility parity', () => {
+  it('sends the documented Anthropic version header and accepts budget_tokens', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-1',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-### Added
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
+      thinking: { type: 'enabled', budget_tokens: 128 },
+    });
 
-- **Core Ollama REST API Client:**
-  - Full support for `chat`, `generate`, `embed`, `embeddings`, `ps`, and `version`.
-  - Zero-runtime-dependency HTTP transport with native `fetch`, streaming NDJSON parsing, and binary body blob uploads.
-  - Multi-endpoint high availability registry with circuit breaker failover, priority routing, and health checks.
-  - Configurable exponential backoff with full jitter, retryable error predicates, and timeout signal propagation.
-- **Model Lifecycle & Blob Management:**
-  - `createModel`, `pullModel`, `pushModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`.
-  - Dedicated blob management endpoints: `createBlob` (`POST /api/blobs/:digest`) and `checkBlob` (`HEAD /api/blobs/:digest`).
-- **Structured Outputs & Schema Validation:**
-  - Seamless Zod schema conversion to JSON Schema, supporting both Zod v4 (native `z.toJSONSchema`) and Zod v3 (structural fallback).
-  - Structured output parsing with resilient markdown code fence JSON extraction and strict validation errors (`OllamaToolValidationError`).
-  - `zod` is a peer dependency (`^3.22.0 || ^4.0.0`) rather than a bundled dependency, so consumers don't end up with a duplicate copy in `node_modules`.
-- **Reasoning & Thinking Tokens:**
-  - Native parsing of reasoning traces (`<think>` tags and `message.thinking`) with dual stream events (`thinking` vs `token`).
-- **Agentic Workflow & Tool Calling:**
-  - Autonomous multi-turn agent execution loop (`Agent`).
-  - Tool definition helper (`defineTool`) with Zod parameter schemas.
-  - Tool registry with duplicate detection and execution error recovery.
-  - Model Context Protocol (MCP) server integration (`createMcpToolSet`, `registerMcpTools`).
-  - Opt-in tool execution sandboxing: per-tool/registry `timeoutMs` (cooperative cancellation via `AbortSignal`, surfaced as `OllamaToolTimeoutError`), `maxConcurrency` bounding parallel tool calls, and `maxOutputChars` truncating oversized tool output before it re-enters the conversation history. See [ADR 0004](./docs/adr/0004-tool-execution-sandboxing.md).
-  - Synthetic, client-generated `tool_call_id` correlation: `ToolCall.id`, `Message.tool_call_id`, and `ToolExecutionResult.toolCallId` — Ollama's native protocol has no call ID, so the SDK synthesizes a stable one (`crypto.randomUUID()`, the Web Standard global, not `node:crypto`, to stay Edge-safe) the first time it sees a call without one, and reuses it consistently across the streamed `tool_call` event, the final aggregated message, the tool execution result, and the `role: 'tool'` history entry `Agent` appends. Execution/result correlation by array order still works exactly as before; `id` is an additive convenience. See [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
-- **Architecture Decision Records:** `docs/adr/` documents the rationale behind the circuit breaker failure model, the dual ESM/CJS packaging strategy, Zod v3/v4 dual support, the tool execution sandboxing model, OpenTelemetry instrumentation, Edge runtime CI verification, synthetic tool-call IDs, endpoint failover scope, and registry parameter variance.
-- **OpenTelemetry Instrumentation:** Automatic spans (`@opentelemetry/api` is an optional peer dependency, a no-op when absent or unconfigured) for HTTP requests, endpoint failover attempts, non-streaming `chat`/`generate` calls (using the Gen AI semantic conventions, including token usage), and `Agent` runs (`invoke_agent` → `ollama.agent.turn` → `execute_tool`). See [ADR 0005](./docs/adr/0005-opentelemetry-instrumentation.md).
-- **Edge Runtime CI Verification:** `npm run verify:edge-runtime` bundles `dist/index.js` for a browser/edge platform with `esbuild` (failing on any `node:*` import, matching Cloudflare Workers/Vercel Edge Runtime's own bundlers) and runs a full `OllamaClient` + `Agent` + tool-calling round trip inside `@edge-runtime/vm`'s sandboxed Edge Runtime — a real V8 context exposing only Web Standard globals. Wired into CI as its own job and into `verify`/`prepublishOnly`. See [ADR 0006](./docs/adr/0006-edge-runtime-ci-and-benchmarks.md).
-- **Benchmarks:** `npm run bench` (via `vitest bench`, no new dependency) covers NDJSON stream parsing, Zod schema conversion/structured output parsing, `ToolRegistry` dispatch overhead, and `OllamaClient.chat`'s end-to-end request pipeline overhead. Wired into CI as its own job.
-- **Protocol Compatibility Bridges:**
-  - OpenAI compatibility bridge (`/v1/chat/completions`, `/v1/models`), including `stream_options.include_usage` and `tools` (function calling) typing — both confirmed supported by Ollama's OpenAI-compat layer; `tool_choice`/`parallel_tool_calls` are deliberately not typed, since Ollama documents `tool_choice` as explicitly unsupported. `@remarks` JSDoc on `OpenAICompatClient` scopes it as a documented subset of the OpenAI API, not the full Responses API surface.
-  - Anthropic compatibility bridge (`/v1/messages`), including `cache_control` typing on content blocks for prompt caching. `@remarks` JSDoc on `AnthropicCompatClient` scopes it as a subset of the Messages API (no tool use, extended thinking, citations, files, or Batches API).
-- **Capability Detection Fixes:** `ModelCapabilities.supportsStructuredOutputRequest` is no longer hardcoded `true` — it's inferred `false` for endpoints classified as `cloud` by `inferRuntimeMode` (Ollama Cloud does not currently support structured outputs) and documented as a best-effort heuristic, not a guarantee, since Ollama doesn't expose this as a queryable capability. Added `supportsThinking`, derived from the model's reported `thinking` capability.
-- **Fail-Fast `OllamaUnsupportedCapabilityError`:** `chat`/`chatStream`/`chatWithSchema` and `generate`/`generateStream`/`generateWithSchema` now throw this error _before making any network call_ when `format` is set against an endpoint inferred as Ollama Cloud, instead of sending a request Ollama Cloud is known to reject. `unsupported_capability` is included in `DEFAULT_FAILOVER_CODES`, so a multi-endpoint setup tries the next candidate (e.g. a local fallback) before the error ever reaches the caller — verified with a test asserting the rejected cloud endpoint's URL is never actually fetched.
-- **`dimensions` on `embed()`:** `EmbedRequestOptions.dimensions` lets callers request truncated embedding vectors, matching Ollama's `/api/embed` parameter.
-- **Environment Variable Fallbacks:** `OllamaClient`'s default single-endpoint `baseUrl`/`apiKey` fall back to `OLLAMA_HOST`/`OLLAMA_API_KEY` (the same variables the official `ollama` CLI and client libraries read) when not passed explicitly, matching the convention of other major LLM SDKs. Guarded to remain a no-op (not a `ReferenceError`) on Edge runtimes where `process` doesn't exist. Explicit `config.baseUrl`/`config.apiKey`, and any use of `config.endpoints`, always take precedence.
-- **Web Standard Stream Adapters:**
-  - `toTextStream`, `toDataStream`, and `toResponse` for direct integration with Next.js, Vercel AI SDK, and Web standard streams.
-- **Skills System:**
-  - Frontmatter parser for `SKILL.md` documents.
-  - Skill composition and prompt injection into system messages (`applySkill`).
-- **Documentation Hygiene:** `OllamaClient.embeddings()` is now marked `@deprecated` (Ollama's `/api/embeddings` was superseded by `/api/embed`, exposed as `embed()`). `ToolCall`, `Agent`, and `ToolRegistry.executeToolCalls` document that Ollama's native tool-calling protocol has no wire-level call ID, dispatch/results are still ordered/concurrency-bounded rather than ID-driven, and that `id`/`tool_call_id` (see above) is a client-synthesized convenience layered on top, not a protocol guarantee.
-- **Testing & Quality Assurance:**
-  - New cancellation tests prove `AbortSignal` genuinely aborts the underlying `fetch` call (not just racing a promise) and propagates from `Agent.run` into `ToolExecutionContext.signal`, including the early-abort race where the signal is already aborted before the request starts.
-  - 4-tier test architecture: Unit, Integration, Functional, and Behavioral testing (50 tests).
-  - VCR record and replay harness with real cassettes generated against `qwen3.5:2b` and `nomic-embed-text:latest`.
-  - Multi-node CI/CD workflow (Node 18, 20, 22) and automated npm release with provenance.
+    const [, init] = fetchMock.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ];
+    expect(init.headers['anthropic-version']).toBe('2023-06-01');
+    expect(JSON.parse(init.body).thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 128,
+    });
+  });
+});
 
-### Fixed
+describe('current model-management response parity', () => {
+  it('exposes /api/ps context_length and supports /api/copy', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.includes('/api/ps')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [{
+              name: 'qwen3',
+              model: 'qwen3',
+              modified_at: '2026-09-25T00:00:00Z',
+              size: 1,
+              digest: 'sha256:test',
+              details: {
+                parent_model: '',
+                format: 'gguf',
+                family: 'qwen3',
+                parameter_size: '8B',
+                quantization_level: 'Q4_K_M',
+              },
+              context_length: 32768,
+            }],
+          }),
+        };
+      }
+      if (url.includes('/api/copy')) {
+        expect(init?.body ? JSON.parse(init.body) : undefined).toEqual({
+          source: 'qwen3',
+          destination: 'qwen3-copy',
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ status: 'success' }),
+        };
+      }
+      throw new Error('unexpected request: ' + url);
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
 
-- **`ToolRegistry` rejected every concretely-typed tool.** Its constructor, `register`, and `registerMany` accepted `Tool<never, unknown>`; because `Tool` is invariant in `TParams` (it appears in both `schema: z.ZodType<TParams>` and `execute`), _nothing_ was assignable to it — so `new ToolRegistry([myTool])`, `new ToolRegistry({ tools: [myTool] })`, and `.register(myTool)` all failed to compile for consumers, including the exact example in this README. Replaced with a new exported `AnyTool` alias. Tool authoring keeps full type safety (`defineTool` still infers `TParams` from the Zod schema and type-checks `execute` against it); only the registry's storage type is widened. Found by installing the packed tarball into a throwaway TypeScript project during pre-publish verification. See [ADR 0009](./docs/adr/0009-anytool-registry-variance.md).
-- **Tests are now type-checked.** `tsconfig.json` scoped checking to `src/`, and Vitest's esbuild transform strips types without verifying them — so all 20 test files were unchecked, and had masked the bug above with `as never` casts. `npm run typecheck` now uses `tsconfig.typecheck.json`, covering `src/`, `test/`, `bench/`, and `scripts/`. The casts (and a matching `as unknown as z.ZodType<never>` in `mcp-tools.ts`) are gone.
+    const running = await client.ps();
+    expect(running.models[0]?.context_length).toBe(32768);
 
-### Changed
+    const copied = await client.copyModel({
+      source: 'qwen3',
+      destination: 'qwen3-copy',
+    });
+    expect(copied.status).toBe('success');
+  });
+});
 
-- **Endpoint Failover Scope:** `ModelsClient` operations (`list`, `show`, `pull`, `push`, `create`, `delete`, `copy`, `ps`, `version`, `createBlob`, `checkBlob`) and `OllamaClient.capabilities()` no longer participate in cross-endpoint failover — each now targets only the single best candidate endpoint (same-endpoint retry via backoff still applies). These operations act on a specific server's local model catalog/blob store, which isn't an interchangeable resource across endpoints the way `chat`/`generate`/`embed` inference is; failing `deleteModel`/`listModels`/etc. over to a different endpoint was silently operating on the wrong server's state, not retrying "the same" request. `chat`/`generate`/`embed`/`embeddings`/`webSearch`/`webFetch` failover behavior is unchanged. See [ADR 0008](./docs/adr/0008-endpoint-failover-scope.md).
+describe('current OpenAI compatibility parity', () => {
+  it('supports chat response format, seed, logit bias, n, vision, and model-defined reasoning', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'chat-1',
+      object: 'chat.completion',
+      created: 0,
+      model: 'qwen3-vl:8b',
+      choices: [],
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.openai.chatCompletions({
+      model: 'qwen3-vl:8b',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is in this image?' },
+            { type: 'image_url', image_url: 'data:image/png;base64,abc' },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      seed: 42,
+      logit_bias: { '123': 1 },
+      n: 2,
+      reasoning_effort: 'ultra',
+      reasoning: { effort: 'custom-level' },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const body = JSON.parse(init.body);
+
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.seed).toBe(42);
+    expect(body.logit_bias).toEqual({ '123': 1 });
+    expect(body.n).toBe(2);
+    expect(body.messages[0].content[1].image_url).toBe('data:image/png;base64,abc');
+    expect(body.reasoning_effort).toBe('ultra');
+    expect(body.reasoning).toEqual({ effort: 'custom-level' });
+  });
+
+  it('supports non-streaming /v1/completions', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'cmpl-1',
+      object: 'text_completion',
+      created: 0,
+      model: 'llama3.2',
+      choices: [{ text: 'hello', index: 0, finish_reason: 'stop' }],
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.openai.completions({
+      model: 'llama3.2',
+      prompt: 'Say hello',
+      seed: 7,
+      max_tokens: 8,
+      suffix: '!',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/v1/completions');
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: 'llama3.2',
+      prompt: 'Say hello',
+      seed: 7,
+      max_tokens: 8,
+      suffix: '!',
+    });
+    expect(result.choices[0]?.text).toBe('hello');
+  });
+
+  it('supports non-streaming /v1/embeddings', async () => {
+    const fetchMock = jsonFetchMock({
+      object: 'list',
+      data: [{ object: 'embedding', embedding: [0.1, 0.2], index: 0 }],
+      model: 'nomic-embed-text',
+      usage: { prompt_tokens: 4, total_tokens: 4 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.openai.embeddings({
+      model: 'nomic-embed-text',
+      input: ['hello', 'world'],
+      encoding_format: 'float',
+      dimensions: 2,
+      user: 'test',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/v1/embeddings');
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: 'nomic-embed-text',
+      input: ['hello', 'world'],
+      encoding_format: 'float',
+      dimensions: 2,
+      user: 'test',
+    });
+    expect(result.data[0]?.embedding).toEqual([0.1, 0.2]);
+  });
+
+  it('retrieves one model through /v1/models/{model}', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'llama3.2',
+      object: 'model',
+      created: 0,
+      owned_by: 'library',
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const model = await client.openai.getModel('llama3.2');
+
+    const [url] = fetchMock.mock.calls[0] as [string, { body?: string }];
+    expect(url).toContain('/v1/models/llama3.2');
+    expect(model.id).toBe('llama3.2');
+  });
+});
