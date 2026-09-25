@@ -188,6 +188,57 @@ describe('current native Ollama API parity', () => {
   });
 });
 
+describe('API parity manifest contract', () => {
+  it('classifies unsupported and SDK-only compatibility fields explicitly', async () => {
+    const manifest = JSON.parse(
+      await (await import('node:fs/promises')).readFile(
+        new URL('../docs/api-parity.json', import.meta.url),
+        'utf8',
+      ),
+    ) as {
+      version: number;
+      surfaces: Array<{
+        id: string;
+        fields: string[];
+        unsupportedFields?: string[];
+        sdkOnlyFields?: string[];
+        response?: { fields: string[]; sdkOnlyFields?: string[] };
+        stream?: { unionName: string; interfaceNames: string[] };
+      }>;
+    };
+
+    const chat = manifest.surfaces.find((surface) => surface.id === 'openai-chat');
+    const responses = manifest.surfaces.find((surface) => surface.id === 'openai-responses');
+    const anthropic = manifest.surfaces.find((surface) => surface.id === 'anthropic-messages');
+
+    expect(manifest.version).toBe(3);
+    expect(chat?.unsupportedFields).toEqual(['tool_choice', 'logit_bias', 'user', 'n']);
+    expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
+    expect(responses?.unsupportedFields).toEqual([
+      'previous_response_id',
+      'conversation',
+      'truncation',
+    ]);
+    expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think']);
+    expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
+    expect(anthropic?.sdkOnlyFields).toEqual(['output_config']);
+    expect(anthropic?.response?.fields).toEqual([
+      'id',
+      'type',
+      'role',
+      'model',
+      'content',
+      'stop_reason',
+      'usage',
+    ]);
+    expect(anthropic?.response?.sdkOnlyFields).toEqual(['stop_sequence']);
+    expect(anthropic?.stream?.unionName).toBe('AnthropicMessageStreamEvent');
+    expect(anthropic?.stream?.interfaceNames).toHaveLength(8);
+    expect(responses?.stream?.unionName).toBe('OpenAIResponsesStreamEvent');
+    expect(responses?.stream?.interfaceNames).toHaveLength(22);
+  });
+});
+
 describe('strict documented Ollama compatibility request types', () => {
   it('accepts documented request fields while excluding explicitly unsupported ones', () => {
     const chat: OllamaOpenAIChatCompletionRequest = {
