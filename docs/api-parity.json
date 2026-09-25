@@ -216,7 +216,8 @@
         "keep_alive",
         "logprobs",
         "top_logprobs"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-generate",
@@ -238,7 +239,8 @@
         "options",
         "logprobs",
         "top_logprobs"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-embed",
@@ -253,7 +255,8 @@
         "dimensions",
         "keep_alive",
         "options"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-create",
@@ -277,7 +280,8 @@
         "draft_quantize",
         "requires",
         "stream"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-delete",
@@ -287,7 +291,8 @@
       "endpoint": "/api/delete",
       "fields": [
         "model"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-push",
@@ -299,7 +304,8 @@
         "model",
         "insecure",
         "stream"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-pull",
@@ -311,7 +317,8 @@
         "model",
         "insecure",
         "stream"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-copy",
@@ -322,7 +329,8 @@
       "fields": [
         "source",
         "destination"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-show",
@@ -333,25 +341,29 @@
       "fields": [
         "model",
         "verbose"
-      ]
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-tags",
       "docsUrl": "https://docs.ollama.com/api/tags.md",
       "endpoint": "/api/tags",
-      "fields": []
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-ps",
       "docsUrl": "https://docs.ollama.com/api/ps.md",
       "endpoint": "/api/ps",
-      "fields": []
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     },
     {
       "id": "native-version",
       "docsUrl": "https://docs.ollama.com/api-reference/get-version.md",
       "endpoint": "/api/version",
-      "fields": []
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
     }
   ]
 }
