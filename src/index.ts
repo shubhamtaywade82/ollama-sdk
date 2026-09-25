@@ -252,6 +252,7 @@ export {
   type AnthropicMessagesRequest,
   type AnthropicMessagesResponse,
   type AnthropicMessageStreamEvent,
+  type AnthropicUnknownStreamEvent,
   AnthropicMessagesStream,
 } from './integrations/index.js';
 
