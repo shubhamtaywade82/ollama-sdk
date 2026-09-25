@@ -104,9 +104,26 @@ function sourceTypeReferences(sourceFile: string, typeAliasName: string): Set<st
 
   throw new Error(`Type alias ${typeAliasName} was not found in ${sourceFile}`);
 }
+function normalizeHtmlDocs(html: string): string {
+  return html
+    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, '')
+    .replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi, '')
+    .replace(/<h([1-6])\\b[^>]*>([\\s\\S]*?)<\\/h\\1>/gi, (_m, level: string, content: string) => '\\n' + '#'.repeat(Number(level)) + ' ' + content + '\\n')
+    .replace(/<code\\b[^>]*>([\\s\\S]*?)<\\/code>/gi, (_m, content: string) => '`' + content + '`')
+    .replace(/<li\\b[^>]*>([\\s\\S]*?)<\\/li>/gi, (_m, content: string) => '\\n- ' + content)
+    .replace(/<br\\s*\\/?>/gi, '\\n')
+    .replace(/<p\\b[^>]*>([\\s\\S]*?)<\\/p>/gi, (_m, content: string) => '\\n' + content + '\\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 async function fetchDocs(url: string): Promise<string> {
   const response = await fetch(url, {
-    headers: { Accept: 'text/plain, text/markdown, */*' },
+    headers: { Accept: 'text/html, text/markdown, text/plain, */*' },
     signal: AbortSignal.timeout(15_000),
   });
 
@@ -114,9 +131,10 @@ async function fetchDocs(url: string): Promise<string> {
     throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
   }
 
-  return response.text();
+  const contentType = response.headers.get('content-type') ?? '';
+  const body = await response.text();
+  return contentType.includes('text/html') ? normalizeHtmlDocs(body) : body;
 }
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
