@@ -97,7 +97,7 @@ describe('Compatibility bridge request typing (mocked network)', () => {
     expect(body.tool_choice).toBeUndefined();
   });
 
-  it('forwards Anthropic cache_control on content blocks in the request body', async () => {
+  it('strips unsupported Anthropic cache_control from request content blocks', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -127,7 +127,7 @@ describe('Compatibility bridge request typing (mocked network)', () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
     const body = JSON.parse(init.body);
-    expect(body.messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+    expect(body.messages[0].content[0].cache_control).toBeUndefined();
   });
 });
 
