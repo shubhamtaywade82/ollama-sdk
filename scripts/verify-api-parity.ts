@@ -115,31 +115,39 @@ async function fetchDocs(url: string): Promise<string> {
   return response.text();
 }
 
-function requestFieldSection(docs: string, endpoint: string): string {
-  const endpointIndex = docs.lastIndexOf(endpoint);
-  if (endpointIndex < 0) return '';
-
-  const tail = docs.slice(endpointIndex);
-  const heading = tail.match(/^#### (Supported request fields|Body)\s*$/m);
-  if (!heading || heading.index === undefined) return tail;
-
-  const section = tail.slice(heading.index + heading[0].length);
-  const nextHeading = section.search(/^####? /m);
-  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
+function endpointSection(docs: string, endpoint: string): string {
+  const headings = [...docs.matchAll(/^### (.+)$/gm)];
+  for (let index = 0; index < headings.length; index += 1) {
+    const heading = headings[index];
+    const start = heading.index ?? -1;
+    if (start < 0) continue;
+    const end = headings[index + 1]?.index ?? docs.length;
+    const section = docs.slice(start, end);
+    const headingText = heading[1] ?? '';
+    if (headingText.includes(endpoint) || section.includes(endpoint)) return section;
+  }
+  return '';
 }
-function responseFieldSection(docs: string, endpoint: string): string {
-  const endpointIndex = docs.lastIndexOf(endpoint);
-  if (endpointIndex < 0) return '';
 
-  const tail = docs.slice(endpointIndex);
-  const heading = tail.match(/^#### Supported response fields\s*$/m);
+function subsection(docs: string, pattern: RegExp): string {
+  const heading = docs.match(pattern);
   if (!heading || heading.index === undefined) return '';
-
-  const section = tail.slice(heading.index + heading[0].length);
+  const section = docs.slice(heading.index + heading[0].length);
   const nextHeading = section.search(/^####? /m);
   return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
 }
 
+function requestFieldSection(docs: string, endpoint: string): string {
+  const endpointDocs = endpointSection(docs, endpoint);
+  if (!endpointDocs) return '';
+  return subsection(endpointDocs, /^#### (Supported request fields|Body)\s*$/m);
+}
+
+function responseFieldSection(docs: string, endpoint: string): string {
+  const endpointDocs = endpointSection(docs, endpoint);
+  if (!endpointDocs) return '';
+  return subsection(endpointDocs, /^#### Supported response fields\s*$/m);
+}
 function firstKnownStatus(
   primary: string,
   fallback: string,
