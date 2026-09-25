@@ -69,27 +69,20 @@ async function fetchDocs(url: string): Promise<string> {
   return response.text();
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
-}
-
 function docsMentionField(docs: string, field: string): boolean {
-  const escaped = escapeRegExp(field);
-  return [
-    new RegExp('\\x60' + escaped + '\\x60', 'i'),
-    new RegExp('[\\x22\\x27]' + escaped + '[\\x22\\x27]\\\\s*:', 'i'),
-    new RegExp('\\\\|\\\\s*' + escaped + '\\\\s*\\\\|', 'i'),
-    new RegExp('\\\\b' + escaped + '\\\\b\\\\s*:', 'i'),
-  ].some((pattern) => pattern.test(docs));
-}
-(docs: string, field: string): boolean {
-  const escaped = escapeRegExp(field);
-  return [
-    new RegExp('\\x60' + escaped + '\\x60', 'i'),
-    new RegExp('[\\x22\\x27]' + escaped + '[\\x22\\x27]\\\\s*:', 'i'),
-    new RegExp('\\\\|\\\\s*' + escaped + '\\\\s*\\\\|', 'i'),
-    new RegExp('\\\\b' + escaped + '\\\\b\\\\s*:', 'i'),
-  ].some((pattern) => pattern.test(docs));
+  const forms = [
+    '`' + field + '`',
+    '"' + field + '":',
+    "'" + field + "':",
+    '| ' + field + ' |',
+    '<td>' + field + '</td>',
+  ];
+  if (forms.some((form) => docs.includes(form))) return true;
+
+  return docs.split(/\\r?\\n/).some((line) => {
+    const value = line.trim();
+    return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
+  });
 }
 function assertContract(
   contract: SurfaceContract,
