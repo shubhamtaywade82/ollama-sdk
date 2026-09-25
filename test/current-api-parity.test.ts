@@ -322,6 +322,58 @@ describe('strict documented Ollama compatibility request types', () => {
   });
 });
 
+describe('current model-management and response parity', () => {
+  it('exposes current /api/ps context_length and /api/copy', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.includes('/api/ps')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [{
+              name: 'qwen3',
+              model: 'qwen3',
+              modified_at: '2026-09-25T00:00:00Z',
+              size: 1,
+              digest: 'sha256:test',
+              details: {
+                parent_model: '',
+                format: 'gguf',
+                family: 'qwen3',
+                parameter_size: '8B',
+                quantization_level: 'Q4_K_M',
+              },
+              context_length: 32768,
+            }],
+          }),
+        };
+      }
+      if (url.includes('/api/copy')) {
+        expect(init?.body ? JSON.parse(init.body) : undefined).toEqual({
+          source: 'qwen3',
+          destination: 'qwen3-copy',
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ status: 'success' }),
+        };
+      }
+      throw new Error('unexpected request: ' + url);
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const running = await client.ps();
+    expect(running.models[0]?.context_length).toBe(32768);
+
+    const copied = await client.copyModel({
+      source: 'qwen3',
+      destination: 'qwen3-copy',
+    });
+    expect(copied.status).toBe('success');
+  });
+});
+
 describe('current Anthropic compatibility parity', () => {
   it('sends the documented Anthropic version header and accepts budget_tokens', async () => {
     const fetchMock = jsonFetchMock({
