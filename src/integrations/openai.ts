@@ -669,7 +669,7 @@ export type OpenAIResponsesStreamEvent =
 type OpenAIResponsesOutputState = {
   itemId: string; kind: 'message' | 'function_call' | 'reasoning';
   content: Map<number, OpenAIResponsesOutputContent>; summary: Map<number, string>;
-  arguments: string; name?: string; callId?: string; status?: OpenAIResponsesStatus | undefined;
+  arguments: string; name?: string | undefined; callId?: string | undefined; status?: OpenAIResponsesStatus | undefined;
   role?: string | undefined; phase?: string | undefined; reasoningText: string;
 };
 export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
