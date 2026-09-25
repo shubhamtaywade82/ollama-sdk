@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
@@ -109,7 +109,35 @@
       "sdkOnlyFields": [
         "reasoning",
         "think"
-      ]
+      ],
+      "stream": {
+        "sourceFile": "src/integrations/openai.ts",
+        "unionName": "OpenAIResponsesStreamEvent",
+        "interfaceNames": [
+          "OpenAIResponsesOutputTextDeltaEvent",
+          "OpenAIResponsesOutputTextDoneEvent",
+          "OpenAIResponsesFunctionCallArgumentsDeltaEvent",
+          "OpenAIResponsesFunctionCallArgumentsDoneEvent",
+          "OpenAIResponsesReasoningTextDeltaEvent",
+          "OpenAIResponsesReasoningTextDoneEvent",
+          "OpenAIResponsesReasoningSummaryPartAddedEvent",
+          "OpenAIResponsesReasoningSummaryPartDoneEvent",
+          "OpenAIResponsesReasoningSummaryTextDeltaEvent",
+          "OpenAIResponsesReasoningSummaryTextDoneEvent",
+          "OpenAIResponsesOutputItemAddedEvent",
+          "OpenAIResponsesOutputItemDoneEvent",
+          "OpenAIResponsesContentPartAddedEvent",
+          "OpenAIResponsesContentPartDoneEvent",
+          "OpenAIResponsesRefusalDeltaEvent",
+          "OpenAIResponsesRefusalDoneEvent",
+          "OpenAIResponsesCreatedEvent",
+          "OpenAIResponsesInProgressEvent",
+          "OpenAIResponsesQueuedEvent",
+          "OpenAIResponsesCompletedEvent",
+          "OpenAIResponsesFailedEvent",
+          "OpenAIResponsesIncompleteEvent"
+        ]
+      }
     },
     {
       "id": "anthropic-messages",
@@ -145,11 +173,28 @@
           "content",
           "stop_reason",
           "usage"
+        ],
+        "sdkOnlyFields": [
+          "stop_sequence"
         ]
       },
       "sdkOnlyFields": [
         "output_config"
-      ]
+      ],
+      "stream": {
+        "sourceFile": "src/integrations/anthropic.ts",
+        "unionName": "AnthropicMessageStreamEvent",
+        "interfaceNames": [
+          "AnthropicMessageStartEvent",
+          "AnthropicContentBlockStartEvent",
+          "AnthropicContentBlockDeltaEvent",
+          "AnthropicContentBlockStopEvent",
+          "AnthropicMessageDeltaEvent",
+          "AnthropicMessageStopEvent",
+          "AnthropicPingEvent",
+          "AnthropicErrorEvent"
+        ]
+      }
     },
     {
       "id": "native-chat",
