@@ -106,6 +106,7 @@ describe('OpenAI Responses compatibility streaming', () => {
     const final = await stream.finalResult;
     expect(final.output[0]).toEqual({
       type: 'message',
+      id: 'msg_2',
       role: 'assistant',
       content: [{ type: 'output_text', text: 'Hello world' }],
     });
