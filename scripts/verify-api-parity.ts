@@ -180,13 +180,6 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
   return lines.slice(start, end).join('\n');
 }
 
-function subsection(docs: string, pattern: RegExp): string {
-  const heading = docs.match(pattern);
-  if (!heading || heading.index === undefined) return '';
-  const section = docs.slice(heading.index + heading[0].length);
-  const nextHeading = section.search(/^#{3,6}\s+/m);
-  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
-}
 
 function requestFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
