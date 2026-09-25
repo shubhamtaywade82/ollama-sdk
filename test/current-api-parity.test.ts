@@ -48,6 +48,7 @@ describe('API parity manifest contract', () => {
 
 import { describe, expect, it, vi } from 'vitest';
 import { OllamaClient } from '../src/client.js';
+import type { OllamaAnthropicMessagesRequest } from '../src/integrations/anthropic.js';
 import { extractUsage } from '../src/usage.js';
 import { normalizeChatStream } from '../src/streaming/normalize.js';
 import type { ChatResponse } from '../src/types.js';
@@ -273,6 +274,36 @@ describe('Anthropic unsupported-feature sanitization', () => {
     expect(body.metadata).toBeUndefined();
     expect(body.messages[0].content[0].cache_control).toBeUndefined();
     expect(body.system[0].cache_control).toBeUndefined();
+  });
+});
+
+describe('strict Ollama Anthropic request types', () => {
+  it('accepts supported Ollama fields and content blocks without unsupported controls', () => {
+    const request: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'hello' },
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: 'abc' },
+          },
+        ],
+      }],
+      system: [{ type: 'text', text: 'You are concise.' }],
+      tools: [{
+        name: 'get_weather',
+        description: 'Get weather',
+        input_schema: { type: 'object' },
+      }],
+      thinking: { type: 'enabled' },
+      output_config: { effort: 'medium' },
+    };
+
+    expect(request.messages[0]?.content).toHaveLength(2);
+    expect(request.output_config?.effort).toBe('medium');
   });
 });
 
