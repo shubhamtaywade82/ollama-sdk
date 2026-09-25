@@ -143,6 +143,25 @@ const product = await client.chatWithSchema(
 console.log(product.name, product.price);
 ```
 
+### Image Generation Fields
+
+Ollama's experimental image-generation models can return progress and image data through
+the `/api/generate` endpoint. The SDK exposes `width`, `height`, and `steps` on
+`generate()`, plus `image`, `completed`, and `total` on responses and aggregated streams:
+
+```typescript
+const result = await client.generate({
+  model: 'x/flux',
+  prompt: 'A futuristic city',
+  width: 1024,
+  height: 768,
+  steps: 20,
+  stream: false,
+});
+
+console.log(result.image, result.completed, result.total);
+```
+
 ### Vector Embeddings & Similarity
 
 ```typescript
@@ -232,8 +251,12 @@ console.log(response.finalMessage.content);
 ```
 
 Ollama's native tool-calling protocol has no OpenAI-style call ID, but the SDK
-synthesizes a stable one so results are still correlatable without tracking array
-position by hand: `response.turns[0].toolCalls[0].id` matches
+synthesizes a stable one for client-side correlation. Tool-result messages also include
+Ollama's native `tool_name` field, while retaining `tool_call_id` for OpenAI-shaped
+transcripts and observability. The native field is what Ollama uses to associate a tool
+result with the requested function. See [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
+
+ `response.turns[0].toolCalls[0].id` matches
 `response.turns[0].toolResults[0].toolCallId`, and the `role: 'tool'` message `Agent`
 appends to history carries the same value as `tool_call_id`. See
 [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
