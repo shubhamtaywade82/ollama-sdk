@@ -279,6 +279,42 @@ describe('current OpenAI compatibility parity', () => {
     expect(result.data[0]?.embedding).toEqual([0.1, 0.2]);
   });
 
+  it('copies a model using the documented source and destination fields', async () => {
+    const fetchMock = jsonFetchMock({ status: 'success' });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.copyModel({
+      source: 'gemma4',
+      destination: 'gemma4-backup',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/api/copy');
+    expect(JSON.parse(init.body)).toEqual({
+      source: 'gemma4',
+      destination: 'gemma4-backup',
+    });
+  });
+
+  it('pushes a model with the documented model, insecure, and stream fields', async () => {
+    const fetchMock = jsonFetchMock({ status: 'success' });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.pushModel({
+      model: 'my-username/my-model',
+      insecure: true,
+      stream: false,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toContain('/api/push');
+    expect(JSON.parse(init.body)).toEqual({
+      model: 'my-username/my-model',
+      insecure: true,
+      stream: false,
+    });
+  });
+
   it('retrieves one model through /v1/models/{model}', async () => {
     const fetchMock = jsonFetchMock({
       id: 'llama3.2',
