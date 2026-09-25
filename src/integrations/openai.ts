@@ -204,6 +204,7 @@ export interface OpenAIChatCompletionChunk {
   readonly object: 'chat.completion.chunk';
   readonly created: number;
   readonly model: string;
+  readonly system_fingerprint?: string | undefined;
   readonly choices: readonly OpenAIChatCompletionChunkChoice[];
   readonly usage?:
     | {
