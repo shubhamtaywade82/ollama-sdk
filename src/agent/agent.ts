@@ -115,6 +115,7 @@ export class Agent {
             this.hooks?.onToolCallEnd?.(res);
             history.push({
               role: 'tool',
+              tool_name: res.toolName,
               ...(res.toolCallId !== undefined ? { tool_call_id: res.toolCallId } : {}),
               content: res.outputString,
             });
