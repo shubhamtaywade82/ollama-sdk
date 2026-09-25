@@ -276,6 +276,43 @@ describe('Anthropic unsupported-feature sanitization', () => {
   });
 });
 
+describe('expanded Anthropic compatibility typing', () => {
+  it('accepts current tool choice and metadata shapes while the Ollama bridge sanitizes unsupported fields', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-expanded',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'tool_use',
+      usage: {
+        input_tokens: 2,
+        output_tokens: 3,
+        cache_read_input_tokens: 1,
+      },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
+      tool_choice: { type: 'any', disable_parallel_tool_use: true },
+      metadata: { user_id: 'user-1' },
+      system: [{
+        type: 'text',
+        text: 'system',
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+      }],
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body);
+    expect(body.tool_choice).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
+    expect(body.system[0].cache_control).toBeUndefined();
+  });
+});
+
 describe('current Anthropic compatibility parity', () => {
   it('sends the documented Anthropic version header and accepts budget_tokens', async () => {
     const fetchMock = jsonFetchMock({
