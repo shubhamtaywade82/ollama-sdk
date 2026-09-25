@@ -157,6 +157,45 @@ export type OllamaAnthropicMessagesRequest = Omit<
   readonly system?: OllamaAnthropicSystem | undefined;
 };
 
+/**
+ * Strict Ollama-documented Anthropic Messages request types.
+ *
+ * Unlike {@link AnthropicMessagesRequest}, these aliases exclude features the Ollama
+ * compatibility endpoint currently documents as unsupported: tool_choice, metadata,
+ * and prompt-cache cache_control fields.
+ */
+export type OllamaAnthropicTextContentBlock = Omit<AnthropicTextContentBlock, 'cache_control'>;
+
+export type OllamaAnthropicContentBlock =
+  | OllamaAnthropicTextContentBlock
+  | AnthropicImageContentBlock
+  | AnthropicToolUseContentBlock
+  | AnthropicToolResultContentBlock
+  | AnthropicThinkingContentBlock
+  | AnthropicRedactedThinkingContentBlock;
+
+export interface OllamaAnthropicMessage {
+  readonly role: 'user' | 'assistant';
+  readonly content: string | readonly OllamaAnthropicContentBlock[];
+}
+
+export type OllamaAnthropicSystemTextBlock = Omit<
+  AnthropicSystemTextBlock,
+  'cache_control'
+>;
+
+export type OllamaAnthropicSystem =
+  | string
+  | readonly OllamaAnthropicSystemTextBlock[];
+
+export type OllamaAnthropicMessagesRequest = Omit<
+  AnthropicMessagesRequest,
+  'messages' | 'system' | 'tool_choice' | 'metadata'
+> & {
+  readonly messages: readonly OllamaAnthropicMessage[];
+  readonly system?: OllamaAnthropicSystem | undefined;
+};
+
 export interface AnthropicMessagesResponse {
   readonly id: string;
   readonly type: 'message';
