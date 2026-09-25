@@ -175,10 +175,15 @@ function assertContract(
 
   if (!contract.interfaceName || !contract.sourceFile) return;
 
-  const missingSource = contract.fields.filter((field) => !properties.has(field));
+  const requestTracked = [
+    ...contract.fields,
+    ...(contract.unsupportedFields ?? []),
+    ...(contract.sdkOnlyFields ?? []),
+  ];
+  const missingSource = requestTracked.filter((field) => !properties.has(field));
   if (missingSource.length > 0) {
     throw new Error(
-      `[${contract.id}] ${contract.interfaceName} is missing documented field(s): ${missingSource.join(', ')}`,
+      `[${contract.id}] ${contract.interfaceName} is missing tracked request field(s): ${missingSource.join(', ')}`,
     );
   }
 
