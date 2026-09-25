@@ -22,6 +22,7 @@ interface StreamContract {
   readonly sourceFile: string;
   readonly unionName: string;
   readonly interfaceNames: readonly string[];
+  readonly eventTypes?: readonly string[];
 }
 
 interface SurfaceContract {
@@ -160,7 +161,16 @@ function requestFieldSection(docs: string, endpoint: string): string {
 function responseFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### Supported response fields\s*$/m);
+  return subsection(
+    endpointDocs,
+    /^#### (Supported response fields|Response)\s*$/m,
+  );
+}
+
+function streamEventSection(docs: string, endpoint: string): string {
+  const endpointDocs = endpointSection(docs, endpoint);
+  if (!endpointDocs) return '';
+  return subsection(endpointDocs, /^#### Streaming events\s*$/m);
 }
 function firstKnownStatus(
   primary: string,
@@ -168,13 +178,13 @@ function firstKnownStatus(
   fallbackWhole: string,
   aliases: readonly string[],
 ): DocFieldStatus {
+  const primaryStatus = docsFieldStatus(primary, aliases);
+  if (primaryStatus !== 'missing') return primaryStatus;
+
   const fallbackSectionStatus = docsFieldStatus(fallbackSection, aliases);
   if (fallbackSectionStatus !== 'missing') return fallbackSectionStatus;
 
-  const fallbackWholeStatus = docsFieldStatus(fallbackWhole, aliases);
-  if (fallbackWholeStatus !== 'missing') return fallbackWholeStatus;
-
-  return docsFieldStatus(primary, aliases);
+  return docsFieldStatus(fallbackWhole, aliases);
 }
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
@@ -331,11 +341,24 @@ function assertContract(
         `[${contract.id}] ${contract.stream.unionName} is missing stream event type(s): ${missingEventTypes.join(', ')}`,
       );
     }
-  }
-}
+
+    if (contract.stream.eventTypes && contract.stream.eventTypes.length > 0) {
+      const eventDocs = streamEventSection(docs, contract.endpoint);
+      const fallbackEventDocs =
+        streamEventSection(fallbackDocs, contract.endpoint) || fallbackDocs;
+      const missingDocumentedEvents = contract.stream.eventTypes.filter((eventType) => {
+        return firstKnownStatus(eventDocs, fallbackEventDocs, fallbackDocs, [eventType]) !== 'supported';
+      });
+      if (missingDocumentedEvents.length > 0) {
+        throw new Error(
+          `[${contract.id}] Documented stream event type(s) are missing from the SDK contract or Ollama docs: ${missingDocumentedEvents.join(', ')}`,
+        );
+      }
+    }
+  }}
 
 async function main(): Promise<void> {
-  if (manifest.version !== 3) {
+  if (manifest.version !== 4) {
     throw new Error(`Unsupported parity manifest version: ${String(manifest.version)}`);
   }
 
