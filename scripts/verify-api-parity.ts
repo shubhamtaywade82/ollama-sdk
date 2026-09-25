@@ -358,7 +358,11 @@ function assertContract(
   const fallbackUnsupportedSection = unsupportedFieldSection(fallbackDocs, contract.endpoint);
   const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
+    const liveStatus = docsFieldStatus(requestFields, aliases);
+    const fallbackStatus = docsFieldStatus(fallbackRequestFields, aliases);
     return !(
+      liveStatus === 'unsupported' ||
+      fallbackStatus === 'unsupported' ||
       explicitlyUnsupported(unsupportedSection, aliases) ||
       explicitlyUnsupported(fallbackUnsupportedSection, aliases) ||
       explicitlyUnsupported(docs, aliases)
@@ -414,7 +418,11 @@ function assertContract(
 
     const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
+      const liveStatus = docsFieldStatus(responseSection, aliases);
+      const fallbackStatus = docsFieldStatus(fallbackResponseSection, aliases);
       return !(
+        liveStatus === 'unsupported' ||
+        fallbackStatus === 'unsupported' ||
         explicitlyUnsupported(responseSection, aliases) ||
         explicitlyUnsupported(fallbackResponseSection, aliases) ||
         explicitlyUnsupported(docs, aliases)
