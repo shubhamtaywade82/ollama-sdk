@@ -119,6 +119,7 @@ function endpointSection(docs: string, endpoint: string): string {
   const headings = [...docs.matchAll(/^### (.+)$/gm)];
   for (let index = 0; index < headings.length; index += 1) {
     const heading = headings[index];
+    if (heading === undefined) continue;
     const start = heading.index ?? -1;
     if (start < 0) continue;
     const end = headings[index + 1]?.index ?? docs.length;
@@ -322,12 +323,6 @@ async function main(): Promise<void> {
   const docsCache = new Map<string, string>();
 
   for (const contract of manifest.surfaces) {
-    let docs = docsCache.get(contract.docsUrl);
-    if (docs === undefined) {
-      docs = await fetchDocs(contract.docsUrl);
-      docsCache.set(contract.docsUrl, docs);
-    }
-
     let fallbackDocs = '';
     if (contract.fallbackDocsFile !== undefined) {
       fallbackDocs = readFileSync(
@@ -339,6 +334,20 @@ async function main(): Promise<void> {
       if (!fallbackDocs) {
         fallbackDocs = await fetchDocs(contract.fallbackDocsUrl);
         docsCache.set(contract.fallbackDocsUrl, fallbackDocs);
+      }
+    }
+
+    let docs = docsCache.get(contract.docsUrl);
+    if (docs === undefined) {
+      try {
+        docs = await fetchDocs(contract.docsUrl);
+        docsCache.set(contract.docsUrl, docs);
+      } catch (error) {
+        if (!fallbackDocs) throw error;
+        console.warn(
+          `WARN ${contract.id}: live docs unavailable; using pinned fallback`,
+        );
+        docs = fallbackDocs;
       }
     }
 
