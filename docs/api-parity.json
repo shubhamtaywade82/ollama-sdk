@@ -29,7 +29,12 @@
         "user",
         "n"
       ],
-      "unsupportedFields": [],
+      "unsupportedFields": [
+        "tool_choice",
+        "logit_bias",
+        "user",
+        "n"
+      ],
       "sdkOnlyFields": [
         "parallel_tool_calls"
       ],
@@ -60,8 +65,15 @@
         "user",
         "n"
       ],
-      "unsupportedFields": [],
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+      "unsupportedFields": [
+        "best_of",
+        "echo",
+        "logit_bias",
+        "user",
+        "n"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+      "sdkOnlyFields": []
     },
     {
       "id": "openai-embeddings",
@@ -82,8 +94,11 @@
           "encoding format"
         ]
       },
-      "unsupportedFields": [],
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+      "unsupportedFields": [
+        "user"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+      "sdkOnlyFields": []
     },
     {
       "id": "openai-responses",
@@ -104,7 +119,8 @@
       ],
       "unsupportedFields": [
         "previous_response_id",
-        "conversation"
+        "conversation",
+        "truncation"
       ],
       "sdkOnlyFields": [
         "reasoning",
