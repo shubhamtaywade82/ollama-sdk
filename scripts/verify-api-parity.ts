@@ -14,6 +14,7 @@ interface FieldSectionContract {
   readonly fields: readonly string[];
   readonly unsupportedFields?: readonly string[];
   readonly sdkOnlyFields?: readonly string[];
+  readonly nestedUnsupportedFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
 }
 
