@@ -102,17 +102,16 @@
         "stream",
         "temperature",
         "top_p",
-        "max_output_tokens"
+        "max_output_tokens",
+        "reasoning",
+        "think"
       ],
       "unsupportedFields": [
         "previous_response_id",
         "conversation",
         "truncation"
       ],
-      "sdkOnlyFields": [
-        "reasoning",
-        "think"
-      ],
+      "sdkOnlyFields": [],
       "stream": {
         "sourceFile": "src/integrations/openai.ts",
         "unionName": "OpenAIResponsesStreamEvent",
@@ -160,7 +159,8 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking"
+        "thinking",
+        "output_config"
       ],
       "unsupportedFields": [
         "tool_choice",
@@ -176,15 +176,12 @@
           "model",
           "content",
           "stop_reason",
+          "stop_sequence",
           "usage"
         ],
-        "sdkOnlyFields": [
-          "stop_sequence"
-        ]
+        "sdkOnlyFields": []
       },
-      "sdkOnlyFields": [
-        "output_config"
-      ],
+      "sdkOnlyFields": [],
       "stream": {
         "sourceFile": "src/integrations/anthropic.ts",
         "unionName": "AnthropicMessageStreamEvent",
