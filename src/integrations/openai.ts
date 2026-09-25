@@ -147,12 +147,14 @@ export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
 };
 
-/** Strict Ollama-documented Chat Completions request; excludes fields marked unsupported by Ollama. */
+/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel tool flag. */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
-  'messages' | 'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
+  'messages' | 'parallel_tool_calls' | 'reasoning_effort' | 'reasoning'
 > & {
   readonly messages: readonly OllamaOpenAIChatMessage[];
+  readonly reasoning_effort?: OllamaOpenAIReasoningEffort | undefined;
+  readonly reasoning?: { readonly effort?: OllamaOpenAIReasoningEffort | undefined } | undefined;
 };
 
 export interface OpenAIChatCompletionChoice {
@@ -250,11 +252,8 @@ export interface OpenAICompletionRequest {
   readonly n?: number | undefined;
 }
 
-/** Strict Ollama-documented Completions request; excludes fields Ollama marks unsupported. */
-export type OllamaOpenAICompletionRequest = Omit<
-  OpenAICompletionRequest,
-  'best_of' | 'echo' | 'logit_bias' | 'user' | 'n'
->;
+/** Strict Ollama-documented Completions request. */
+export type OllamaOpenAICompletionRequest = OpenAICompletionRequest;
 
 export interface OpenAICompletionChoice {
   readonly text: string;
@@ -311,8 +310,8 @@ export interface OpenAIEmbeddingRequest {
   readonly user?: string | undefined;
 }
 
-/** Strict Ollama-documented Embeddings request; excludes the unsupported `user` field. */
-export type OllamaOpenAIEmbeddingRequest = Omit<OpenAIEmbeddingRequest, 'user'>;
+/** Strict Ollama-documented Embeddings request. */
+export type OllamaOpenAIEmbeddingRequest = OpenAIEmbeddingRequest;
 
 export interface OpenAIEmbeddingItem {
   readonly object: 'embedding';
