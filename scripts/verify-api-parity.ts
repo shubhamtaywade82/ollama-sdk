@@ -139,42 +139,27 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
 
+function isEndpointHeading(line: string): boolean {
+  return /^#{2,6}\s+.*\/(?:v1|api)\//i.test(line);
+}
+
 function endpointSection(docs: string, endpoint: string): string {
   const lines = docs.split(/\r?\n/);
   const endpointPattern = new RegExp('^#{2,6}\\s+.*' + escapeRegExp(endpoint) + '.*$', 'i');
-  const genericPathPattern = new RegExp('^#{2,6}\\s+`?' + escapeRegExp(endpoint) + '`?\\s*$', 'i');
+  const endpointIndex = lines.findIndex((line) =>
+    endpointPattern.test(line) || (line.includes(endpoint) && !line.includes('http')),
+  );
+  if (endpointIndex < 0) return '';
 
-  for (let index = 0; index < lines.length; index += 1) {
-    if (!endpointPattern.test(lines[index] ?? '') && !genericPathPattern.test(lines[index] ?? '')) continue;
-    const heading = lines[index] ?? '';
-    const level = heading.match(/^#+/)?.[0].length ?? 3;
-    let endIndex = lines.length;
-    for (let next = index + 1; next < lines.length; next += 1) {
-      const nextHeading = lines[next]?.match(/^(#{2,6})\s+/);
-      if (nextHeading && nextHeading[1] !== undefined && nextHeading[1].length <= level) {
-        endIndex = next;
-        break;
-      }
-    }
-    return lines.slice(index, endIndex).join('\n');
-  }
-
-  if (endpoint === '/v1/responses') {
-    const responseIndex = lines.findIndex((line) => /^#{2,6}\s+Responses API\s*$/i.test(line));
-    if (responseIndex >= 0) {
-      const responseHeading = lines[responseIndex] ?? '';
-      const level = responseHeading.match(/^#+/)?.[0].length ?? 3;
-      const tail = lines.slice(responseIndex + 1);
-      const next = tail.findIndex((line) => {
-        const heading = line.match(/^(#{2,6})\s+/);
-        return heading !== null && heading[1] !== undefined && heading[1].length <= level;
-      });
-      return lines.slice(responseIndex, next >= 0 ? responseIndex + 1 + next : lines.length).join('\n');
+  let endIndex = lines.length;
+  for (let index = endpointIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (isEndpointHeading(line) && !line.includes(endpoint)) {
+      endIndex = index;
+      break;
     }
   }
-
-  if (docs.includes(endpoint)) return docs;
-  return '';
+  return lines.slice(endpointIndex, endIndex).join('\n');
 }
 function subsection(docs: string, pattern: RegExp): string {
   const heading = docs.match(pattern);
