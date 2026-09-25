@@ -140,24 +140,36 @@ function escapeRegExp(value: string): string {
 }
 
 function endpointSection(docs: string, endpoint: string): string {
-  const escaped = escapeRegExp(endpoint);
-  const headingPatterns = [
-    new RegExp('^###\\s+`?' + escaped + '`?\\s*$', 'm'),
-    new RegExp('^###\\s+POST\\s+' + escaped + '\\s*$', 'm'),
-  ];
-  if (endpoint === '/v1/responses') {
-    headingPatterns.push(/^### Responses API\s*$/m);
+  const lines = docs.split(/\r?\n/);
+  const endpointPattern = new RegExp('^#{2,6}\\s+.*' + escapeRegExp(endpoint) + '.*$', 'i');
+  const genericPathPattern = new RegExp('^#{2,6}\\s+`?' + escapeRegExp(endpoint) + '`?\\s*$', 'i');
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!endpointPattern.test(lines[index] ?? '') && !genericPathPattern.test(lines[index] ?? '')) continue;
+    const heading = lines[index] ?? '';
+    const level = heading.match(/^#+/)?.[0].length ?? 3;
+    let endIndex = lines.length;
+    for (let next = index + 1; next < lines.length; next += 1) {
+      const nextHeading = lines[next]?.match(/^(#{2,6})\s+/);
+      if (nextHeading && nextHeading[1].length <= level) {
+        endIndex = next;
+        break;
+      }
+    }
+    return lines.slice(index, endIndex).join('\n');
   }
 
-  for (const pattern of headingPatterns) {
-    const heading = pattern.exec(docs);
-    if (!heading || heading.index === undefined) continue;
-    const tail = docs.slice(heading.index + heading[0].length);
-    const nextHeading = tail.search(/^### /m);
-    return docs.slice(
-      heading.index,
-      nextHeading >= 0 ? heading.index + heading[0].length + nextHeading : docs.length,
-    );
+  if (endpoint === '/v1/responses') {
+    const responseIndex = lines.findIndex((line) => /^#{2,6}\\s+Responses API\\s*$/i.test(line));
+    if (responseIndex >= 0) {
+      const level = lines[responseIndex].match(/^#+/)?.[0].length ?? 3;
+      const tail = lines.slice(responseIndex + 1);
+      const next = tail.findIndex((line) => {
+        const heading = line.match(/^(#{2,6})\\s+/);
+        return heading !== null && heading[1].length <= level;
+      });
+      return lines.slice(responseIndex, next >= 0 ? responseIndex + 1 + next : lines.length).join('\n');
+    }
   }
 
   if (docs.includes(endpoint)) return docs;
