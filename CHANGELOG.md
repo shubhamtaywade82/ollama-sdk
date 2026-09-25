@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Experimental image-generation fields:** `width`, `height`, and `steps` on `generate()`, plus `image`, `completed`, and `total` on generated responses and stream aggregation.
 - **Speculative decoding option:** `ModelOptions.draft_num_predict`.
 - **Cached prompt accounting:** `prompt_eval_cached_count` on chat/generate responses.
+- **Model inspection options:** `showModel()` now accepts runtime `options`, matching the official client surface.
 
 ## [1.3.0] - 2026-08-25
 
