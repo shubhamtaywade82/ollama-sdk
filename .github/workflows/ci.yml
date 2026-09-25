@@ -27,6 +27,9 @@ jobs:
 
       - run: npm run lint
 
+      - name: Verify Ollama API parity manifest
+        run: npm run verify:api-parity
+
       - run: npm test
 
       - run: npm run build
