@@ -79,7 +79,7 @@ function docsMentionField(docs: string, field: string): boolean {
   ];
   if (forms.some((form) => docs.includes(form))) return true;
 
-  return docs.split(/\\r?\\n/).some((line) => {
+  return docs.split(/\r?\n/).some((line) => {
     const value = line.trim();
     return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
   });
