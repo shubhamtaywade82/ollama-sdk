@@ -7,6 +7,7 @@ import type {
   AnthropicMessagesRequest,
   OllamaAnthropicMessagesRequest,
   OllamaOpenAIChatCompletionRequest,
+  OllamaOpenAIChatContentPart,
   OllamaOpenAICompletionRequest,
   OllamaOpenAIEmbeddingRequest,
   OllamaOpenAIResponsesRequest,
@@ -20,6 +21,10 @@ type _ChatToolChoiceExcluded = ExpectFalse<
 type _ChatParallelToolsExcluded = ExpectFalse<
   'parallel_tool_calls' extends keyof OllamaOpenAIChatCompletionRequest ? true : false
 >;
+type _ChatImageContentExcluded = ExpectFalse<
+  'image_url' extends OllamaOpenAIChatContentPart['type'] ? true : false
+>;
+
 type _CompletionBestOfExcluded = ExpectFalse<
   'best_of' extends keyof OllamaOpenAICompletionRequest ? true : false
 >;
@@ -48,6 +53,7 @@ type _AnthropicOutputConfigIncluded = ExpectTrue<
 >;
 void (undefined as unknown as _ChatToolChoiceExcluded);
 void (undefined as unknown as _ChatParallelToolsExcluded);
+void (undefined as unknown as _ChatImageContentExcluded);
 void (undefined as unknown as _CompletionBestOfExcluded);
 void (undefined as unknown as _EmbeddingUserExcluded);
 void (undefined as unknown as _ResponsesStateExcluded);
