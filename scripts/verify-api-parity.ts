@@ -117,17 +117,16 @@ async function fetchDocs(url: string): Promise<string> {
 
 function endpointSection(docs: string, endpoint: string): string {
   const headings = [...docs.matchAll(/^### (.+)$/gm)];
-  for (let index = 0; index < headings.length; index += 1) {
-    const heading = headings[index];
-    if (heading === undefined) continue;
-    const start = heading.index ?? -1;
-    if (start < 0) continue;
-    const end = headings[index + 1]?.index ?? docs.length;
-    const section = docs.slice(start, end);
-    const headingText = heading[1] ?? '';
-    if (headingText.includes(endpoint) || section.includes(endpoint)) return section;
-  }
-  return '';
+  const exact = headings.find((heading) => (heading[1] ?? '').trim() === endpoint);
+  const selected = exact ?? headings.find((heading) => {
+    const text = (heading[1] ?? '').trim();
+    return text === 'POST ' + endpoint || text.startsWith('POST ' + endpoint + ' ');
+  });
+  if (selected === undefined || selected.index === undefined) return '';
+
+  const selectedIndex = headings.indexOf(selected);
+  const end = headings[selectedIndex + 1]?.index ?? docs.length;
+  return docs.slice(selected.index, end);
 }
 
 function subsection(docs: string, pattern: RegExp): string {
