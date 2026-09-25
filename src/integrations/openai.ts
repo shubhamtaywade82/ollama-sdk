@@ -104,6 +104,9 @@ export interface OpenAIChatCompletionRequest {
   readonly user?: string | undefined;
   readonly logit_bias?: Record<string, number> | undefined;
   readonly n?: number | undefined;
+  /** Ollama exposes log probabilities for supported reasoning/chat models. */
+  readonly logprobs?: boolean | undefined;
+  readonly top_logprobs?: number | undefined;
   readonly tools?: readonly OpenAITool[] | undefined;
   /**
    * @remarks Accepted for OpenAI compatibility but ignored by Ollama — every tool the
@@ -177,6 +180,7 @@ export interface OpenAIToolCallDelta {
 export interface OpenAIChatCompletionDelta {
   readonly role?: OpenAIMessage['role'] | undefined;
   readonly content?: string | null | undefined;
+  readonly reasoning?: string | null | undefined;
   readonly refusal?: string | null | undefined;
   readonly tool_calls?: readonly OpenAIToolCallDelta[] | undefined;
 }
@@ -204,19 +208,23 @@ export interface OpenAIChatCompletionChunk {
     | undefined;
 }
 
+export interface OpenAIUsage {
+  readonly prompt_tokens: number;
+  readonly completion_tokens: number;
+  readonly total_tokens: number;
+  readonly prompt_tokens_details?: {
+    readonly cached_tokens?: number | undefined;
+  } | undefined;
+}
+
 export interface OpenAIChatCompletionResponse {
   readonly id: string;
   readonly object: 'chat.completion';
   readonly created: number;
   readonly model: string;
+  readonly system_fingerprint?: string | undefined;
   readonly choices: readonly OpenAIChatCompletionChoice[];
-  readonly usage?:
-    | {
-        readonly prompt_tokens: number;
-        readonly completion_tokens: number;
-        readonly total_tokens: number;
-      }
-    | undefined;
+  readonly usage?: OpenAIUsage | undefined;
 }
 
 export interface OpenAIModelItem {
@@ -235,6 +243,8 @@ export interface OpenAICompletionRequest {
   readonly model: string;
   /** Ollama currently accepts a string prompt for /v1/completions. */
   readonly prompt: string;
+  /** Number of log probability alternatives requested for completion tokens. */
+  readonly logprobs?: number | undefined;
   readonly frequency_penalty?: number | undefined;
   readonly presence_penalty?: number | undefined;
   readonly seed?: number | undefined;
@@ -267,6 +277,7 @@ export interface OpenAICompletionChunk {
   readonly object: 'text_completion';
   readonly created: number;
   readonly model: string;
+  readonly system_fingerprint?: string | undefined;
   readonly choices: readonly {
     readonly text: string;
     readonly index: number;
@@ -288,12 +299,9 @@ export interface OpenAICompletionResponse {
   readonly object: 'text_completion';
   readonly created: number;
   readonly model: string;
+  readonly system_fingerprint?: string | undefined;
   readonly choices: readonly OpenAICompletionChoice[];
-  readonly usage?: {
-    readonly prompt_tokens: number;
-    readonly completion_tokens: number;
-    readonly total_tokens: number;
-  } | undefined;
+  readonly usage?: OpenAIUsage | undefined;
 }
 
 export type OpenAIEmbeddingInput =
