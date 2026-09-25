@@ -116,7 +116,7 @@ async function fetchDocs(url: string): Promise<string> {
 }
 
 function requestFieldSection(docs: string, endpoint: string): string {
-  const endpointIndex = docs.indexOf(endpoint);
+  const endpointIndex = docs.lastIndexOf(endpoint);
   if (endpointIndex < 0) return '';
 
   const tail = docs.slice(endpointIndex);
@@ -128,7 +128,7 @@ function requestFieldSection(docs: string, endpoint: string): string {
   return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
 }
 function responseFieldSection(docs: string, endpoint: string): string {
-  const endpointIndex = docs.indexOf(endpoint);
+  const endpointIndex = docs.lastIndexOf(endpoint);
   if (endpointIndex < 0) return '';
 
   const tail = docs.slice(endpointIndex);
