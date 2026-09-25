@@ -142,6 +142,7 @@ function endpointSection(docs: string, endpoint: string): string {
     );
   }
 
+  if (docs.includes(endpoint)) return docs;
   return '';
 }
 function subsection(docs: string, pattern: RegExp): string {
