@@ -4,7 +4,7 @@
   "surfaces": [
     {
       "id": "openai-chat",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility.md",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIChatCompletionRequest",
       "endpoint": "/v1/chat/completions",
@@ -40,7 +40,7 @@
     },
     {
       "id": "openai-completions",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility.md",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAICompletionRequest",
       "endpoint": "/v1/completions",
@@ -68,7 +68,7 @@
     },
     {
       "id": "openai-embeddings",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility.md",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIEmbeddingRequest",
       "endpoint": "/v1/embeddings",
@@ -90,7 +90,7 @@
     },
     {
       "id": "openai-responses",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility.md",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIResponsesRequest",
       "endpoint": "/v1/responses",
@@ -146,7 +146,7 @@
     },
     {
       "id": "anthropic-messages",
-      "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility.md",
+      "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
       "sourceFile": "src/integrations/anthropic.ts",
       "interfaceName": "AnthropicMessagesRequest",
       "endpoint": "/v1/messages",
@@ -216,7 +216,7 @@
     },
     {
       "id": "native-chat",
-      "docsUrl": "https://docs.ollama.com/api/chat.md",
+      "docsUrl": "https://docs.ollama.com/api/chat",
       "sourceFile": "src/types.ts",
       "interfaceName": "ChatRequestOptions",
       "endpoint": "/api/chat",
@@ -255,7 +255,7 @@
     },
     {
       "id": "native-generate",
-      "docsUrl": "https://docs.ollama.com/api/generate.md",
+      "docsUrl": "https://docs.ollama.com/api/generate",
       "sourceFile": "src/types.ts",
       "interfaceName": "GenerateRequestOptions",
       "endpoint": "/api/generate",
@@ -298,7 +298,7 @@
     },
     {
       "id": "native-embed",
-      "docsUrl": "https://docs.ollama.com/api/embed.md",
+      "docsUrl": "https://docs.ollama.com/api/embed",
       "sourceFile": "src/types.ts",
       "interfaceName": "EmbedRequestOptions",
       "endpoint": "/api/embed",
@@ -326,7 +326,7 @@
     },
     {
       "id": "native-create",
-      "docsUrl": "https://docs.ollama.com/api/create.md",
+      "docsUrl": "https://docs.ollama.com/api/create",
       "sourceFile": "src/types.ts",
       "interfaceName": "CreateRequestOptions",
       "endpoint": "/api/create",
@@ -420,7 +420,7 @@
     },
     {
       "id": "native-show",
-      "docsUrl": "https://docs.ollama.com/api-reference/show-model-details.md",
+      "docsUrl": "https://docs.ollama.com/api-reference/show-model-details",
       "sourceFile": "src/types.ts",
       "interfaceName": "ShowRequestOptions",
       "endpoint": "/api/show",
@@ -446,7 +446,7 @@
     },
     {
       "id": "native-tags",
-      "docsUrl": "https://docs.ollama.com/api/tags.md",
+      "docsUrl": "https://docs.ollama.com/api/tags",
       "endpoint": "/api/tags",
       "fields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
@@ -461,7 +461,7 @@
     },
     {
       "id": "native-ps",
-      "docsUrl": "https://docs.ollama.com/api/ps.md",
+      "docsUrl": "https://docs.ollama.com/api/ps",
       "endpoint": "/api/ps",
       "fields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
@@ -476,7 +476,7 @@
     },
     {
       "id": "native-version",
-      "docsUrl": "https://docs.ollama.com/api-reference/get-version.md",
+      "docsUrl": "https://docs.ollama.com/api-reference/get-version",
       "endpoint": "/api/version",
       "fields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
