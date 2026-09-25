@@ -69,6 +69,23 @@ async function fetchDocs(url: string): Promise<string> {
   return response.text();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^$(){}|[\\]\\]/g, '\\function assertContract(
+  contract: SurfaceContract,
+  docs: string,
+  properties: Set<string>,
+): void {');
+}
+
+function docsMentionField(docs: string, field: string): boolean {
+  const escaped = escapeRegExp(field);
+  return [
+    new RegExp('\\x60' + escaped + '\\x60', 'i'),
+    new RegExp('[\\x22\\x27]' + escaped + '[\\x22\\x27]\\\\s*:', 'i'),
+    new RegExp('\\\\|\\\\s*' + escaped + '\\\\s*\\\\|', 'i'),
+    new RegExp('\\\\b' + escaped + '\\\\b\\\\s*:', 'i'),
+  ].some((pattern) => pattern.test(docs));
+}
 function assertContract(
   contract: SurfaceContract,
   docs: string,
@@ -91,7 +108,7 @@ function assertContract(
 
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return !aliases.some((alias) => docs.includes(`\`${alias}\``));
+    return !aliases.some((alias) => docsMentionField(docs, alias));
   });
 
   if (missingDocs.length > 0) {
