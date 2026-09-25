@@ -29,6 +29,14 @@ type _EmbeddingUserExcluded = ExpectFalse<
 type _ResponsesStateExcluded = ExpectFalse<
   'previous_response_id' extends keyof OllamaOpenAIResponsesRequest ? true : false
 >;
+type _ResponsesReasoningIncluded = Extract<
+  keyof OllamaOpenAIResponsesRequest,
+  'reasoning'
+>;
+type _ResponsesThinkIncluded = Extract<
+  keyof OllamaOpenAIResponsesRequest,
+  'think'
+>;
 type _AnthropicToolChoiceExcluded = ExpectFalse<
   'tool_choice' extends keyof OllamaAnthropicMessagesRequest ? true : false
 >;
@@ -43,6 +51,8 @@ void (undefined as unknown as _ChatParallelToolsExcluded);
 void (undefined as unknown as _CompletionBestOfExcluded);
 void (undefined as unknown as _EmbeddingUserExcluded);
 void (undefined as unknown as _ResponsesStateExcluded);
+void (undefined as unknown as _ResponsesReasoningIncluded);
+void (undefined as unknown as _ResponsesThinkIncluded);
 void (undefined as unknown as _AnthropicToolChoiceExcluded);
 void (undefined as unknown as _AnthropicMetadataExcluded);
 void (undefined as unknown as _AnthropicOutputConfigIncluded);
