@@ -273,7 +273,10 @@ function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStat
   const lines = docs.split(/\r?\n/);
   for (const field of aliases) {
     const exactSupported = lines.some((line) =>
-      line.includes('- [x] `' + field + '`') || line.includes('* [x] `' + field + '`'),
+      line.includes('- [x] `' + field + '`') ||
+      line.includes('* [x] `' + field + '`') ||
+      line.includes('[Input] `' + field + '`') ||
+      line.includes('Input] `' + field + '`'),
     );
     if (exactSupported) return 'supported';
 
