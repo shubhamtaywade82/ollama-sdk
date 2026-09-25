@@ -11,6 +11,7 @@ import { OllamaAbortError } from '../errors.js';
 
 export interface AnthropicCacheControl {
   readonly type: 'ephemeral';
+  readonly ttl?: '5m' | '1h' | undefined;
 }
 
 export interface AnthropicTextContentBlock {
@@ -82,9 +83,10 @@ export interface AnthropicTool {
 }
 
 export type AnthropicToolChoice =
-  | { readonly type: 'auto' }
-  | { readonly type: 'any' }
-  | { readonly type: 'tool'; readonly name: string };
+  | { readonly type: 'auto'; readonly disable_parallel_tool_use?: boolean | undefined }
+  | { readonly type: 'any'; readonly disable_parallel_tool_use?: boolean | undefined }
+  | { readonly type: 'tool'; readonly name: string; readonly disable_parallel_tool_use?: boolean | undefined }
+  | { readonly type: 'none' };
 
 export interface AnthropicThinkingConfig {
   readonly type: 'enabled' | 'disabled' | 'adaptive';
@@ -95,6 +97,10 @@ export interface AnthropicThinkingConfig {
 
 export interface AnthropicOutputConfig {
   readonly effort?: string | undefined;
+}
+
+export interface AnthropicMetadata {
+  readonly user_id?: string | undefined;
 }
 
 export interface AnthropicMessagesRequest {
@@ -116,7 +122,7 @@ export interface AnthropicMessagesRequest {
    */
   readonly tool_choice?: AnthropicToolChoice | undefined;
   /** Accepted for compatibility but currently ignored by Ollama. */
-  readonly metadata?: Record<string, unknown> | undefined;
+  readonly metadata?: AnthropicMetadata | undefined;
 }
 
 /** Strict Ollama-documented Messages request; excludes fields Ollama marks unsupported. */
@@ -162,6 +168,9 @@ export interface AnthropicMessagesResponse {
   readonly usage?: {
     readonly input_tokens: number;
     readonly output_tokens: number;
+    readonly cache_creation_input_tokens?: number | undefined;
+    readonly cache_read_input_tokens?: number | undefined;
+    readonly cache_creation?: Record<string, unknown> | undefined;
   } | undefined;
 }
 
