@@ -67,6 +67,26 @@ describe('next Ollama API parity', () => {
     expect(response.prompt_eval_cached_count).toBe(80);
   });
 
+  it('forwards runtime options on model show requests', async () => {
+    const fetchMock = jsonFetchMock({
+      details: {
+        format: 'gguf',
+        family: 'llama',
+        parameter_size: '8B',
+        quantization_level: 'Q4_K_M',
+      },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.showModel({
+      model: 'llama3.2',
+      options: { temperature: 0.2 },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body).options).toEqual({ temperature: 0.2 });
+  });
+
   it('preserves native Ollama tool_name while retaining synthetic tool_call_id correlation', async () => {
     const captured: Array<{ messages: readonly { role: string; tool_name?: string; tool_call_id?: string }[] }> = [];
     const chat = vi
