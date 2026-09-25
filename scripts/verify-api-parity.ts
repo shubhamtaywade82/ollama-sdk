@@ -331,7 +331,6 @@ function assertContract(
   const requestTracked = [
     ...contract.fields,
     ...(contract.unsupportedFields ?? []),
-    ...(contract.sdkOnlyFields ?? []),
   ];
   const missingSource = requestTracked.filter((field) => !properties.has(field));
   if (missingSource.length > 0) {
