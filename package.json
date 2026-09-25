@@ -102,7 +102,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm test && npm run build && npm run verify:edge-runtime"
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity"
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.0",
