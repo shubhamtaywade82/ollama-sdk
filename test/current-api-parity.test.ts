@@ -6,6 +6,8 @@ import type { ChatResponse } from '../src/types.js';
 import type {
   AnthropicMessagesRequest,
   OllamaAnthropicMessagesRequest,
+  OllamaAnthropicTextContentBlock,
+  OllamaAnthropicSystemTextBlock,
   OllamaOpenAIChatCompletionRequest,
   OllamaOpenAIChatContentPart,
   OllamaOpenAICompletionRequest,
@@ -51,6 +53,13 @@ type _AnthropicMetadataExcluded = ExpectFalse<
 type _AnthropicOutputConfigIncluded = ExpectTrue<
   'output_config' extends keyof OllamaAnthropicMessagesRequest ? true : false
 >;
+type _AnthropicCacheControlExcluded = ExpectFalse<
+  'cache_control' extends keyof OllamaAnthropicTextContentBlock ? true : false
+>;
+type _AnthropicSystemCacheControlExcluded = ExpectFalse<
+  'cache_control' extends keyof OllamaAnthropicSystemTextBlock ? true : false
+>;
+
 void (undefined as unknown as _ChatToolChoiceExcluded);
 void (undefined as unknown as _ChatParallelToolsExcluded);
 void (undefined as unknown as _ChatImageContentExcluded);
@@ -62,6 +71,8 @@ void (undefined as unknown as _ResponsesThinkIncluded);
 void (undefined as unknown as _AnthropicToolChoiceExcluded);
 void (undefined as unknown as _AnthropicMetadataExcluded);
 void (undefined as unknown as _AnthropicOutputConfigIncluded);
+void (undefined as unknown as _AnthropicCacheControlExcluded);
+void (undefined as unknown as _AnthropicSystemCacheControlExcluded);
 
 function jsonFetchMock(body: unknown) {
   return vi.fn().mockResolvedValue({
