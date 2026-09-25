@@ -187,22 +187,24 @@ function subsection(docs: string, pattern: RegExp): string {
 function requestFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### (Supported request fields|Body)\s*$/m);
+  return subsection(endpointDocs, /^#### (Supported request fields|Body)\s*$/m) || endpointDocs;
 }
 
 function responseFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
-  return subsection(
-    endpointDocs,
-    /^#### (Supported response fields|Response)\s*$/m,
+  return (
+    subsection(
+      endpointDocs,
+      /^#### (Supported response fields|Response)\s*$/m,
+    ) || endpointDocs
   );
 }
 
 function streamEventSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### Streaming events\s*$/m);
+  return subsection(endpointDocs, /^#### Streaming events\s*$/m) || endpointDocs;
 }
 function unsupportedFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
