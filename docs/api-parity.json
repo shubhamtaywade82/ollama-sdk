@@ -23,11 +23,7 @@
         "max_tokens",
         "tools",
         "reasoning_effort",
-        "reasoning",
-        "tool_choice",
-        "logit_bias",
-        "user",
-        "n"
+        "reasoning"
       ],
       "unsupportedFields": [
         "tool_choice",
@@ -58,12 +54,7 @@
         "temperature",
         "top_p",
         "max_tokens",
-        "suffix",
-        "best_of",
-        "echo",
-        "logit_bias",
-        "user",
-        "n"
+        "suffix"
       ],
       "unsupportedFields": [
         "best_of",
@@ -85,8 +76,7 @@
         "model",
         "input",
         "encoding_format",
-        "dimensions",
-        "user"
+        "dimensions"
       ],
       "docAliases": {
         "encoding_format": [
@@ -114,8 +104,7 @@
         "stream",
         "temperature",
         "top_p",
-        "max_output_tokens",
-        "truncation"
+        "max_output_tokens"
       ],
       "unsupportedFields": [
         "previous_response_id",
