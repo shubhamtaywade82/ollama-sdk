@@ -91,6 +91,18 @@ function requestFieldSection(docs: string, endpoint: string): string {
   const nextHeading = section.search(/^####? /m);
   return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
 }
+function responseFieldSection(docs: string, endpoint: string): string {
+  const endpointIndex = docs.indexOf(endpoint);
+  if (endpointIndex < 0) return '';
+
+  const tail = docs.slice(endpointIndex);
+  const heading = tail.match(/^#### Supported response fields\s*$/m);
+  if (!heading || heading.index === undefined) return '';
+
+  const section = tail.slice(heading.index + heading[0].length);
+  const nextHeading = section.search(/^####? /m);
+  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
+}
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
 
@@ -139,18 +151,66 @@ function assertContract(
   const requestFields = requestFieldSection(docs, contract.endpoint);
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return !aliases.some((alias) => docsMentionField(requestFields, alias));
+    return docsFieldStatus(requestFields, aliases) !== 'supported';
   });
 
   if (missingDocs.length > 0) {
     throw new Error(
-      `[${contract.id}] Parity manifest expects field(s) no longer documented by Ollama: ${missingDocs.join(', ')}`,
+      `[${contract.id}] Supported field(s) are missing or marked unsupported by Ollama: ${missingDocs.join(', ')}`,
     );
+  }
+
+  const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
+    const aliases = contract.docAliases?.[field] ?? [field];
+    return docsFieldStatus(requestFields, aliases) !== 'unsupported';
+  });
+
+  if (unsupportedDocs.length > 0) {
+    throw new Error(
+      `[${contract.id}] Explicitly unsupported field(s) changed status in Ollama docs: ${unsupportedDocs.join(', ')}`,
+    );
+  }
+
+  const sdkOnlyDocs = (contract.sdkOnlyFields ?? []).filter((field) => {
+    const aliases = contract.docAliases?.[field] ?? [field];
+    return docsFieldStatus(requestFields, aliases) !== 'missing';
+  });
+
+  if (sdkOnlyDocs.length > 0) {
+    throw new Error(
+      `[${contract.id}] SDK-only field(s) are now documented by Ollama and need reclassification: ${sdkOnlyDocs.join(', ')}`,
+    );
+  }
+
+  if (contract.response) {
+    const responseProps = sourceProperties(
+      contract.response.sourceFile,
+      contract.response.interfaceName,
+    );
+    const missingResponseSource = contract.response.fields.filter(
+      (field) => !responseProps.has(field),
+    );
+    if (missingResponseSource.length > 0) {
+      throw new Error(
+        `[${contract.id}] ${contract.response.interfaceName} is missing response field(s): ${missingResponseSource.join(', ')}`,
+      );
+    }
+
+    const responseSection = responseFieldSection(docs, contract.endpoint);
+    const missingResponseDocs = contract.response.fields.filter((field) => {
+      const aliases = contract.response?.docAliases?.[field] ?? [field];
+      return docsFieldStatus(responseSection, aliases) !== 'supported';
+    });
+    if (missingResponseDocs.length > 0) {
+      throw new Error(
+        `[${contract.id}] Response field(s) are missing or marked unsupported by Ollama: ${missingResponseDocs.join(', ')}`,
+      );
+    }
   }
 }
 
 async function main(): Promise<void> {
-  if (manifest.version !== 1) {
+  if (manifest.version !== 2) {
     throw new Error(`Unsupported parity manifest version: ${String(manifest.version)}`);
   }
 
@@ -171,7 +231,7 @@ async function main(): Promise<void> {
     assertContract(contract, docs, sourceProps);
 
     console.log(
-      `PASS ${contract.id}: ${contract.endpoint}${contract.interfaceName ? ` -> ${contract.interfaceName}` : ''} (${contract.fields.length} fields)`,
+      `PASS ${contract.id}: ${contract.endpoint}${contract.interfaceName ? ` -> ${contract.interfaceName}` : ''} (${contract.fields.length + (contract.unsupportedFields?.length ?? 0) + (contract.sdkOnlyFields?.length ?? 0) + (contract.response?.fields.length ?? 0)} tracked fields)`,
     );
   }
 
