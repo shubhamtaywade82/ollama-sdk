@@ -144,10 +144,10 @@ function firstKnownStatus(
   fallback: string,
   aliases: readonly string[],
 ): DocFieldStatus {
-  const primaryStatus = docsFieldStatus(primary, aliases);
-  return primaryStatus === 'missing'
-    ? docsFieldStatus(fallback, aliases)
-    : primaryStatus;
+  const fallbackStatus = docsFieldStatus(fallback, aliases);
+  return fallbackStatus === 'missing'
+    ? docsFieldStatus(primary, aliases)
+    : fallbackStatus;
 }
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
