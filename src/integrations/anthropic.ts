@@ -188,6 +188,12 @@ export interface AnthropicErrorEvent {
   };
 }
 
+export interface AnthropicUnknownStreamEvent {
+  /** Forward-compatible event type not yet modeled by this SDK. */
+  readonly type: string;
+  readonly [key: string]: unknown;
+}
+
 export type AnthropicMessageStreamEvent =
   | AnthropicMessageStartEvent
   | AnthropicContentBlockStartEvent
@@ -196,7 +202,8 @@ export type AnthropicMessageStreamEvent =
   | AnthropicMessageDeltaEvent
   | AnthropicMessageStopEvent
   | AnthropicPingEvent
-  | AnthropicErrorEvent;
+  | AnthropicErrorEvent
+  | AnthropicUnknownStreamEvent;
 
 function parseAnthropicEvent(event: SseEvent): AnthropicMessageStreamEvent {
   return JSON.parse(event.data) as AnthropicMessageStreamEvent;
