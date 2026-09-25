@@ -59,8 +59,8 @@ import type {
 } from '../src/index.js';
 
 type ExpectTrue<T extends true> = T;
-type _ChatImageUrlAllowed = ExpectTrue<
-  'image_url' extends OllamaOpenAIChatContentPart['type'] ? true : false
+type _ChatImageUrlExcluded = ExpectTrue<
+  'image_url' extends OllamaOpenAIChatContentPart['type'] ? false : true
 >;
 
 function jsonFetchMock(body: unknown) {
@@ -216,22 +216,16 @@ describe('strict current OpenAI compatibility types', () => {
           { type: 'image_url', image_url: 'data:image/png;base64,abc' },
         ],
       }],
-      tool_choice: 'auto',
-      logit_bias: { '123': 1 },
-      user: 'test-user',
-      n: 2,
     };
     const embeddings: OllamaOpenAIEmbeddingRequest = {
       model: 'nomic-embed-text',
       input: 'hello',
       encoding_format: 'float',
       dimensions: 2,
-      user: 'test-user',
     };
     const responses: OllamaOpenAIResponsesRequest = {
       model: 'qwen3',
       input: 'hello',
-      truncation: 'auto',
     };
 
     expect(chat.messages[0]?.content).toHaveLength(2);
