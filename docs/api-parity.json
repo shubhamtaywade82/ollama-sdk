@@ -34,9 +34,7 @@
         "parallel_tool_calls"
       ],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "nestedUnsupportedFields": [
-        "messages[].content[].image_url"
-      ]
+      "nestedUnsupportedFields": []
     },
     {
       "id": "openai-completions",
