@@ -235,11 +235,11 @@ describe('API parity manifest contract', () => {
     ]);
     expect(anthropic?.response?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.stream?.unionName).toBe('AnthropicMessageStreamEvent');
-    expect(chat?.fallbackDocsUrl).toContain(
-      'raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx',
+    expect(chat?.fallbackDocsFile).toBe(
+      'docs/upstream/ollama-openai-compatibility.mdx',
     );
-    expect(anthropic?.fallbackDocsUrl).toContain(
-      'raw.githubusercontent.com/ollama/ollama/main/docs/api/anthropic-compatibility.mdx',
+    expect(anthropic?.fallbackDocsFile).toBe(
+      'docs/upstream/ollama-anthropic-compatibility.mdx',
     );
     expect(anthropic?.stream?.interfaceNames).toHaveLength(8);
     expect(responses?.stream?.unionName).toBe('OpenAIResponsesStreamEvent');
