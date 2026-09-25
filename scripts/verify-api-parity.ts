@@ -69,6 +69,19 @@ async function fetchDocs(url: string): Promise<string> {
   return response.text();
 }
 
+function requestFieldSection(docs: string, endpoint: string): string {
+  const endpointIndex = docs.indexOf(endpoint);
+  if (endpointIndex < 0) return '';
+
+  const tail = docs.slice(endpointIndex);
+  const heading = tail.match(/^#### (Supported request fields|Body)\s*$/m);
+  if (!heading || heading.index === undefined) return tail;
+
+  const section = tail.slice(heading.index + heading[0].length);
+  const nextHeading = section.search(/^####? /m);
+  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
+}
+
 function docsMentionField(docs: string, field: string): boolean {
   const forms = [
     '`' + field + '`',
@@ -104,9 +117,10 @@ function assertContract(
     );
   }
 
+  const requestFields = requestFieldSection(docs, contract.endpoint);
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return !aliases.some((alias) => docsMentionField(docs, alias));
+    return !aliases.some((alias) => docsMentionField(requestFields, alias));
   });
 
   if (missingDocs.length > 0) {
