@@ -277,6 +277,7 @@ export interface ShowRequestOptions extends RequestCancellationOptions {
   readonly model: string;
   readonly system?: string | undefined;
   readonly template?: string | undefined;
+  readonly options?: ModelOptions | undefined;
   readonly verbose?: boolean | undefined;
 }
 
