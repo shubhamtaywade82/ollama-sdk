@@ -269,6 +269,7 @@ export {
   type OllamaOpenAIChatCompletionRequest,
   type OpenAIChatCompletionChoice,
   type OpenAIChatCompletionResponse,
+  type OpenAIUsage,
   type OpenAIModelItem,
   type OpenAIListModelsResponse,
   type OpenAICompletionRequest,
