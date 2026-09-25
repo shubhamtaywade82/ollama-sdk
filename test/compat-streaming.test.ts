@@ -122,6 +122,109 @@ describe('OpenAI Responses compatibility streaming', () => {
     });
   });
 
+  it('reconstructs Responses output items from lifecycle events, including function call call_id', async () => {
+    const fetchMock = sseFetchMock([
+      'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_items","object":"response","created":4,"model":"qwen3","output":[]}}\n\n',
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"get_weather","arguments":""}}\n\n',
+      'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"delta":"{\"city\":"}\n\n',
+      'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"fc_1","output_index":0,"arguments":"{\"city\":\"Bengaluru\"}"}\n\n',
+      'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"get_weather","arguments":"{\"city\":\"Bengaluru\"}"}}\n\n',
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":1,"item":{"type":"message","id":"msg_1","status":"in_progress","role":"assistant","content":[]}}\n\n',
+      'event: response.content_part.added\ndata: {"type":"response.content_part.added","item_id":"msg_1","output_index":1,"content_index":0,"part":{"type":"output_text","text":""}}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"Hello"}\n\n',
+      'event: response.content_part.done\ndata: {"type":"response.content_part.done","item_id":"msg_1","output_index":1,"content_index":0,"part":{"type":"output_text","text":"Hello"}}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.openai.responses({ model: 'qwen3', input: 'Hi', stream: true });
+    for await (const _ of stream) {
+      // drain
+    }
+    await expect(stream.finalResult).resolves.toMatchObject({
+      output: [
+        {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'get_weather',
+          arguments: '{"city":"Bengaluru"}',
+        },
+        {
+          type: 'message',
+          id: 'msg_1',
+          status: 'in_progress',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+      ],
+    });
+  });
+
+  it('rejects Responses streams on failed and incomplete terminal events', async () => {
+    const terminals = [
+      ['response.failed', {
+        id: 'resp_failed',
+        object: 'response',
+        created: 5,
+        model: 'qwen3',
+        status: 'failed',
+        error: { code: 'server_error', message: 'generation failed' },
+        output: [],
+      }],
+      ['response.incomplete', {
+        id: 'resp_incomplete',
+        object: 'response',
+        created: 6,
+        model: 'qwen3',
+        status: 'incomplete',
+        incomplete_details: { reason: 'max_output_tokens' },
+        output: [],
+      }],
+    ] as const;
+
+    for (const [eventType, response] of terminals) {
+      const fetchMock = sseFetchMock([
+        'event: response.created\ndata: ' +
+          JSON.stringify({
+            type: 'response.created',
+            response: { id: response.id, object: 'response', created: response.created, model: response.model, status: 'in_progress', output: [] },
+          }) +
+          '\n\n',
+        'event: ' + eventType + '\ndata: ' + JSON.stringify({ type: eventType, response }) + '\n\n',
+      ]);
+      const client = new OllamaClient({ fetch: fetchMock as never });
+      const stream = await client.openai.responses({ model: 'qwen3', input: 'Hi', stream: true });
+      await expect((async () => {
+        for await (const _ of stream) {
+          // drain
+        }
+      })()).rejects.toMatchObject({ code: 'openai_responses_stream_error' });
+      await expect(stream.finalResult).rejects.toMatchObject({ code: 'openai_responses_stream_error' });
+    }
+  });
+
+  it('supports reasoning summary part lifecycle events', async () => {
+    const fetchMock = sseFetchMock([
+      'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_reason","object":"response","created":7,"model":"qwen3","output":[]}}\n\n',
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"reasoning","id":"rs_1","summary":[]}}\n\n',
+      'event: response.reasoning_summary_part.added\ndata: {"type":"response.reasoning_summary_part.added","item_id":"rs_1","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}\n\n',
+      'event: response.reasoning_summary_text.delta\ndata: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"summary_index":0,"delta":"checked"}\n\n',
+      'event: response.reasoning_summary_part.done\ndata: {"type":"response.reasoning_summary_part.done","item_id":"rs_1","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":"checked"}}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.openai.responses({ model: 'qwen3', input: 'Hi', stream: true });
+    for await (const _ of stream) {
+      // drain
+    }
+    const final = await stream.finalResult;
+    expect(final.output[0]).toEqual({
+      type: 'reasoning',
+      id: 'rs_1',
+      summary: [{ type: 'summary_text', text: 'checked' }],
+    });
+  });
+
   it('rejects finalResult and releases endpoint capacity when aborted', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
