@@ -52,9 +52,38 @@ describe('OpenAI compatibility streaming', () => {
       prompt_tokens: 10,
       completion_tokens: 5,
       total_tokens: 15,
-    });
+    });    expect(final.choices[0]?.message.reasoning).toBeUndefined();
+
   });
 });
+
+  it('aggregates reasoning deltas and preserves stream metadata', async () => {
+    const fetchMock = sseFetchMock([
+      'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"role":"assistant","reasoning":"think"}}],"usage":null}\n\n',
+      'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"reasoning":"ing","content":"done"},"finish_reason":"stop"}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.openai.chatCompletions({
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hello' }],
+      stream: true,
+    });
+
+    for await (const _ of stream) {
+      // drain
+    }
+
+    await expect(stream.finalResult).resolves.toMatchObject({
+      system_fingerprint: 'fp1',
+      choices: [{
+        message: {
+          reasoning: 'thinking',
+          content: 'done',
+        },
+      }],
+    });
+  });
 
 describe('OpenAI Responses compatibility streaming', () => {
   it('exposes typed response SSE events and preserves the completed response', async () => {
