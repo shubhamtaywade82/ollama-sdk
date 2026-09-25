@@ -259,6 +259,7 @@ export {
   type OpenAIResponsesOutputRefusal,
   type OpenAIResponsesOutputFunctionCall,
   type OpenAIResponsesOutputReasoning,
+  type OpenAIResponsesOutputItem,
   type AnthropicCacheControl,
   type AnthropicTextContentBlock,
   type AnthropicImageContentBlock,
