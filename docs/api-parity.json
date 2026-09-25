@@ -200,7 +200,11 @@
           "AnthropicErrorEvent"
         ]
       },
-      "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx"
+      "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
+      "nestedUnsupportedFields": [
+        "messages[].content[].cache_control",
+        "system[].cache_control"
+      ]
     },
     {
       "id": "native-chat",
