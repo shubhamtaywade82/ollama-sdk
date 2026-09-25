@@ -134,11 +134,19 @@ export interface OpenAIChatCompletionRequest {
     { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
-/** Strict Ollama-documented Chat Completions request; excludes fields Ollama marks unsupported. */
+export type OllamaOpenAIChatContentPart = OpenAITextContentPart;
+
+export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
+  readonly content: string | readonly OllamaOpenAIChatContentPart[];
+};
+
+/** Strict Ollama-documented Chat Completions request with unsupported image URL content excluded. */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
-  'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
->;
+  'messages' | 'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
+> & {
+  readonly messages: readonly OllamaOpenAIChatMessage[];
+};
 
 export interface OpenAIChatCompletionChoice {
   readonly index: number;
