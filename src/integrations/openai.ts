@@ -142,9 +142,16 @@ export type OllamaOpenAIChatContentPart =
   | OpenAITextContentPart
   | {
       readonly type: 'image_url';
-      /** Ollama currently documents base64-encoded image data URLs; ordinary remote URLs are unsupported. */
+      /** Ollama's current compatibility docs accept an image URL string, including data URLs. */
       readonly image_url: string;
     };
+
+export type OllamaOpenAIReasoningEffort =
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'max'
+  | 'none';
 
 export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
