@@ -1,10 +1,10 @@
 {
-  "version": 2,
+  "version": 4,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
       "id": "openai-chat",
-      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIChatCompletionRequest",
       "endpoint": "/v1/chat/completions",
@@ -23,31 +23,24 @@
         "max_tokens",
         "tools",
         "reasoning_effort",
-        "reasoning"
-      ],
-      "unsupportedFields": [
+        "reasoning",
         "tool_choice",
         "logit_bias",
         "user",
         "n"
       ],
+      "unsupportedFields": [],
       "sdkOnlyFields": [
         "parallel_tool_calls"
       ],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "responseInterfaceName": "OpenAIChatCompletionResponse",
-      "responseFields": [
-        "id",
-        "object",
-        "created",
-        "model",
-        "choices",
-        "usage"
+      "nestedUnsupportedFields": [
+        "messages[].content[].image_url"
       ]
     },
     {
       "id": "openai-completions",
-      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAICompletionRequest",
       "endpoint": "/v1/completions",
@@ -63,30 +56,19 @@
         "temperature",
         "top_p",
         "max_tokens",
-        "suffix"
-      ],
-      "unsupportedFields": [
+        "suffix",
         "best_of",
         "echo",
         "logit_bias",
         "user",
         "n"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "sdkOnlyFields": [],
-      "responseInterfaceName": "OpenAICompletionResponse",
-      "responseFields": [
-        "id",
-        "object",
-        "created",
-        "model",
-        "choices",
-        "usage"
-      ]
+      "unsupportedFields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
     },
     {
       "id": "openai-embeddings",
-      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIEmbeddingRequest",
       "endpoint": "/v1/embeddings",
@@ -94,7 +76,8 @@
         "model",
         "input",
         "encoding_format",
-        "dimensions"
+        "dimensions",
+        "user"
       ],
       "docAliases": {
         "encoding_format": [
@@ -102,22 +85,12 @@
           "encoding format"
         ]
       },
-      "unsupportedFields": [
-        "user"
-      ],
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "sdkOnlyFields": [],
-      "responseInterfaceName": "OpenAIEmbeddingResponse",
-      "responseFields": [
-        "object",
-        "data",
-        "model",
-        "usage"
-      ]
+      "unsupportedFields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
     },
     {
       "id": "openai-responses",
-      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIResponsesRequest",
       "endpoint": "/v1/responses",
@@ -129,12 +102,12 @@
         "stream",
         "temperature",
         "top_p",
-        "max_output_tokens"
+        "max_output_tokens",
+        "truncation"
       ],
       "unsupportedFields": [
         "previous_response_id",
-        "conversation",
-        "truncation"
+        "conversation"
       ],
       "sdkOnlyFields": [
         "reasoning",
@@ -169,26 +142,11 @@
           "OpenAIResponsesIncompleteEvent"
         ]
       },
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "responseInterfaceName": "OpenAIResponsesResponse",
-      "responseFields": [
-        "id",
-        "object",
-        "created",
-        "created_at",
-        "status",
-        "completed_at",
-        "error",
-        "incomplete_details",
-        "model",
-        "output",
-        "output_text",
-        "usage"
-      ]
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
     },
     {
       "id": "anthropic-messages",
-      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/anthropic-compatibility.mdx",
+      "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
       "sourceFile": "src/integrations/anthropic.ts",
       "interfaceName": "AnthropicMessagesRequest",
       "endpoint": "/v1/messages",
@@ -254,17 +212,6 @@
       "nestedUnsupportedFields": [
         "messages[].content[].cache_control",
         "system[].cache_control"
-      ],
-      "responseInterfaceName": "AnthropicMessagesResponse",
-      "responseFields": [
-        "id",
-        "type",
-        "role",
-        "content",
-        "model",
-        "stop_reason",
-        "stop_sequence",
-        "usage"
       ]
     },
     {
@@ -304,23 +251,7 @@
           "logprobs"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "ChatResponse",
-      "responseFields": [
-        "model",
-        "created_at",
-        "message",
-        "done",
-        "done_reason",
-        "total_duration",
-        "load_duration",
-        "prompt_eval_count",
-        "prompt_eval_cached_count",
-        "prompt_eval_duration",
-        "eval_count",
-        "eval_duration",
-        "logprobs"
-      ]
+      }
     },
     {
       "id": "native-generate",
@@ -363,24 +294,7 @@
           "logprobs"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "GenerateResponse",
-      "responseFields": [
-        "model",
-        "created_at",
-        "response",
-        "done",
-        "done_reason",
-        "context",
-        "total_duration",
-        "load_duration",
-        "prompt_eval_count",
-        "prompt_eval_duration",
-        "eval_count",
-        "eval_duration",
-        "thinking",
-        "logprobs"
-      ]
+      }
     },
     {
       "id": "native-embed",
@@ -408,15 +322,7 @@
           "prompt_eval_count"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "EmbedResponse",
-      "responseFields": [
-        "model",
-        "embeddings",
-        "total_duration",
-        "load_duration",
-        "prompt_eval_count"
-      ]
+      }
     },
     {
       "id": "native-create",
@@ -445,11 +351,7 @@
           "status"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "StatusResponse",
-      "responseFields": [
-        "status"
-      ]
+      }
     },
     {
       "id": "native-delete",
@@ -540,21 +442,7 @@
           "model_info"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "ShowResponse",
-      "responseFields": [
-        "license",
-        "modelfile",
-        "parameters",
-        "template",
-        "system",
-        "details",
-        "messages",
-        "model_info",
-        "capabilities",
-        "thinking",
-        "modified_at"
-      ]
+      }
     },
     {
       "id": "native-tags",
@@ -569,11 +457,7 @@
           "models"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "ListResponse",
-      "responseFields": [
-        "models"
-      ]
+      }
     },
     {
       "id": "native-ps",
@@ -588,11 +472,7 @@
           "models"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "PsResponse",
-      "responseFields": [
-        "models"
-      ]
+      }
     },
     {
       "id": "native-version",
@@ -607,11 +487,7 @@
           "version"
         ],
         "sdkOnlyFields": []
-      },
-      "responseInterfaceName": "VersionResponse",
-      "responseFields": [
-        "version"
-      ]
+      }
     }
   ]
 }
