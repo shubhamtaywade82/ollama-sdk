@@ -27,6 +27,7 @@ interface SurfaceContract {
   readonly id: string;
   readonly docsUrl: string;
   readonly fallbackDocsUrl?: string;
+  readonly fallbackDocsFile?: string;
   readonly sourceFile?: string;
   readonly interfaceName?: string;
   readonly endpoint: string;
@@ -320,7 +321,12 @@ async function main(): Promise<void> {
     }
 
     let fallbackDocs = '';
-    if (contract.fallbackDocsUrl !== undefined) {
+    if (contract.fallbackDocsFile !== undefined) {
+      fallbackDocs = readFileSync(
+        resolve(ROOT, contract.fallbackDocsFile),
+        'utf8',
+      );
+    } else if (contract.fallbackDocsUrl !== undefined) {
       fallbackDocs = docsCache.get(contract.fallbackDocsUrl) ?? '';
       if (!fallbackDocs) {
         fallbackDocs = await fetchDocs(contract.fallbackDocsUrl);
