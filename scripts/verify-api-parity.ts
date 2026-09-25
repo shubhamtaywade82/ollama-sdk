@@ -203,15 +203,10 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
 
 
 function requestFieldSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return labeledSection(endpointDocs, 'Supported request fields', [
-    'Supported features',
-    'Supported response fields',
-    'Streaming events',
-    'Notes',
-    'Models',
-  ]) || endpointDocs;
+  // Compatibility pages render request fields directly inside the endpoint block.
+  // Keep the whole endpoint-scoped block because the hosted docs may change heading
+  // wrappers/citation markup without changing the documented field contract.
+  return endpointSection(docs, endpoint);
 }
 
 function responseFieldSection(docs: string, endpoint: string): string {
