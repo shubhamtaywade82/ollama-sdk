@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
@@ -23,11 +23,16 @@
         "max_tokens",
         "tools",
         "reasoning_effort",
-        "reasoning",
+        "reasoning"
+      ],
+      "unsupportedFields": [
         "tool_choice",
         "logit_bias",
         "user",
         "n"
+      ],
+      "sdkOnlyFields": [
+        "parallel_tool_calls"
       ]
     },
     {
@@ -48,7 +53,9 @@
         "temperature",
         "top_p",
         "max_tokens",
-        "suffix",
+        "suffix"
+      ],
+      "unsupportedFields": [
         "best_of",
         "echo",
         "logit_bias",
@@ -66,15 +73,17 @@
         "model",
         "input",
         "encoding_format",
-        "dimensions",
-        "user"
+        "dimensions"
       ],
       "docAliases": {
         "encoding_format": [
           "encoding_format",
           "encoding format"
         ]
-      }
+      },
+      "unsupportedFields": [
+        "user"
+      ]
     },
     {
       "id": "openai-responses",
@@ -90,10 +99,16 @@
         "stream",
         "temperature",
         "top_p",
-        "max_output_tokens",
+        "max_output_tokens"
+      ],
+      "unsupportedFields": [
         "previous_response_id",
         "conversation",
         "truncation"
+      ],
+      "sdkOnlyFields": [
+        "reasoning",
+        "think"
       ]
     },
     {
@@ -113,11 +128,25 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking",
-        "output_config",
+        "thinking"
+      ],
+      "unsupportedFields": [
         "tool_choice",
         "metadata"
-      ]
+      ],
+      "response": {
+        "sourceFile": "src/integrations/anthropic.ts",
+        "interfaceName": "AnthropicMessagesResponse",
+        "fields": [
+          "id",
+          "type",
+          "role",
+          "model",
+          "content",
+          "stop_reason",
+          "usage"
+        ]
+      }
     },
     {
       "id": "native-chat",
