@@ -70,14 +70,19 @@ async function fetchDocs(url: string): Promise<string> {
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^$(){}|[\\]\\]/g, '\\function assertContract(
-  contract: SurfaceContract,
-  docs: string,
-  properties: Set<string>,
-): void {');
+  return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
 
 function docsMentionField(docs: string, field: string): boolean {
+  const escaped = escapeRegExp(field);
+  return [
+    new RegExp('\\x60' + escaped + '\\x60', 'i'),
+    new RegExp('[\\x22\\x27]' + escaped + '[\\x22\\x27]\\\\s*:', 'i'),
+    new RegExp('\\\\|\\\\s*' + escaped + '\\\\s*\\\\|', 'i'),
+    new RegExp('\\\\b' + escaped + '\\\\b\\\\s*:', 'i'),
+  ].some((pattern) => pattern.test(docs));
+}
+(docs: string, field: string): boolean {
   const escaped = escapeRegExp(field);
   return [
     new RegExp('\\x60' + escaped + '\\x60', 'i'),
