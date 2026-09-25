@@ -8,6 +8,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 
+interface FieldSectionContract {
+  readonly sourceFile: string;
+  readonly interfaceName: string;
+  readonly fields: readonly string[];
+  readonly docAliases?: Readonly<Record<string, readonly string[]>>;
+}
+
 interface SurfaceContract {
   readonly id: string;
   readonly docsUrl: string;
@@ -15,7 +22,10 @@ interface SurfaceContract {
   readonly interfaceName?: string;
   readonly endpoint: string;
   readonly fields: readonly string[];
+  readonly unsupportedFields?: readonly string[];
+  readonly sdkOnlyFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
+  readonly response?: FieldSectionContract;
 }
 
 interface ParityManifest {
@@ -82,20 +92,29 @@ function requestFieldSection(docs: string, endpoint: string): string {
   return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
 }
 
-function docsMentionField(docs: string, field: string): boolean {
-  const forms = [
-    '`' + field + '`',
-    '"' + field + '":',
-    "'" + field + "':",
-    '| ' + field + ' |',
-    '<td>' + field + '</td>',
-  ];
-  if (forms.some((form) => docs.includes(form))) return true;
+type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
 
-  return docs.split(/\r?\n/).some((line) => {
-    const value = line.trim();
-    return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
-  });
+function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStatus {
+  for (const line of docs.split(/\r?\n/)) {
+    const matches = aliases.some((field) => {
+      const forms = [
+        '`' + field + '`',
+        '"' + field + '":',
+        "'" + field + "':",
+        '| ' + field + ' |',
+        '<td>' + field + '</td>',
+      ];
+      if (forms.some((form) => line.includes(form))) return true;
+      const value = line.trim();
+      return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
+    });
+    if (!matches) continue;
+
+    if (/\[\s*\]/.test(line)) return 'unsupported';
+    if (/\[\s*x\s*\]/i.test(line)) return 'supported';
+    return 'supported';
+  }
+  return 'missing';
 }
 function assertContract(
   contract: SurfaceContract,
