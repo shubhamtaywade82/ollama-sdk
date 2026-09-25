@@ -134,13 +134,14 @@ export interface OpenAIChatCompletionRequest {
     { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
-export type OllamaOpenAIChatContentPart = OpenAITextContentPart;
+/** Current Ollama chat compatibility accepts text and image URL content parts. */
+export type OllamaOpenAIChatContentPart = OpenAIContentPart;
 
 export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
 };
 
-/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel flag and narrows content parts to text. */
+/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel flag. */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
   'messages' | 'parallel_tool_calls'
