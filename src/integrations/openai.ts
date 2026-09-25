@@ -134,17 +134,17 @@ export interface OpenAIChatCompletionRequest {
     { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
-/** Current Ollama chat compatibility accepts text and image URL content parts. */
-export type OllamaOpenAIChatContentPart = OpenAIContentPart;
+/** Current Ollama-documented Chat Completions content is text-only; image URLs remain in the broad OpenAI type for compatibility. */
+export type OllamaOpenAIChatContentPart = OpenAITextContentPart;
 
 export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
 };
 
-/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel flag. */
+/** Strict Ollama-documented Chat Completions request; excludes fields marked unsupported by Ollama. */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
-  'messages' | 'parallel_tool_calls'
+  'messages' | 'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
 > & {
   readonly messages: readonly OllamaOpenAIChatMessage[];
 };
@@ -305,8 +305,8 @@ export interface OpenAIEmbeddingRequest {
   readonly user?: string | undefined;
 }
 
-/** Strict Ollama-documented Embeddings request. */
-export type OllamaOpenAIEmbeddingRequest = OpenAIEmbeddingRequest;
+/** Strict Ollama-documented Embeddings request; excludes the unsupported `user` field. */
+export type OllamaOpenAIEmbeddingRequest = Omit<OpenAIEmbeddingRequest, 'user'>;
 
 export interface OpenAIEmbeddingItem {
   readonly object: 'embedding';
@@ -355,7 +355,7 @@ export interface OpenAIResponsesRequest {
 /** Strict Ollama-documented Responses request; excludes stateful/undocumented request fields. */
 export type OllamaOpenAIResponsesRequest = Omit<
   OpenAIResponsesRequest,
-  'previous_response_id' | 'conversation'
+  'previous_response_id' | 'conversation' | 'truncation' | 'reasoning' | 'think'
 >;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
