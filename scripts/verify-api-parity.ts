@@ -162,7 +162,8 @@ function endpointSection(docs: string, endpoint: string): string {
   if (endpoint === '/v1/responses') {
     const responseIndex = lines.findIndex((line) => /^#{2,6}\s+Responses API\s*$/i.test(line));
     if (responseIndex >= 0) {
-      const level = lines[responseIndex].match(/^#+/)?.[0].length ?? 3;
+      const responseHeading = lines[responseIndex] ?? '';
+      const level = responseHeading.match(/^#+/)?.[0].length ?? 3;
       const tail = lines.slice(responseIndex + 1);
       const next = tail.findIndex((line) => {
         const heading = line.match(/^(#{2,6})\s+/);
