@@ -4,7 +4,7 @@
   "surfaces": [
     {
       "id": "openai-chat",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIChatCompletionRequest",
       "endpoint": "/v1/chat/completions",
@@ -42,7 +42,7 @@
     },
     {
       "id": "openai-completions",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAICompletionRequest",
       "endpoint": "/v1/completions",
@@ -77,7 +77,7 @@
     },
     {
       "id": "openai-embeddings",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIEmbeddingRequest",
       "endpoint": "/v1/embeddings",
@@ -102,7 +102,7 @@
     },
     {
       "id": "openai-responses",
-      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx",
       "sourceFile": "src/integrations/openai.ts",
       "interfaceName": "OpenAIResponsesRequest",
       "endpoint": "/v1/responses",
@@ -159,7 +159,7 @@
     },
     {
       "id": "anthropic-messages",
-      "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
+      "docsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/anthropic-compatibility.mdx",
       "sourceFile": "src/integrations/anthropic.ts",
       "interfaceName": "AnthropicMessagesRequest",
       "endpoint": "/v1/messages",
