@@ -263,6 +263,7 @@ export {
   type OpenAIFunctionDefinition,
   type OpenAITool,
   type OpenAIReasoningEffort,
+  type OllamaOpenAIReasoningEffort,
   type OpenAIResponseFormat,
   type OpenAIChatCompletionRequest,
   type OllamaOpenAIChatCompletionRequest,
