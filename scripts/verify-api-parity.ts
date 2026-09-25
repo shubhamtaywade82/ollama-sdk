@@ -403,16 +403,11 @@ function assertContract(
     );
   }
 
-  const sdkOnlySection = requestFields;
-  const fallbackSdkOnlySection = fallbackRequestFields;
   const sdkOnlyDocs = (contract.sdkOnlyFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return firstKnownStatus(
-      sdkOnlySection,
-      fallbackSdkOnlySection,
-      fallbackDocs,
-      aliases,
-    ) !== 'missing';
+    return [requestFields, fallbackRequestFields].some((section) =>
+      aliases.some((alias) => section.includes('[Input] `' + alias + '`')),
+    );
   });
 
   if (sdkOnlyDocs.length > 0) {
