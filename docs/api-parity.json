@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 2,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
@@ -34,7 +34,16 @@
       "sdkOnlyFields": [
         "parallel_tool_calls"
       ],
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+      "responseInterfaceName": "OpenAIChatCompletionResponse",
+      "responseFields": [
+        "id",
+        "object",
+        "created",
+        "model",
+        "choices",
+        "usage"
+      ]
     },
     {
       "id": "openai-completions",
@@ -64,7 +73,16 @@
         "n"
       ],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "sdkOnlyFields": []
+      "sdkOnlyFields": [],
+      "responseInterfaceName": "OpenAICompletionResponse",
+      "responseFields": [
+        "id",
+        "object",
+        "created",
+        "model",
+        "choices",
+        "usage"
+      ]
     },
     {
       "id": "openai-embeddings",
@@ -88,7 +106,14 @@
         "user"
       ],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
-      "sdkOnlyFields": []
+      "sdkOnlyFields": [],
+      "responseInterfaceName": "OpenAIEmbeddingResponse",
+      "responseFields": [
+        "object",
+        "data",
+        "model",
+        "usage"
+      ]
     },
     {
       "id": "openai-responses",
@@ -144,7 +169,22 @@
           "OpenAIResponsesIncompleteEvent"
         ]
       },
-      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+      "responseInterfaceName": "OpenAIResponsesResponse",
+      "responseFields": [
+        "id",
+        "object",
+        "created",
+        "created_at",
+        "status",
+        "completed_at",
+        "error",
+        "incomplete_details",
+        "model",
+        "output",
+        "output_text",
+        "usage"
+      ]
     },
     {
       "id": "anthropic-messages",
@@ -214,6 +254,17 @@
       "nestedUnsupportedFields": [
         "messages[].content[].cache_control",
         "system[].cache_control"
+      ],
+      "responseInterfaceName": "AnthropicMessagesResponse",
+      "responseFields": [
+        "id",
+        "type",
+        "role",
+        "content",
+        "model",
+        "stop_reason",
+        "stop_sequence",
+        "usage"
       ]
     },
     {
@@ -253,7 +304,23 @@
           "logprobs"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "ChatResponse",
+      "responseFields": [
+        "model",
+        "created_at",
+        "message",
+        "done",
+        "done_reason",
+        "total_duration",
+        "load_duration",
+        "prompt_eval_count",
+        "prompt_eval_cached_count",
+        "prompt_eval_duration",
+        "eval_count",
+        "eval_duration",
+        "logprobs"
+      ]
     },
     {
       "id": "native-generate",
@@ -296,7 +363,24 @@
           "logprobs"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "GenerateResponse",
+      "responseFields": [
+        "model",
+        "created_at",
+        "response",
+        "done",
+        "done_reason",
+        "context",
+        "total_duration",
+        "load_duration",
+        "prompt_eval_count",
+        "prompt_eval_duration",
+        "eval_count",
+        "eval_duration",
+        "thinking",
+        "logprobs"
+      ]
     },
     {
       "id": "native-embed",
@@ -324,7 +408,15 @@
           "prompt_eval_count"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "EmbedResponse",
+      "responseFields": [
+        "model",
+        "embeddings",
+        "total_duration",
+        "load_duration",
+        "prompt_eval_count"
+      ]
     },
     {
       "id": "native-create",
@@ -353,7 +445,11 @@
           "status"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "StatusResponse",
+      "responseFields": [
+        "status"
+      ]
     },
     {
       "id": "native-delete",
@@ -444,7 +540,21 @@
           "model_info"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "ShowResponse",
+      "responseFields": [
+        "license",
+        "modelfile",
+        "parameters",
+        "template",
+        "system",
+        "details",
+        "messages",
+        "model_info",
+        "capabilities",
+        "thinking",
+        "modified_at"
+      ]
     },
     {
       "id": "native-tags",
@@ -459,7 +569,11 @@
           "models"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "ListResponse",
+      "responseFields": [
+        "models"
+      ]
     },
     {
       "id": "native-ps",
@@ -474,7 +588,11 @@
           "models"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "PsResponse",
+      "responseFields": [
+        "models"
+      ]
     },
     {
       "id": "native-version",
@@ -489,7 +607,11 @@
           "version"
         ],
         "sdkOnlyFields": []
-      }
+      },
+      "responseInterfaceName": "VersionResponse",
+      "responseFields": [
+        "version"
+      ]
     }
   ]
 }
