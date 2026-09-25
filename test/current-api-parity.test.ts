@@ -34,6 +34,9 @@ type _AnthropicToolChoiceExcluded = ExpectFalse<
 type _AnthropicMetadataExcluded = ExpectFalse<
   'metadata' extends keyof OllamaAnthropicMessagesRequest ? true : false
 >;
+type _AnthropicOutputConfigExcluded = ExpectFalse<
+  'output_config' extends keyof OllamaAnthropicMessagesRequest ? true : false
+>;
 void (undefined as unknown as _ChatToolChoiceExcluded);
 void (undefined as unknown as _ChatParallelToolsExcluded);
 void (undefined as unknown as _CompletionBestOfExcluded);
@@ -41,6 +44,7 @@ void (undefined as unknown as _EmbeddingUserExcluded);
 void (undefined as unknown as _ResponsesStateExcluded);
 void (undefined as unknown as _AnthropicToolChoiceExcluded);
 void (undefined as unknown as _AnthropicMetadataExcluded);
+void (undefined as unknown as _AnthropicOutputConfigExcluded);
 
 function jsonFetchMock(body: unknown) {
   return vi.fn().mockResolvedValue({
