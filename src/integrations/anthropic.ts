@@ -283,6 +283,32 @@ function mergeContentBlock(
   return current;
 }
 
+function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicMessagesRequest {
+  const messages = request.messages.map((message) => {
+    if (typeof message.content === 'string') return message;
+    const content = message.content.map((block) => {
+      if (block.type !== 'text' || block.cache_control === undefined) return block;
+      const { cache_control: _cacheControl, ...sanitized } = block;
+      return sanitized;
+    });
+    return { ...message, content };
+  });
+
+  const system = Array.isArray(request.system)
+    ? request.system.map((block) => {
+        if (block.cache_control === undefined) return block;
+        const { cache_control: _cacheControl, ...sanitized } = block;
+        return sanitized;
+      })
+    : request.system;
+
+  const { tool_choice: _toolChoice, metadata: _metadata, ...sanitized } = request;
+  return {
+    ...sanitized,
+    messages,
+    ...(system !== undefined ? { system } : {}),
+  };
+}
 export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageStreamEvent> {
   private readonly finalResultPromise: Promise<AnthropicMessagesResponse>;
   private resolveFinal!: (value: AnthropicMessagesResponse) => void;
@@ -470,7 +496,7 @@ export class AnthropicCompatClient {
         (http, requestSignal) =>
           http.requestSseStream({
             path: '/v1/messages',
-            body: request,
+            body: sanitizeAnthropicRequest(request),
             headers: { 'anthropic-version': '2023-06-01' },
             signal: requestSignal,
           }).then((source) => new AnthropicMessagesStream(source, requestSignal)),
@@ -483,7 +509,7 @@ export class AnthropicCompatClient {
       (http, requestSignal) =>
         http.request<AnthropicMessagesResponse>({
           path: '/v1/messages',
-          body: request,
+          body: sanitizeAnthropicRequest(request),
           headers: { 'anthropic-version': '2023-06-01' },
           signal: requestSignal,
         }),
