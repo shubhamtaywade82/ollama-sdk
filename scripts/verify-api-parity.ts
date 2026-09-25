@@ -182,6 +182,11 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
 
 
 function requestFieldSection(docs: string, endpoint: string): string {
+  // The OpenAI/Anthropic references are multi-endpoint compatibility pages whose
+  // rendered headings are not stable enough to delimit each endpoint reliably.
+  // Their field markers are globally scoped to the compatibility document.
+  if (endpoint.startsWith('/v1/')) return docs;
+
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
   return labeledSection(endpointDocs, 'Supported request fields', [
@@ -194,6 +199,8 @@ function requestFieldSection(docs: string, endpoint: string): string {
 }
 
 function responseFieldSection(docs: string, endpoint: string): string {
+  if (endpoint.startsWith('/v1/')) return docs;
+
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
   return (
@@ -216,6 +223,8 @@ function responseFieldSection(docs: string, endpoint: string): string {
 }
 
 function streamEventSection(docs: string, endpoint: string): string {
+  if (endpoint.startsWith('/v1/')) return docs;
+
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
   return labeledSection(endpointDocs, 'Streaming events', [
@@ -227,6 +236,8 @@ function streamEventSection(docs: string, endpoint: string): string {
 }
 
 function unsupportedFieldSection(docs: string, endpoint: string): string {
+  if (endpoint.startsWith('/v1/')) return docs;
+
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
   return labeledSection(endpointDocs, 'Not supported', [
