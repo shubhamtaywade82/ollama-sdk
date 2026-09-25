@@ -33,7 +33,8 @@
       ],
       "sdkOnlyFields": [
         "parallel_tool_calls"
-      ]
+      ],
+      "fallbackDocsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx"
     },
     {
       "id": "openai-completions",
@@ -61,7 +62,8 @@
         "logit_bias",
         "user",
         "n"
-      ]
+      ],
+      "fallbackDocsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx"
     },
     {
       "id": "openai-embeddings",
@@ -83,7 +85,8 @@
       },
       "unsupportedFields": [
         "user"
-      ]
+      ],
+      "fallbackDocsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx"
     },
     {
       "id": "openai-responses",
@@ -137,7 +140,8 @@
           "OpenAIResponsesFailedEvent",
           "OpenAIResponsesIncompleteEvent"
         ]
-      }
+      },
+      "fallbackDocsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx"
     },
     {
       "id": "anthropic-messages",
@@ -194,7 +198,8 @@
           "AnthropicPingEvent",
           "AnthropicErrorEvent"
         ]
-      }
+      },
+      "fallbackDocsUrl": "https://raw.githubusercontent.com/ollama/ollama/main/docs/api/anthropic-compatibility.mdx"
     },
     {
       "id": "native-chat",
