@@ -387,9 +387,8 @@ function assertContract(
     );
   }
 
-  const sdkOnlySection = endpointSection(docs, contract.endpoint) || requestFields;
-  const fallbackSdkOnlySection =
-    endpointSection(fallbackDocs, contract.endpoint) || fallbackRequestFields;
+  const sdkOnlySection = requestFields;
+  const fallbackSdkOnlySection = fallbackRequestFields;
   const sdkOnlyDocs = (contract.sdkOnlyFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
     return firstKnownStatus(
