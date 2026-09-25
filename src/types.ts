@@ -266,6 +266,8 @@ export interface ModelResponse {
   readonly details: ModelDetails;
   readonly expires_at?: string | undefined;
   readonly size_vram?: number | undefined;
+  /** Context window length reported for currently running models by /api/ps. */
+  readonly context_length?: number | undefined;
 }
 
 export interface ListResponse {
