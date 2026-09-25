@@ -227,10 +227,11 @@ describe('strict current OpenAI compatibility types', () => {
     const responses: OllamaOpenAIResponsesRequest = {
       model: 'qwen3',
       input: 'hello',
+      truncation: 'auto',
     };
 
     expect(chat.messages[0]?.content).toHaveLength(2);
-    expect(embeddings.user).toBe('test-user');
+    expect(embeddings.encoding_format).toBe('float');
     expect(responses.truncation).toBe('auto');
   });
 });
