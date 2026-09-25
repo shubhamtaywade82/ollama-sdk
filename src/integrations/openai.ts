@@ -19,7 +19,7 @@ import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 import type { RequestRunner } from '../transport/runner.js';
-import { OllamaAbortError } from '../errors.js';
+import { OllamaAbortError, OllamaClientError } from '../errors.js';
 
 export interface OpenAIToolCall {
   readonly id: string;
@@ -328,53 +328,59 @@ export interface OpenAIResponsesRequest {
   readonly think?: boolean | string | null | undefined;
 }
 
+export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
+
+export interface OpenAIResponsesError { readonly code?: string | undefined; readonly message?: string | undefined; readonly [key: string]: unknown; }
+export interface OpenAIResponsesIncompleteDetails { readonly reason?: string | undefined; readonly [key: string]: unknown; }
+
 export interface OpenAIResponsesOutputTextContent {
-  readonly type: 'output_text';
-  readonly text: string;
+  readonly type: 'output_text'; readonly text: string;
+  readonly annotations?: readonly Record<string, unknown>[] | undefined;
+  readonly logprobs?: readonly Record<string, unknown>[] | undefined;
 }
+export interface OpenAIResponsesOutputRefusal { readonly type: 'refusal'; readonly refusal: string; }
+export type OpenAIResponsesOutputContent = OpenAIResponsesOutputTextContent | OpenAIResponsesOutputRefusal;
 
 export interface OpenAIResponsesOutputMessage {
-  readonly type: 'message';
-  readonly role?: string | undefined;
-  readonly content: readonly OpenAIResponsesOutputTextContent[];
+  readonly type: 'message'; readonly id?: string | undefined; readonly status?: OpenAIResponsesStatus | undefined;
+  readonly role?: string | undefined; readonly phase?: string | undefined;
+  readonly content: readonly OpenAIResponsesOutputContent[];
 }
-
 export interface OpenAIResponsesOutputFunctionCall {
-  readonly type: 'function_call';
-  readonly id?: string | undefined;
-  readonly call_id?: string | undefined;
-  readonly name: string;
-  readonly arguments: string;
+  readonly type: 'function_call'; readonly id?: string | undefined; readonly call_id?: string | undefined;
+  readonly name: string; readonly arguments: string; readonly status?: OpenAIResponsesStatus | undefined;
 }
-
 export interface OpenAIResponsesOutputReasoning {
-  readonly type: 'reasoning';
-  readonly id?: string | undefined;
+  readonly type: 'reasoning'; readonly id?: string | undefined; readonly status?: OpenAIResponsesStatus | undefined;
   readonly summary?: readonly { readonly type: 'summary_text'; readonly text: string }[] | undefined;
-  readonly text?: string | undefined;
+  readonly text?: string | undefined; readonly encrypted_content?: string | undefined;
+}
+export type OpenAIResponsesOutputItem = OpenAIResponsesOutputMessage | OpenAIResponsesOutputFunctionCall | OpenAIResponsesOutputReasoning;
+
+export interface OpenAIResponsesUsage {
+  readonly input_tokens: number; readonly output_tokens: number; readonly total_tokens: number;
+  readonly input_tokens_details?: Record<string, unknown> | undefined;
+  readonly output_tokens_details?: Record<string, unknown> | undefined;
 }
 
-export type OpenAIResponsesOutputItem =
-  | OpenAIResponsesOutputMessage
-  | OpenAIResponsesOutputFunctionCall
-  | OpenAIResponsesOutputReasoning;
-
-/** Non-stateful response shape for `/v1/responses`; see {@link OpenAIResponsesRequest}. */
+/** Non-stateful response shape for the Ollama Responses compatibility endpoint. */
 export interface OpenAIResponsesResponse {
-  readonly id: string;
-  readonly object: 'response';
-  readonly created: number;
-  readonly model: string;
-  readonly output: readonly OpenAIResponsesOutputItem[];
-  readonly usage?:
-    | {
-        readonly input_tokens: number;
-        readonly output_tokens: number;
-        readonly total_tokens: number;
-      }
-    | undefined;
+  readonly id: string; readonly object: 'response'; readonly created: number;
+  readonly created_at?: number | undefined; readonly status?: OpenAIResponsesStatus | undefined;
+  readonly completed_at?: number | null | undefined; readonly error?: OpenAIResponsesError | null | undefined;
+  readonly incomplete_details?: OpenAIResponsesIncompleteDetails | null | undefined;
+  readonly model: string; readonly output: readonly OpenAIResponsesOutputItem[];
+  readonly output_text?: string | undefined; readonly previous_response_id?: string | null | undefined;
+  readonly parallel_tool_calls?: boolean | undefined; readonly usage?: OpenAIResponsesUsage | undefined;
 }
 
+export class OpenAIResponsesStreamError extends OllamaClientError {
+  readonly response: OpenAIResponsesResponse;
+  constructor(message: string, response: OpenAIResponsesResponse) {
+    super(message, { code: 'openai_responses_stream_error', retryable: false, response: { body: response } });
+    this.response = response;
+  }
+}
 export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompletionChunk> {
   private readonly finalResultPromise: Promise<OpenAIChatCompletionResponse>;
   private resolveFinal!: (value: OpenAIChatCompletionResponse) => void;
@@ -622,85 +628,50 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
   }
 }
 
-export interface OpenAIResponsesOutputTextDeltaEvent {
-  readonly type: 'response.output_text.delta';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly content_index: number;
-  readonly delta: string;
-}
+export interface OpenAIResponsesEventBase { readonly response_id?: string | undefined; readonly sequence_number?: number | undefined; }
 
-export interface OpenAIResponsesOutputTextDoneEvent {
-  readonly type: 'response.output_text.done';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly content_index: number;
-  readonly text: string;
-}
-
-export interface OpenAIResponsesFunctionCallArgumentsDeltaEvent {
-  readonly type: 'response.function_call_arguments.delta';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly delta: string;
-}
-
-export interface OpenAIResponsesFunctionCallArgumentsDoneEvent {
-  readonly type: 'response.function_call_arguments.done';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly name: string;
-  readonly arguments: string;
-}
-
-export interface OpenAIResponsesReasoningTextDeltaEvent {
-  readonly type: 'response.reasoning_text.delta';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly content_index: number;
-  readonly delta: string;
-}
-
-export interface OpenAIResponsesReasoningSummaryTextDeltaEvent {
-  readonly type: 'response.reasoning_summary_text.delta';
-  readonly item_id: string;
-  readonly output_index: number;
-  readonly summary_index: number;
-  readonly delta: string;
-}
-
-export interface OpenAIResponsesCreatedEvent {
-  readonly type: 'response.created';
-  readonly response: OpenAIResponsesResponse;
-}
-
-export interface OpenAIResponsesCompletedEvent {
-  readonly type: 'response.completed' | 'response.done';
-  readonly response: OpenAIResponsesResponse;
-}
+export interface OpenAIResponsesOutputTextDeltaEvent extends OpenAIResponsesEventBase { readonly type: 'response.output_text.delta'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly delta: string; }
+export interface OpenAIResponsesOutputTextDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.output_text.done'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly text: string; }
+export interface OpenAIResponsesFunctionCallArgumentsDeltaEvent extends OpenAIResponsesEventBase { readonly type: 'response.function_call_arguments.delta'; readonly item_id: string; readonly output_index: number; readonly delta: string; }
+export interface OpenAIResponsesFunctionCallArgumentsDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.function_call_arguments.done'; readonly item_id: string; readonly output_index: number; readonly arguments: string; readonly name?: string | undefined; }
+export interface OpenAIResponsesReasoningTextDeltaEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_text.delta'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly delta: string; }
+export interface OpenAIResponsesReasoningTextDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_text.done'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly text: string; }
+export interface OpenAIResponsesReasoningSummaryPartAddedEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_summary_part.added'; readonly item_id: string; readonly output_index: number; readonly summary_index: number; readonly part: { readonly type: 'summary_text'; readonly text: string }; }
+export interface OpenAIResponsesReasoningSummaryPartDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_summary_part.done'; readonly item_id: string; readonly output_index: number; readonly summary_index: number; readonly part: { readonly type: 'summary_text'; readonly text: string }; readonly status?: 'incomplete' | undefined; }
+export interface OpenAIResponsesReasoningSummaryTextDeltaEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_summary_text.delta'; readonly item_id: string; readonly output_index: number; readonly summary_index: number; readonly delta: string; }
+export interface OpenAIResponsesReasoningSummaryTextDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.reasoning_summary_text.done'; readonly item_id: string; readonly output_index: number; readonly summary_index: number; readonly text: string; }
+export interface OpenAIResponsesOutputItemAddedEvent extends OpenAIResponsesEventBase { readonly type: 'response.output_item.added'; readonly item: OpenAIResponsesOutputItem; readonly output_index: number; }
+export interface OpenAIResponsesOutputItemDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.output_item.done'; readonly item: OpenAIResponsesOutputItem; readonly output_index: number; }
+export interface OpenAIResponsesContentPartAddedEvent extends OpenAIResponsesEventBase { readonly type: 'response.content_part.added'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly part: OpenAIResponsesOutputContent | { readonly type: string; readonly [key: string]: unknown }; }
+export interface OpenAIResponsesContentPartDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.content_part.done'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly part: OpenAIResponsesOutputContent | { readonly type: string; readonly [key: string]: unknown }; }
+export interface OpenAIResponsesRefusalDeltaEvent extends OpenAIResponsesEventBase { readonly type: 'response.refusal.delta'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly delta: string; }
+export interface OpenAIResponsesRefusalDoneEvent extends OpenAIResponsesEventBase { readonly type: 'response.refusal.done'; readonly item_id: string; readonly output_index: number; readonly content_index: number; readonly refusal: string; }
+export interface OpenAIResponsesCreatedEvent extends OpenAIResponsesEventBase { readonly type: 'response.created'; readonly response: OpenAIResponsesResponse; }
+export interface OpenAIResponsesInProgressEvent extends OpenAIResponsesEventBase { readonly type: 'response.in_progress'; readonly response: OpenAIResponsesResponse; }
+export interface OpenAIResponsesQueuedEvent extends OpenAIResponsesEventBase { readonly type: 'response.queued'; readonly response: OpenAIResponsesResponse; }
+export interface OpenAIResponsesCompletedEvent extends OpenAIResponsesEventBase { readonly type: 'response.completed' | 'response.done'; readonly response: OpenAIResponsesResponse; }
+export interface OpenAIResponsesFailedEvent extends OpenAIResponsesEventBase { readonly type: 'response.failed'; readonly response: OpenAIResponsesResponse; }
+export interface OpenAIResponsesIncompleteEvent extends OpenAIResponsesEventBase { readonly type: 'response.incomplete'; readonly response: OpenAIResponsesResponse; }
 
 export type OpenAIResponsesStreamEvent =
-  | OpenAIResponsesOutputTextDeltaEvent
-  | OpenAIResponsesOutputTextDoneEvent
-  | OpenAIResponsesFunctionCallArgumentsDeltaEvent
-  | OpenAIResponsesFunctionCallArgumentsDoneEvent
-  | OpenAIResponsesReasoningTextDeltaEvent
-  | OpenAIResponsesReasoningSummaryTextDeltaEvent
-  | OpenAIResponsesCreatedEvent
-  | OpenAIResponsesCompletedEvent
+  | OpenAIResponsesOutputTextDeltaEvent | OpenAIResponsesOutputTextDoneEvent
+  | OpenAIResponsesFunctionCallArgumentsDeltaEvent | OpenAIResponsesFunctionCallArgumentsDoneEvent
+  | OpenAIResponsesReasoningTextDeltaEvent | OpenAIResponsesReasoningTextDoneEvent
+  | OpenAIResponsesReasoningSummaryPartAddedEvent | OpenAIResponsesReasoningSummaryPartDoneEvent
+  | OpenAIResponsesReasoningSummaryTextDeltaEvent | OpenAIResponsesReasoningSummaryTextDoneEvent
+  | OpenAIResponsesOutputItemAddedEvent | OpenAIResponsesOutputItemDoneEvent
+  | OpenAIResponsesContentPartAddedEvent | OpenAIResponsesContentPartDoneEvent
+  | OpenAIResponsesRefusalDeltaEvent | OpenAIResponsesRefusalDoneEvent
+  | OpenAIResponsesCreatedEvent | OpenAIResponsesInProgressEvent | OpenAIResponsesQueuedEvent
+  | OpenAIResponsesCompletedEvent | OpenAIResponsesFailedEvent | OpenAIResponsesIncompleteEvent
   | { readonly type: string; readonly [key: string]: unknown };
 
 type OpenAIResponsesOutputState = {
-  itemId: string;
-  kind: 'message' | 'function_call' | 'reasoning';
-  content: Map<number, string>;
-  summary: Map<number, string>;
-  arguments: string;
-  name?: string;
-  callId?: string;
-  reasoningText: string;
+  itemId: string; kind: 'message' | 'function_call' | 'reasoning';
+  content: Map<number, OpenAIResponsesOutputContent>; summary: Map<number, string>;
+  arguments: string; name?: string; callId?: string; status?: OpenAIResponsesStatus | undefined;
+  role?: string; phase?: string; reasoningText: string;
 };
-
 export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
   private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
   private resolveFinal!: (value: OpenAIResponsesResponse) => void;
@@ -708,201 +679,107 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
   private removeAbortListener: (() => void) | undefined;
 
   constructor(private readonly source: AbortableAsyncIterable<SseEvent>, signal?: AbortSignal) {
-    this.finalResultPromise = new Promise<OpenAIResponsesResponse>((resolve, reject) => {
-      this.resolveFinal = resolve;
-      this.rejectFinal = reject;
-    });
+    this.finalResultPromise = new Promise<OpenAIResponsesResponse>((resolve, reject) => { this.resolveFinal = resolve; this.rejectFinal = reject; });
     if (signal !== undefined) {
       const onAbort = (): void => this.abort();
       if (signal.aborted) onAbort();
-      else {
-        signal.addEventListener('abort', onAbort, { once: true });
-        this.removeAbortListener = () => signal.removeEventListener('abort', onAbort);
-      }
+      else { signal.addEventListener('abort', onAbort, { once: true }); this.removeAbortListener = () => signal.removeEventListener('abort', onAbort); }
     }
   }
-
-  get finalResult(): Promise<OpenAIResponsesResponse> {
-    return this.finalResultPromise;
-  }
-
+  get finalResult(): Promise<OpenAIResponsesResponse> { return this.finalResultPromise; }
   abort(): void {
-    this.removeAbortListener?.();
-    this.removeAbortListener = undefined;
-    this.source.abort?.();
+    this.removeAbortListener?.(); this.removeAbortListener = undefined; this.source.abort?.();
     this.rejectFinal(new OllamaAbortError('OpenAI Responses stream aborted'));
   }
 
   async *[Symbol.asyncIterator](): AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined> {
     let finalResponse: OpenAIResponsesResponse | undefined;
     let responseMeta: OpenAIResponsesResponse | undefined;
+    let terminalFailure: OpenAIResponsesResponse | undefined;
+    let terminalIncomplete: OpenAIResponsesResponse | undefined;
     const outputs = new Map<number, OpenAIResponsesOutputState>();
+    const canonicalOutputItems = new Map<number, OpenAIResponsesOutputItem>();
     let completed = false;
+
+    const ensureState = (outputIndex: number, itemId: string, kind: OpenAIResponsesOutputState['kind']): OpenAIResponsesOutputState => {
+      const existing = outputs.get(outputIndex);
+      if (existing) { if (itemId) existing.itemId = itemId; existing.kind = kind; return existing; }
+      const state: OpenAIResponsesOutputState = { itemId, kind, content: new Map(), summary: new Map(), arguments: '', reasoningText: '' };
+      outputs.set(outputIndex, state); return state;
+    };
+
+    const applyOutputItem = (outputIndex: number, item: OpenAIResponsesOutputItem): void => {
+      const kind = item.type === 'message' ? 'message' : item.type === 'function_call' ? 'function_call' : 'reasoning';
+      const state = ensureState(outputIndex, item.id ?? '', kind);
+      state.itemId = item.id ?? state.itemId; state.status = item.status;
+      if (item.type === 'message') { state.role = item.role; state.phase = item.phase; state.content.clear(); item.content.forEach((p, i) => state.content.set(i, p)); }
+      else if (item.type === 'function_call') { state.callId = item.call_id; state.name = item.name; state.arguments = item.arguments; }
+      else { state.summary.clear(); item.summary?.forEach((p, i) => state.summary.set(i, p.text)); state.reasoningText = item.text ?? ''; }
+    };
+    const applyContentPart = (outputIndex: number, itemId: string, contentIndex: number, part: OpenAIResponsesOutputContent): void => {
+      const state = ensureState(outputIndex, itemId, 'message'); state.content.set(contentIndex, part);
+    };
+    const reconstructedOutput = (): readonly OpenAIResponsesOutputItem[] =>
+      [...outputs.entries()].sort(([a], [b]) => a - b).map(([outputIndex, state]) => {
+        const canonical = canonicalOutputItems.get(outputIndex); if (canonical) return canonical;
+        if (state.kind === 'message') return { type: 'message', ...(state.itemId ? { id: state.itemId } : {}), ...(state.status ? { status: state.status } : {}), role: state.role ?? 'assistant', ...(state.phase ? { phase: state.phase } : {}), content: [...state.content.entries()].sort(([a], [b]) => a - b).map(([, p]) => p) };
+        if (state.kind === 'function_call') return { type: 'function_call', ...(state.itemId ? { id: state.itemId } : {}), ...(state.callId ? { call_id: state.callId } : {}), ...(state.status ? { status: state.status } : {}), name: state.name ?? '', arguments: state.arguments };
+        return { type: 'reasoning', ...(state.itemId ? { id: state.itemId } : {}), ...(state.status ? { status: state.status } : {}), ...(state.summary.size ? { summary: [...state.summary.entries()].sort(([a], [b]) => a - b).map(([, text]) => ({ type: 'summary_text' as const, text })) } : {}), ...(state.reasoningText ? { text: state.reasoningText } : {}) };
+      });
 
     try {
       for await (const event of this.source) {
         if (event.data === '[DONE]') break;
         let payload: OpenAIResponsesStreamEvent;
-        try {
-          payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent;
-        } catch (error) {
-          throw new Error('Failed to parse OpenAI Responses SSE payload', { cause: error });
-        }
-
-        if (payload.type === 'response.created') {
-          responseMeta = (payload as OpenAIResponsesCreatedEvent).response;
-        } else if (payload.type === 'response.completed' || payload.type === 'response.done') {
-          const candidate = (payload as OpenAIResponsesCompletedEvent).response;
-          if (candidate && typeof candidate === 'object') finalResponse = candidate;
-        } else if (payload.type === 'response.output_text.delta') {
-          const event = payload as OpenAIResponsesOutputTextDeltaEvent;
-          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
-            itemId: event.item_id,
-            kind: 'message' as const,
-            content: new Map<number, string>(),
-            summary: new Map<number, string>(),
-            arguments: '',
-            reasoningText: '',
-          };
-          state.itemId = event.item_id;
-          state.kind = 'message';
-          state.content.set(
-            event.content_index,
-            (state.content.get(event.content_index) ?? '') + event.delta,
-          );
-          outputs.set(event.output_index, state);
-        } else if (payload.type === 'response.output_text.done') {
-          const event = payload as OpenAIResponsesOutputTextDoneEvent;
-          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
-            itemId: event.item_id,
-            kind: 'message' as const,
-            content: new Map<number, string>(),
-            summary: new Map<number, string>(),
-            arguments: '',
-            reasoningText: '',
-          };
-          state.itemId = event.item_id;
-          state.kind = 'message';
-          state.content.set(event.content_index, event.text);
-          outputs.set(event.output_index, state);
-        } else if (payload.type === 'response.function_call_arguments.delta') {
-          const event = payload as OpenAIResponsesFunctionCallArgumentsDeltaEvent;
-          const state = outputs.get(event.output_index) ?? {
-            itemId: event.item_id,
-            kind: 'function_call' as const,
-            content: new Map<number, string>(),
-            summary: new Map<number, string>(),
-            arguments: '',
-            reasoningText: '',
-          };
-          state.itemId = event.item_id;
-          state.kind = 'function_call';
-          state.arguments += event.delta;
-          outputs.set(event.output_index, state);
-        } else if (payload.type === 'response.function_call_arguments.done') {
-          const event = payload as OpenAIResponsesFunctionCallArgumentsDoneEvent;
-          const state: OpenAIResponsesOutputState = outputs.get(event.output_index) ?? {
-            itemId: event.item_id,
-            kind: 'function_call' as const,
-            content: new Map<number, string>(),
-            summary: new Map<number, string>(),
-            arguments: '',
-            reasoningText: '',
-          };
-          state.itemId = event.item_id;
-          state.kind = 'function_call';
-          state.name = event.name;
-          state.arguments = event.arguments;
-          outputs.set(event.output_index, state);
-        } else if (
-          payload.type === 'response.reasoning_text.delta' ||
-          payload.type === 'response.reasoning_summary_text.delta'
-        ) {
-          const event =
-            payload.type === 'response.reasoning_text.delta'
-              ? (payload as OpenAIResponsesReasoningTextDeltaEvent)
-              : (payload as OpenAIResponsesReasoningSummaryTextDeltaEvent);
-          const state = outputs.get(event.output_index) ?? {
-            itemId: event.item_id,
-            kind: 'reasoning' as const,
-            content: new Map<number, string>(),
-            summary: new Map<number, string>(),
-            arguments: '',
-            reasoningText: '',
-          };
-          state.itemId = event.item_id;
-          state.kind = 'reasoning';
-          if (event.type === 'response.reasoning_text.delta') {
-            state.reasoningText += event.delta;
-          } else {
-            state.summary.set(
-              event.summary_index,
-              (state.summary.get(event.summary_index) ?? '') + event.delta,
-            );
+        try { payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent; } catch (error) { throw new Error('Failed to parse OpenAI Responses SSE payload', { cause: error }); }
+        switch (payload.type) {
+          case 'response.created': case 'response.in_progress': case 'response.queued': responseMeta = (payload as OpenAIResponsesCreatedEvent).response; break;
+          case 'response.completed': case 'response.done': finalResponse = (payload as OpenAIResponsesCompletedEvent).response; break;
+          case 'response.failed': terminalFailure = (payload as OpenAIResponsesFailedEvent).response; finalResponse = terminalFailure; break;
+          case 'response.incomplete': terminalIncomplete = (payload as OpenAIResponsesIncompleteEvent).response; finalResponse = terminalIncomplete; break;
+          case 'response.output_item.added': { const e = payload as OpenAIResponsesOutputItemAddedEvent; applyOutputItem(e.output_index, e.item); break; }
+          case 'response.output_item.done': { const e = payload as OpenAIResponsesOutputItemDoneEvent; applyOutputItem(e.output_index, e.item); canonicalOutputItems.set(e.output_index, e.item); break; }
+          case 'response.content_part.added': case 'response.content_part.done': {
+            const e = payload as OpenAIResponsesContentPartAddedEvent | OpenAIResponsesContentPartDoneEvent;
+            if (e.part.type === 'output_text' || e.part.type === 'refusal') applyContentPart(e.output_index, e.item_id, e.content_index, e.part); break;
           }
-          outputs.set(event.output_index, state);
+          case 'response.output_text.delta': { const e = payload as OpenAIResponsesOutputTextDeltaEvent; const s = ensureState(e.output_index, e.item_id, 'message'); const p=s.content.get(e.content_index); s.content.set(e.content_index,{type:'output_text',text:(p?.type==='output_text'?p.text:'')+e.delta}); break; }
+          case 'response.output_text.done': { const e = payload as OpenAIResponsesOutputTextDoneEvent; const s=ensureState(e.output_index,e.item_id,'message'); s.content.set(e.content_index,{type:'output_text',text:e.text}); break; }
+          case 'response.refusal.delta': { const e=payload as OpenAIResponsesRefusalDeltaEvent; const s=ensureState(e.output_index,e.item_id,'message'); const p=s.content.get(e.content_index); s.content.set(e.content_index,{type:'refusal',refusal:(p?.type==='refusal'?p.refusal:'')+e.delta}); break; }
+          case 'response.refusal.done': { const e=payload as OpenAIResponsesRefusalDoneEvent; const s=ensureState(e.output_index,e.item_id,'message'); s.content.set(e.content_index,{type:'refusal',refusal:e.refusal}); break; }
+          case 'response.function_call_arguments.delta': { const e=payload as OpenAIResponsesFunctionCallArgumentsDeltaEvent; const s=ensureState(e.output_index,e.item_id,'function_call'); s.arguments+=e.delta; break; }
+          case 'response.function_call_arguments.done': { const e=payload as OpenAIResponsesFunctionCallArgumentsDoneEvent; const s=ensureState(e.output_index,e.item_id,'function_call'); s.arguments=e.arguments; if(e.name!==undefined) s.name=e.name; break; }
+          case 'response.reasoning_summary_part.added': case 'response.reasoning_summary_part.done': { const e=payload as OpenAIResponsesReasoningSummaryPartAddedEvent | OpenAIResponsesReasoningSummaryPartDoneEvent; const s=ensureState(e.output_index,e.item_id,'reasoning'); s.summary.set(e.summary_index,e.part.text); break; }
+          case 'response.reasoning_summary_text.delta': { const e=payload as OpenAIResponsesReasoningSummaryTextDeltaEvent; const s=ensureState(e.output_index,e.item_id,'reasoning'); s.summary.set(e.summary_index,(s.summary.get(e.summary_index)??'')+e.delta); break; }
+          case 'response.reasoning_summary_text.done': { const e=payload as OpenAIResponsesReasoningSummaryTextDoneEvent; const s=ensureState(e.output_index,e.item_id,'reasoning'); s.summary.set(e.summary_index,e.text); break; }
+          case 'response.reasoning_text.delta': { const e=payload as OpenAIResponsesReasoningTextDeltaEvent; const s=ensureState(e.output_index,e.item_id,'reasoning'); s.reasoningText+=e.delta; break; }
+          case 'response.reasoning_text.done': { const e=payload as OpenAIResponsesReasoningTextDoneEvent; const s=ensureState(e.output_index,e.item_id,'reasoning'); s.reasoningText=e.text; break; }
+          default: break;
         }
-
         yield payload;
       }
-
+      if (terminalFailure || terminalIncomplete) {
+        const response = terminalFailure ?? terminalIncomplete!; const status = terminalFailure ? 'failed' : 'incomplete';
+        const detail = response.error?.message ?? response.incomplete_details?.reason ?? 'unknown error';
+        throw new OpenAIResponsesStreamError('OpenAI Responses stream ' + status + ': ' + detail, response);
+      }
       if (!finalResponse) {
-        if (!responseMeta) {
-          throw new Error('OpenAI Responses stream ended without a completed response payload');
+        if (!responseMeta) throw new Error('OpenAI Responses stream ended without a terminal response payload');
+        if (responseMeta.status === 'failed' || responseMeta.status === 'incomplete') {
+          const detail=responseMeta.error?.message ?? responseMeta.incomplete_details?.reason ?? 'unknown error';
+          throw new OpenAIResponsesStreamError('OpenAI Responses stream ' + responseMeta.status + ': ' + detail, responseMeta);
         }
-        const output = [...outputs.entries()].sort(([a], [b]) => a - b).map(([, state]) => {
-          if (state.kind === 'message') {
-            return {
-              type: 'message' as const,
-              role: 'assistant',
-              content: [...state.content.entries()]
-                .sort(([a], [b]) => a - b)
-                .map(([, text]) => ({ type: 'output_text' as const, text })),
-            };
-          }
-          if (state.kind === 'function_call') {
-            return {
-              type: 'function_call' as const,
-              ...(state.itemId ? { id: state.itemId } : {}),
-              ...(state.callId ? { call_id: state.callId } : {}),
-              name: state.name ?? '',
-              arguments: state.arguments,
-            };
-          }
-          return {
-            type: 'reasoning' as const,
-            ...(state.itemId ? { id: state.itemId } : {}),
-            ...(state.summary.size
-              ? {
-                  summary: [...state.summary.entries()]
-                    .sort(([a], [b]) => a - b)
-                    .map(([, text]) => ({ type: 'summary_text' as const, text })),
-                }
-              : {}),
-            ...(state.reasoningText ? { text: state.reasoningText } : {}),
-          };
-        });
-        finalResponse = { ...responseMeta, output };
+        finalResponse={...responseMeta,output:reconstructedOutput(),status:'completed'};
+      } else if (finalResponse.status === 'failed' || finalResponse.status === 'incomplete') {
+        const detail=finalResponse.error?.message ?? finalResponse.incomplete_details?.reason ?? 'unknown error';
+        throw new OpenAIResponsesStreamError('OpenAI Responses stream ' + finalResponse.status + ': ' + detail, finalResponse);
       }
-
-      completed = true;
-      this.removeAbortListener?.();
-      this.removeAbortListener = undefined;
-      this.resolveFinal(finalResponse);
-    } catch (error) {
-      this.removeAbortListener?.();
-      this.removeAbortListener = undefined;
-      this.rejectFinal(error);
-      throw error;
-    } finally {
-      if (!completed) {
-        this.source.abort?.();
-        this.rejectFinal(new OllamaAbortError('OpenAI Responses stream ended before completion'));
-      }
-    }
+      if (finalResponse.output.length===0 && outputs.size>0) finalResponse={...finalResponse,output:reconstructedOutput()};
+      completed=true; this.removeAbortListener?.(); this.removeAbortListener=undefined; this.resolveFinal(finalResponse);
+    } catch(error) { this.removeAbortListener?.(); this.removeAbortListener=undefined; this.rejectFinal(error); throw error; }
+    finally { if(!completed){ this.source.abort?.(); this.rejectFinal(new OllamaAbortError('OpenAI Responses stream ended before completion')); } }
   }
 }
-
 export class OpenAICompatClient {
   constructor(
     private readonly http: HttpClient,
