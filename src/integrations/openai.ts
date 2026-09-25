@@ -472,9 +472,8 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
     let id = '';
     let model = '';
     let created = 0;
-    let usage:
-      | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
-      | undefined;
+    let systemFingerprint: string | undefined;
+    let usage: OpenAIUsage | undefined;
     let completed = false;
 
     try {
@@ -489,6 +488,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
         id = chunk.id || id;
         model = chunk.model || model;
         created = chunk.created || created;
+        if (chunk.system_fingerprint !== undefined) systemFingerprint = chunk.system_fingerprint;
         if (chunk.usage !== null && chunk.usage !== undefined) usage = chunk.usage;
 
         for (const choice of chunk.choices) {
@@ -507,6 +507,9 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
               message: {
                 role: delta.role ?? 'assistant',
                 content: delta.content ?? '',
+                ...(delta.reasoning !== undefined && delta.reasoning !== null
+                  ? { reasoning: delta.reasoning }
+                  : {}),
                 ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
               },
               finish_reason: choice.finish_reason ?? '',
@@ -546,6 +549,9 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
               ...(delta.content !== undefined && delta.content !== null
                 ? { content: existing.message.content + delta.content }
                 : {}),
+              ...(delta.reasoning !== undefined && delta.reasoning !== null
+                ? { reasoning: (existing.message.reasoning ?? '') + delta.reasoning }
+                : {}),
               ...(priorToolCalls.length ? { tool_calls: priorToolCalls } : {}),
             },
             finish_reason: choice.finish_reason ?? existing.finish_reason,
@@ -561,6 +567,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
         object: 'chat.completion',
         created,
         model,
+        ...(systemFingerprint !== undefined ? { system_fingerprint: systemFingerprint } : {}),
         choices: [...choices.entries()]
           .sort(([a], [b]) => a - b)
           .map(([index, choice]) => ({
