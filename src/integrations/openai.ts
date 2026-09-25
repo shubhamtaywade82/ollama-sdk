@@ -134,6 +134,12 @@ export interface OpenAIChatCompletionRequest {
     { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
+/** Strict Ollama-documented Chat Completions request; excludes fields Ollama marks unsupported. */
+export type OllamaOpenAIChatCompletionRequest = Omit<
+  OpenAIChatCompletionRequest,
+  'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
+>;
+
 export interface OpenAIChatCompletionChoice {
   readonly index: number;
   readonly message: OpenAIMessage;
@@ -229,6 +235,12 @@ export interface OpenAICompletionRequest {
   readonly n?: number | undefined;
 }
 
+/** Strict Ollama-documented Completions request; excludes fields Ollama marks unsupported. */
+export type OllamaOpenAICompletionRequest = Omit<
+  OpenAICompletionRequest,
+  'best_of' | 'echo' | 'logit_bias' | 'user' | 'n'
+>;
+
 export interface OpenAICompletionChoice {
   readonly text: string;
   readonly index: number;
@@ -284,6 +296,9 @@ export interface OpenAIEmbeddingRequest {
   readonly user?: string | undefined;
 }
 
+/** Strict Ollama-documented Embeddings request; excludes the unsupported `user` field. */
+export type OllamaOpenAIEmbeddingRequest = Omit<OpenAIEmbeddingRequest, 'user'>;
+
 export interface OpenAIEmbeddingItem {
   readonly object: 'embedding';
   readonly embedding: readonly number[] | string;
@@ -327,6 +342,12 @@ export interface OpenAIResponsesRequest {
   /** Ollama extension: boolean, model-defined string, or null for model default. */
   readonly think?: boolean | string | null | undefined;
 }
+
+/** Strict Ollama-documented Responses request; excludes stateful/undocumented request fields. */
+export type OllamaOpenAIResponsesRequest = Omit<
+  OpenAIResponsesRequest,
+  'previous_response_id' | 'conversation' | 'truncation' | 'reasoning' | 'think'
+>;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
 
