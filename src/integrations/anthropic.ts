@@ -205,6 +205,29 @@ export type AnthropicMessageStreamEvent =
   | AnthropicErrorEvent
   | AnthropicUnknownStreamEvent;
 
+type AnthropicKnownStreamEvent = Exclude<
+  AnthropicMessageStreamEvent,
+  AnthropicUnknownStreamEvent
+>;
+
+function isAnthropicKnownStreamEvent(
+  event: AnthropicMessageStreamEvent,
+): event is AnthropicKnownStreamEvent {
+  switch (event.type) {
+    case 'message_start':
+    case 'content_block_start':
+    case 'content_block_delta':
+    case 'content_block_stop':
+    case 'message_delta':
+    case 'message_stop':
+    case 'ping':
+    case 'error':
+      return true;
+    default:
+      return false;
+  }
+}
+
 function parseAnthropicEvent(event: SseEvent): AnthropicMessageStreamEvent {
   return JSON.parse(event.data) as AnthropicMessageStreamEvent;
 }
@@ -275,6 +298,11 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
           event = parseAnthropicEvent(rawEvent);
         } catch (error) {
           throw new Error('Failed to parse Anthropic message SSE payload', { cause: error });
+        }
+
+        if (!isAnthropicKnownStreamEvent(event)) {
+          yield event;
+          continue;
         }
 
         if (event.type === 'error') {
