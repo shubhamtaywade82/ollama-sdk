@@ -232,7 +232,8 @@ function assertContract(
   }
 
   const requestFields = requestFieldSection(docs, contract.endpoint);
-  const fallbackRequestFields = requestFieldSection(fallbackDocs, contract.endpoint);
+  const fallbackRequestFields =
+    requestFieldSection(fallbackDocs, contract.endpoint) || fallbackDocs;
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
     return firstKnownStatus(requestFields, fallbackRequestFields, aliases) !== 'supported';
@@ -284,7 +285,8 @@ function assertContract(
     }
 
     const responseSection = responseFieldSection(docs, contract.endpoint);
-    const fallbackResponseSection = responseFieldSection(fallbackDocs, contract.endpoint);
+    const fallbackResponseSection =
+      responseFieldSection(fallbackDocs, contract.endpoint) || fallbackDocs;
     const missingResponseDocs = contract.response.fields.filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
       return firstKnownStatus(responseSection, fallbackResponseSection, aliases) !== 'supported';
