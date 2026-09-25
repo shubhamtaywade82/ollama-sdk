@@ -51,6 +51,8 @@ export interface OpenAIMessage {
   readonly content: string | readonly OpenAIContentPart[];
   readonly name?: string | undefined;
   readonly tool_calls?: readonly OpenAIToolCall[] | undefined;
+  /** Ollama may emit model reasoning alongside assistant content. */
+  readonly reasoning?: string | undefined;
   /** Set on a `role: 'tool'` message to identify which call this is a result for. */
   readonly tool_call_id?: string | undefined;
 }
