@@ -119,6 +119,12 @@ export interface AnthropicMessagesRequest {
   readonly metadata?: Record<string, unknown> | undefined;
 }
 
+/** Strict Ollama-documented Messages request; excludes fields Ollama marks unsupported. */
+export type OllamaAnthropicMessagesRequest = Omit<
+  AnthropicMessagesRequest,
+  'tool_choice' | 'metadata'
+>;
+
 export interface AnthropicMessagesResponse {
   readonly id: string;
   readonly type: 'message';
