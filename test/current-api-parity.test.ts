@@ -230,10 +230,9 @@ describe('API parity manifest contract', () => {
       'model',
       'content',
       'stop_reason',
-      'stop_sequence',
       'usage',
     ]);
-    expect(anthropic?.response?.sdkOnlyFields).toEqual([]);
+    expect(anthropic?.response?.sdkOnlyFields).toEqual(['stop_sequence']);
     expect(anthropic?.stream?.unionName).toBe('AnthropicMessageStreamEvent');
     expect(chat?.fallbackDocsFile).toBe(
       'docs/upstream/ollama-openai-compatibility.mdx',
