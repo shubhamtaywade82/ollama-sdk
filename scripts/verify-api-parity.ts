@@ -173,15 +173,26 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
   const lines = docs.split(/\r?\n/);
   const normalizedLabel = label.toLowerCase();
   const start = lines.findIndex((line) => {
+    const trimmed = line.trim();
     const value = normalizedHeadingText(line);
-    return value === normalizedLabel || value.endsWith(normalizedLabel);
+    return (
+      value === normalizedLabel ||
+      value.endsWith(normalizedLabel) ||
+      (trimmed.startsWith('#') && value.includes(normalizedLabel))
+    );
   });
   if (start < 0) return '';
 
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index += 1) {
-    const value = normalizedHeadingText(lines[index] ?? '');
-    if (stopLabels.some((stop) => value === stop.toLowerCase() || value.endsWith(stop.toLowerCase()))) {
+    const line = lines[index] ?? '';
+    const value = normalizedHeadingText(line);
+    if (
+      stopLabels.some(
+        (stop) => value === stop.toLowerCase() || value.endsWith(stop.toLowerCase()),
+      ) ||
+      (/^#{2,6}\s+/.test(line.trim()) && stopLabels.some((stop) => value.includes(stop.toLowerCase())))
+    ) {
       end = index;
       break;
     }
