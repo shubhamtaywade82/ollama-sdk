@@ -250,6 +250,11 @@ describe('API parity manifest contract', () => {
     expect(anthropic?.fallbackDocsFile).toBe(
       'docs/upstream/ollama-anthropic-compatibility.mdx',
     );
+    expect(
+      manifest.surfaces
+        .filter((surface) => surface.id.startsWith('native-'))
+        .every((surface) => surface.fallbackDocsFile === 'docs/upstream/ollama-openapi.yaml'),
+    ).toBe(true);
     expect(anthropic?.stream?.interfaceNames).toHaveLength(8);
     expect(responses?.stream?.unionName).toBe('OpenAIResponsesStreamEvent');
     expect(responses?.stream?.interfaceNames).toHaveLength(22);
