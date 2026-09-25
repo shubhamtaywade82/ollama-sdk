@@ -140,10 +140,10 @@ export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
 };
 
-/** Strict Ollama-documented Chat Completions request with unsupported image URL content excluded. */
+/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel flag and narrows content parts to text. */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
-  'messages' | 'tool_choice' | 'logit_bias' | 'user' | 'n' | 'parallel_tool_calls'
+  'messages' | 'parallel_tool_calls'
 > & {
   readonly messages: readonly OllamaOpenAIChatMessage[];
 };
@@ -304,8 +304,8 @@ export interface OpenAIEmbeddingRequest {
   readonly user?: string | undefined;
 }
 
-/** Strict Ollama-documented Embeddings request; excludes the unsupported `user` field. */
-export type OllamaOpenAIEmbeddingRequest = Omit<OpenAIEmbeddingRequest, 'user'>;
+/** Strict Ollama-documented Embeddings request. */
+export type OllamaOpenAIEmbeddingRequest = OpenAIEmbeddingRequest;
 
 export interface OpenAIEmbeddingItem {
   readonly object: 'embedding';
@@ -354,7 +354,7 @@ export interface OpenAIResponsesRequest {
 /** Strict Ollama-documented Responses request; excludes stateful/undocumented request fields. */
 export type OllamaOpenAIResponsesRequest = Omit<
   OpenAIResponsesRequest,
-  'previous_response_id' | 'conversation' | 'truncation'
+  'previous_response_id' | 'conversation'
 >;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
