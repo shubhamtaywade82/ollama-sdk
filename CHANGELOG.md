@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+
+- **API parity v4.** Response fields for native endpoints and Anthropic, documented Anthropic stream event names, and live-doc precedence are now verified. `/api/ps` exposes `context_length`, and `/api/copy` is included in the parity surface.
 ### Added
 - **Machine-readable API parity manifest and CI verification.** `docs/api-parity.json` defines the supported Ollama surface and `verify:api-parity` checks the manifest against the current official documentation; publishing now runs the same verification.
 - **Support-aware compatibility contract.** API parity manifest v3 now separates supported, explicitly unsupported, and SDK-only fields; verifies Anthropic response fields and the public OpenAI Responses/Anthropic stream unions; and exports strict Ollama-scoped request types without removing the broader compatibility request types.
