@@ -30,12 +30,18 @@
 
 ### API parity verification
 
-The repository keeps the supported Ollama request surface in `docs/api-parity.json` and
+The repository keeps the Ollama compatibility contract in `docs/api-parity.json` and
 checks it against the current official documentation with `npm run verify:api-parity`.
-The check covers native chat/generate/embed/create/show endpoints and the OpenAI and
-Anthropic compatibility request surfaces. It intentionally verifies the subset this SDK
-claims to support rather than treating the entire upstream OpenAI/Anthropic APIs as
-Ollama-compatible.
+The manifest distinguishes **supported**, **explicitly unsupported**, and **SDK-only**
+fields, and can also verify documented response fields plus the public streaming-event
+union for compatibility adapters. This prevents a field merely being mentioned in
+upstream documentation from being mistaken for a supported Ollama feature.
+
+For callers who want compile-time enforcement of the documented Ollama subset, the package
+also exports strict request types such as `OllamaOpenAIChatCompletionRequest`,
+`OllamaOpenAIResponsesRequest`, `OllamaOpenAIEmbeddingRequest`, and
+`OllamaAnthropicMessagesRequest`. The broader compatibility request types remain
+available for pass-through interoperability and vendor-specific fields.
 
 ### SSE Streaming Foundation
 
