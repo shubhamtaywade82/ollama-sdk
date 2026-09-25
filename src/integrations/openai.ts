@@ -375,10 +375,10 @@ export interface OpenAIResponsesResponse {
 }
 
 export class OpenAIResponsesStreamError extends OllamaClientError {
-  readonly response: OpenAIResponsesResponse;
-  constructor(message: string, response: OpenAIResponsesResponse) {
-    super(message, { code: 'openai_responses_stream_error', retryable: false, response: { body: response } });
-    this.response = response;
+  readonly responsePayload: OpenAIResponsesResponse;
+  constructor(message: string, responsePayload: OpenAIResponsesResponse) {
+    super(message, { code: 'openai_responses_stream_error', retryable: false, response: { body: responsePayload } });
+    this.responsePayload = responsePayload;
   }
 }
 export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompletionChunk> {
@@ -670,7 +670,7 @@ type OpenAIResponsesOutputState = {
   itemId: string; kind: 'message' | 'function_call' | 'reasoning';
   content: Map<number, OpenAIResponsesOutputContent>; summary: Map<number, string>;
   arguments: string; name?: string; callId?: string; status?: OpenAIResponsesStatus | undefined;
-  role?: string; phase?: string; reasoningText: string;
+  role?: string | undefined; phase?: string | undefined; reasoningText: string;
 };
 export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStreamEvent> {
   private readonly finalResultPromise: Promise<OpenAIResponsesResponse>;
@@ -741,7 +741,13 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           case 'response.output_item.done': { const e = payload as OpenAIResponsesOutputItemDoneEvent; applyOutputItem(e.output_index, e.item); canonicalOutputItems.set(e.output_index, e.item); break; }
           case 'response.content_part.added': case 'response.content_part.done': {
             const e = payload as OpenAIResponsesContentPartAddedEvent | OpenAIResponsesContentPartDoneEvent;
-            if (e.part.type === 'output_text' || e.part.type === 'refusal') applyContentPart(e.output_index, e.item_id, e.content_index, e.part); break;
+            if (
+              (e.part.type === 'output_text' && 'text' in e.part && typeof e.part.text === 'string') ||
+              (e.part.type === 'refusal' && 'refusal' in e.part && typeof e.part.refusal === 'string')
+            ) {
+              applyContentPart(e.output_index, e.item_id, e.content_index, e.part as OpenAIResponsesOutputContent);
+            }
+            break;
           }
           case 'response.output_text.delta': { const e = payload as OpenAIResponsesOutputTextDeltaEvent; const s = ensureState(e.output_index, e.item_id, 'message'); const p=s.content.get(e.content_index); s.content.set(e.content_index,{type:'output_text',text:(p?.type==='output_text'?p.text:'')+e.delta}); break; }
           case 'response.output_text.done': { const e = payload as OpenAIResponsesOutputTextDoneEvent; const s=ensureState(e.output_index,e.item_id,'message'); s.content.set(e.content_index,{type:'output_text',text:e.text}); break; }
