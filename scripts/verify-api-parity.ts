@@ -258,13 +258,17 @@ function firstKnownStatus(
   fallbackWhole: string,
   aliases: readonly string[],
 ): DocFieldStatus {
-  const primaryStatus = docsFieldStatus(primary, aliases);
-  if (primaryStatus !== 'missing') return primaryStatus;
-
-  const fallbackSectionStatus = docsFieldStatus(fallbackSection, aliases);
-  if (fallbackSectionStatus !== 'missing') return fallbackSectionStatus;
-
-  return docsFieldStatus(fallbackWhole, aliases);
+  // Live hosted documentation is authoritative. A pinned fallback may intentionally
+  // lag behind it, so a supported live field must not be downgraded by an older
+  // fallback snapshot that still marks the same field unsupported.
+  const statuses = [
+    docsFieldStatus(primary, aliases),
+    docsFieldStatus(fallbackSection, aliases),
+    docsFieldStatus(fallbackWhole, aliases),
+  ];
+  if (statuses.includes('supported')) return 'supported';
+  if (statuses.includes('unsupported')) return 'unsupported';
+  return 'missing';
 }
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
