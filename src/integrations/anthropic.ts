@@ -120,10 +120,36 @@ export interface AnthropicMessagesRequest {
 }
 
 /** Strict Ollama-documented Messages request; excludes fields Ollama marks unsupported. */
+export type OllamaAnthropicTextContentBlock = Omit<
+  AnthropicTextContentBlock,
+  'cache_control'
+>;
+
+export type OllamaAnthropicContentBlock =
+  | OllamaAnthropicTextContentBlock
+  | Exclude<AnthropicContentBlock, AnthropicTextContentBlock>;
+
+export type OllamaAnthropicMessage = Omit<AnthropicMessage, 'content'> & {
+  readonly content: string | readonly OllamaAnthropicContentBlock[];
+};
+
+export type OllamaAnthropicSystemTextBlock = Omit<
+  AnthropicSystemTextBlock,
+  'cache_control'
+>;
+
+export type OllamaAnthropicSystem =
+  | string
+  | readonly OllamaAnthropicSystemTextBlock[];
+
+/** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'tool_choice' | 'metadata'
->;
+  'messages' | 'system' | 'tool_choice' | 'metadata'
+> & {
+  readonly messages: readonly OllamaAnthropicMessage[];
+  readonly system?: OllamaAnthropicSystem | undefined;
+};
 
 export interface AnthropicMessagesResponse {
   readonly id: string;
