@@ -239,17 +239,23 @@ describe('API parity manifest contract', () => {
     const responses = manifest.surfaces.find((surface) => surface.id === 'openai-responses');
     const anthropic = manifest.surfaces.find((surface) => surface.id === 'anthropic-messages');
 
-    expect(manifest.version).toBe(3);
-    expect(chat?.unsupportedFields).toEqual(['tool_choice', 'logit_bias', 'user', 'n']);
+    expect(manifest.version).toBe(4);
+    expect(chat?.unsupportedFields).toEqual([]);
     expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
-    expect(responses?.unsupportedFields).toEqual([
-      'previous_response_id',
-      'conversation',
-      'truncation',
-    ]);
+    expect(responses?.unsupportedFields).toEqual(['previous_response_id', 'conversation']);
     expect(responses?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
     expect(anthropic?.sdkOnlyFields).toEqual([]);
+    expect(anthropic?.stream?.interfaceNames).toEqual([
+      'AnthropicMessageStartEvent',
+      'AnthropicContentBlockStartEvent',
+      'AnthropicContentBlockDeltaEvent',
+      'AnthropicContentBlockStopEvent',
+      'AnthropicMessageDeltaEvent',
+      'AnthropicMessageStopEvent',
+      'AnthropicPingEvent',
+      'AnthropicErrorEvent',
+    ]);
     expect(anthropic?.response?.fields).toEqual([
       'id',
       'type',
@@ -371,6 +377,48 @@ describe('current model-management and response parity', () => {
       destination: 'qwen3-copy',
     });
     expect(copied.status).toBe('success');
+  });
+});
+
+describe('Anthropic unsupported-feature sanitization', () => {
+  it('does not transmit features Ollama documents as unsupported', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-unsupported',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 16,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: 'hello',
+          cache_control: { type: 'ephemeral' },
+        }],
+      }],
+      tool_choice: { type: 'any' },
+      metadata: { user_id: 'abc' },
+      system: [{
+        type: 'text',
+        text: 'system',
+        cache_control: { type: 'ephemeral' },
+      }],
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const body = JSON.parse(init.body);
+    expect(body.tool_choice).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
+    expect(body.messages[0].content[0].cache_control).toBeUndefined();
+    expect(body.system[0].cache_control).toBeUndefined();
   });
 });
 
