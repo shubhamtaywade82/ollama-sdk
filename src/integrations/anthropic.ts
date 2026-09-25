@@ -209,7 +209,11 @@ export interface AnthropicMessageDeltaEvent {
     readonly stop_sequence?: string | null | undefined;
   };
   readonly usage?: {
+    readonly input_tokens?: number | undefined;
     readonly output_tokens: number;
+    readonly cache_creation_input_tokens?: number | undefined;
+    readonly cache_read_input_tokens?: number | undefined;
+    readonly cache_creation?: Record<string, unknown> | undefined;
   } | undefined;
 }
 
@@ -416,8 +420,23 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
               ...(event.usage !== undefined
                 ? {
                     usage: {
-                      input_tokens: message.usage?.input_tokens ?? 0,
+                      input_tokens: event.usage.input_tokens ?? message.usage?.input_tokens ?? 0,
                       output_tokens: event.usage.output_tokens,
+                      ...(event.usage.cache_creation_input_tokens !== undefined
+                        ? { cache_creation_input_tokens: event.usage.cache_creation_input_tokens }
+                        : message.usage?.cache_creation_input_tokens !== undefined
+                          ? { cache_creation_input_tokens: message.usage.cache_creation_input_tokens }
+                          : {}),
+                      ...(event.usage.cache_read_input_tokens !== undefined
+                        ? { cache_read_input_tokens: event.usage.cache_read_input_tokens }
+                        : message.usage?.cache_read_input_tokens !== undefined
+                          ? { cache_read_input_tokens: message.usage.cache_read_input_tokens }
+                          : {}),
+                      ...(event.usage.cache_creation !== undefined
+                        ? { cache_creation: event.usage.cache_creation }
+                        : message.usage?.cache_creation !== undefined
+                          ? { cache_creation: message.usage.cache_creation }
+                          : {}),
                     },
                   }
                 : {}),
