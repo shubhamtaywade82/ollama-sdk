@@ -3,6 +3,44 @@ import { OllamaClient } from '../src/client.js';
 import { extractUsage } from '../src/usage.js';
 import { normalizeChatStream } from '../src/streaming/normalize.js';
 import type { ChatResponse } from '../src/types.js';
+import type {
+  AnthropicMessagesRequest,
+  OllamaAnthropicMessagesRequest,
+  OllamaOpenAIChatCompletionRequest,
+  OllamaOpenAICompletionRequest,
+  OllamaOpenAIEmbeddingRequest,
+  OllamaOpenAIResponsesRequest,
+} from '../src/index.js';
+
+type ExpectFalse<T extends false> = T;
+type _ChatToolChoiceExcluded = ExpectFalse<
+  'tool_choice' extends keyof OllamaOpenAIChatCompletionRequest ? true : false
+>;
+type _ChatParallelToolsExcluded = ExpectFalse<
+  'parallel_tool_calls' extends keyof OllamaOpenAIChatCompletionRequest ? true : false
+>;
+type _CompletionBestOfExcluded = ExpectFalse<
+  'best_of' extends keyof OllamaOpenAICompletionRequest ? true : false
+>;
+type _EmbeddingUserExcluded = ExpectFalse<
+  'user' extends keyof OllamaOpenAIEmbeddingRequest ? true : false
+>;
+type _ResponsesStateExcluded = ExpectFalse<
+  'previous_response_id' extends keyof OllamaOpenAIResponsesRequest ? true : false
+>;
+type _AnthropicToolChoiceExcluded = ExpectFalse<
+  'tool_choice' extends keyof OllamaAnthropicMessagesRequest ? true : false
+>;
+type _AnthropicMetadataExcluded = ExpectFalse<
+  'metadata' extends keyof OllamaAnthropicMessagesRequest ? true : false
+>;
+void (undefined as unknown as _ChatToolChoiceExcluded);
+void (undefined as unknown as _ChatParallelToolsExcluded);
+void (undefined as unknown as _CompletionBestOfExcluded);
+void (undefined as unknown as _EmbeddingUserExcluded);
+void (undefined as unknown as _ResponsesStateExcluded);
+void (undefined as unknown as _AnthropicToolChoiceExcluded);
+void (undefined as unknown as _AnthropicMetadataExcluded);
 
 function jsonFetchMock(body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -143,6 +181,50 @@ describe('current native Ollama API parity', () => {
       draft_quantize: 'q8_0',
       requires: '0.13.5',
     });
+  });
+});
+
+describe('strict documented Ollama compatibility request types', () => {
+  it('accepts documented request fields while excluding explicitly unsupported ones', () => {
+    const chat: OllamaOpenAIChatCompletionRequest = {
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hello' }],
+      reasoning: { effort: 'low' },
+    };
+    const completions: OllamaOpenAICompletionRequest = {
+      model: 'llama3.2',
+      prompt: 'hello',
+      suffix: '!',
+    };
+    const embeddings: OllamaOpenAIEmbeddingRequest = {
+      model: 'nomic-embed-text',
+      input: 'hello',
+      dimensions: 2,
+    };
+    const responses: OllamaOpenAIResponsesRequest = {
+      model: 'qwen3',
+      input: 'hello',
+      instructions: 'answer concisely',
+    };
+    const anthropic: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
+    };
+
+    expect(chat.model).toBe('qwen3');
+    expect(completions.suffix).toBe('!');
+    expect(embeddings.dimensions).toBe(2);
+    expect(responses.instructions).toBe('answer concisely');
+    expect(anthropic.messages[0]?.role).toBe('user');
+
+    const broad: AnthropicMessagesRequest = {
+      ...anthropic,
+      tool_choice: { type: 'auto' },
+      metadata: { request_id: 'compat' },
+    };
+    expect(broad.tool_choice).toEqual({ type: 'auto' });
+    expect(broad.metadata).toEqual({ request_id: 'compat' });
   });
 });
 
