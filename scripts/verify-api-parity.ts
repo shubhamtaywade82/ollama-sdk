@@ -161,16 +161,20 @@ function endpointSection(docs: string, endpoint: string): string {
   }
   return lines.slice(endpointIndex, endIndex).join('\n');
 }
+function normalizedHeadingText(line: string): string {
+  return line.trim().replace(/^#{1,6}\s+/, '').toLowerCase();
+}
+
 function labeledSection(docs: string, label: string, stopLabels: readonly string[]): string {
   const lines = docs.split(/\r?\n/);
   const start = lines.findIndex(
-    (line) => line.trim().toLowerCase() === label.toLowerCase(),
+    (line) => normalizedHeadingText(line) === label.toLowerCase(),
   );
   if (start < 0) return '';
 
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index += 1) {
-    const value = lines[index]?.trim().toLowerCase() ?? '';
+    const value = normalizedHeadingText(lines[index] ?? '');
     if (stopLabels.some((stop) => value === stop.toLowerCase())) {
       end = index;
       break;
