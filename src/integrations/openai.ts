@@ -134,8 +134,14 @@ export interface OpenAIChatCompletionRequest {
     { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
 }
 
-/** Current Ollama-documented Chat Completions content is text-only; image URLs remain in the broad OpenAI type for compatibility. */
-export type OllamaOpenAIChatContentPart = OpenAITextContentPart;
+/** Ollama Chat Completions supports text plus base64 image content via a string image URL. */
+export type OllamaOpenAIChatContentPart =
+  | OpenAITextContentPart
+  | {
+      readonly type: 'image_url';
+      /** Ollama currently documents base64-encoded image data URLs; ordinary remote URLs are unsupported. */
+      readonly image_url: string;
+    };
 
 export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
@@ -352,10 +358,10 @@ export interface OpenAIResponsesRequest {
   readonly think?: boolean | string | null | undefined;
 }
 
-/** Strict Ollama-documented Responses request; excludes stateful/undocumented request fields. */
+/** Strict Ollama-documented Responses request; excludes stateful and SDK-only request fields. */
 export type OllamaOpenAIResponsesRequest = Omit<
   OpenAIResponsesRequest,
-  'previous_response_id' | 'conversation' | 'truncation' | 'reasoning' | 'think'
+  'previous_response_id' | 'conversation' | 'reasoning' | 'think'
 >;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
