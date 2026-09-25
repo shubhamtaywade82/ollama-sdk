@@ -161,51 +161,7 @@ function endpointSection(docs: string, endpoint: string): string {
   }
   return lines.slice(endpointIndex, endIndex).join('\n');
 }
-function subsection(docs: string, pattern: RegExp): string {
-  const heading = docs.match(pattern);
-  if (!heading || heading.index === undefined) return '';
-  const section = docs.slice(heading.index + heading[0].length);
-  const nextHeading = section.search(/^####? /m);
-  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;
-}
-
-function requestFieldSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### (Supported request fields|Body)\s*$/m) || endpointDocs;
-}
-
-function responseFieldSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return (
-    subsection(
-      endpointDocs,
-      /^#### (Supported response fields|Response)\s*$/m,
-    ) || endpointDocs
-  );
-}
-
-function streamEventSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### Streaming events\s*$/m) || endpointDocs;
-}
-function unsupportedFieldSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return subsection(endpointDocs, /^#### Not supported\s*$/m);
-}
-
-function explicitlyUnsupported(docs: string, aliases: readonly string[]): boolean {
-  return aliases.some((field) => {
-    const escaped = escapeRegExp(field);
-    return (
-      new RegExp(escaped + '[^\\n]{0,160}(?:not supported|unsupported)', 'i').test(docs) ||
-      new RegExp('(?:not supported|unsupported)[^\\n]{0,160}' + escaped, 'i').test(docs)
-    );
-  });
-}
+function labeledSection(docs: string, label: string, stopLabels: readonly string[]): string {,  const lines = docs.split(/\r?\n/);,  const start = lines.findIndex((line) => line.trim().toLowerCase() === label.toLowerCase());,  if (start < 0) return '';,  let end = lines.length;,  for (let index = start + 1; index < lines.length; index += 1) {,    const value = lines[index]?.trim().toLowerCase() ?? '';,    if (stopLabels.some((stop) => value === stop.toLowerCase())) {,      end = index;,      break;,    },  },  return lines.slice(start, end).join('\n');,},,function subsection(docs: string, pattern: RegExp): string {,  const heading = docs.match(pattern);,  if (!heading || heading.index === undefined) return '';,  const section = docs.slice(heading.index + heading[0].length);,  const nextHeading = section.search(/^#{3,6}\s+/m);,  return nextHeading >= 0 ? section.slice(0, nextHeading) : section;,},,function requestFieldSection(docs: string, endpoint: string): string {,  const endpointDocs = endpointSection(docs, endpoint);,  if (!endpointDocs) return '';,  return labeledSection(endpointDocs, 'Supported request fields', [,    'Supported features', 'Supported response fields', 'Streaming events', 'Notes', 'Models',,  ]) || endpointDocs;,},,function responseFieldSection(docs: string, endpoint: string): string {,  const endpointDocs = endpointSection(docs, endpoint);,  if (!endpointDocs) return '';,  return labeledSection(endpointDocs, 'Supported response fields', [,    'Streaming events', 'Not supported', 'Partial support', 'Models', 'Notes',,  ]) || labeledSection(endpointDocs, 'Response', [,    'Streaming events', 'Not supported', 'Partial support', 'Models', 'Notes',,  ]) || endpointDocs;,},,function streamEventSection(docs: string, endpoint: string): string {,  const endpointDocs = endpointSection(docs, endpoint);,  if (!endpointDocs) return '';,  return labeledSection(endpointDocs, 'Streaming events', [,    'Models', 'Not supported', 'Partial support', 'Notes',,  ]) || endpointDocs;,},,function unsupportedFieldSection(docs: string, endpoint: string): string {,  const endpointDocs = endpointSection(docs, endpoint);,  if (!endpointDocs) return '';,  return labeledSection(endpointDocs, 'Not supported', ['Partial support', 'Models', 'Notes']);,},,function explicitlyUnsupported(docs: string, aliases: readonly string[]): boolean {,  return aliases.some((field) => {,    const escaped = escapeRegExp(field);,    return new RegExp(escaped + '[^\\n]{0,160}(?:not supported|unsupported)', 'i').test(docs) ||,      new RegExp('(?:not supported|unsupported)[^\\n]{0,160}' + escaped, 'i').test(docs);,  });,}
 function firstKnownStatus(
   primary: string,
   fallbackSection: string,
