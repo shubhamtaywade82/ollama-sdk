@@ -224,6 +224,16 @@ describe('strict current OpenAI compatibility types', () => {
       encoding_format: 'float',
       dimensions: 2,
     };
+    const completion: OllamaOpenAICompletionRequest = {
+      model: 'llama3.2',
+      prompt: 'hello',
+      best_of: 1,
+      echo: false,
+      logit_bias: { '1': 1 },
+      user: 'parity-test',
+      n: 2,
+      logprobs: 3,
+    };
     const responses: OllamaOpenAIResponsesRequest = {
       model: 'qwen3',
       input: 'hello',
@@ -232,6 +242,7 @@ describe('strict current OpenAI compatibility types', () => {
 
     expect(chat.messages[0]?.content).toHaveLength(2);
     expect(embeddings.encoding_format).toBe('float');
+    expect(completion.logprobs).toBe(3);
     expect(responses.truncation).toBe('auto');
   });
 });
@@ -457,6 +468,10 @@ describe('current OpenAI compatibility parity', () => {
       n: 2,
       reasoning_effort: 'ultra',
       reasoning: { effort: 'custom-level' },
+      tool_choice: 'auto',
+      logprobs: true,
+      top_logprobs: 3,
+      user: 'parity-test',
     });
 
     const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
