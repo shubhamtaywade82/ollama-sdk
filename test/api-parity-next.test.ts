@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { Agent } from '../src/agent/agent.js';
 import { OllamaClient } from '../src/client.js';
+import { normalizeGenerateStream } from '../src/streaming/normalize.js';
 import { defineTool, ToolRegistry } from '../src/tools/index.js';
 import type { ChatResponse, GenerateResponse, ModelOptions } from '../src/types.js';
 
@@ -108,6 +109,40 @@ describe('next Ollama API parity', () => {
     expect(toolMessage?.role).toBe('tool');
     expect(toolMessage?.tool_name).toBe('get_weather');
     expect(toolMessage?.tool_call_id).toMatch(/^call_/);
+  });
+
+
+  it('aggregates image-generation progress fields from generate streams', async () => {
+    async function* chunks(): AsyncGenerator<GenerateResponse, void, undefined> {
+      yield {
+        model: 'x/flux',
+        created_at: '2026-09-25T00:00:00Z',
+        response: '',
+        done: false,
+        image: 'partial',
+        completed: 5,
+        total: 20,
+      };
+      yield {
+        model: 'x/flux',
+        created_at: '2026-09-25T00:00:01Z',
+        response: '',
+        done: true,
+        image: 'final',
+        completed: 20,
+        total: 20,
+      };
+    }
+
+    const stream = normalizeGenerateStream(chunks());
+    for await (const _ of stream) {
+      // drain
+    }
+
+    const final = await stream.finalResult;
+    expect(final.image).toBe('final');
+    expect(final.completed).toBe(20);
+    expect(final.total).toBe(20);
   });
 
   it('keeps image-generation and cached-count fields part of the public response types', () => {
