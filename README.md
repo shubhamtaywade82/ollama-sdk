@@ -815,8 +815,10 @@ MIT © [Shubham Taywade](https://github.com/shubhamtaywade82)
 
 `npm run verify:api-parity` fetches the official Ollama API Markdown references during CI and
 checks that documented endpoint/request fields remain present in the SDK's TypeScript
-interfaces. The gate covers native `chat`, `generate`, `embed`, `create`, `show`, `tags`,
-`ps`, and `version` endpoints plus OpenAI and Anthropic compatibility request surfaces.
+interfaces. The gate covers every currently indexed native REST endpoint (`chat`, `generate`,
+`embed`, `tags`, `ps`, `show`, `create`, `copy`, `pull`, `push`, `delete`, and `version`) plus
+OpenAI and Anthropic compatibility request surfaces. OpenAI Responses vendor extensions that are
+not currently documented by Ollama are deliberately kept outside the documented-field contract.
 
 ## Middleware and request lifecycle
 
