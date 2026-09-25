@@ -335,6 +335,7 @@ describe('Anthropic compatibility streaming', () => {
     const stream = await client.anthropic.messages({
       model: 'qwen3',
       max_tokens: 256,
+      messages: [{ role: 'user', content: 'hello' }],
       stream: true,
     });
 
@@ -376,6 +377,7 @@ describe('Anthropic compatibility streaming', () => {
     const stream = await client.anthropic.messages({
       model: 'qwen3',
       max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
       stream: true,
     });
     const events = [];
@@ -426,6 +428,7 @@ describe('Anthropic compatibility streaming', () => {
     const stream = await client.anthropic.messages({
       model: 'qwen3',
       max_tokens: 256,
+      messages: [{ role: 'user', content: 'hello' }],
       stream: true,
       thinking: { type: 'enabled' },
     });
