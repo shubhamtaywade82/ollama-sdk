@@ -13,6 +13,7 @@ import type {
 } from '../src/index.js';
 
 type ExpectFalse<T extends false> = T;
+type ExpectTrue<T extends true> = T;
 type _ChatToolChoiceExcluded = ExpectFalse<
   'tool_choice' extends keyof OllamaOpenAIChatCompletionRequest ? true : false
 >;
@@ -34,7 +35,7 @@ type _AnthropicToolChoiceExcluded = ExpectFalse<
 type _AnthropicMetadataExcluded = ExpectFalse<
   'metadata' extends keyof OllamaAnthropicMessagesRequest ? true : false
 >;
-type _AnthropicOutputConfigExcluded = ExpectFalse<
+type _AnthropicOutputConfigIncluded = ExpectTrue<
   'output_config' extends keyof OllamaAnthropicMessagesRequest ? true : false
 >;
 void (undefined as unknown as _ChatToolChoiceExcluded);
@@ -44,7 +45,7 @@ void (undefined as unknown as _EmbeddingUserExcluded);
 void (undefined as unknown as _ResponsesStateExcluded);
 void (undefined as unknown as _AnthropicToolChoiceExcluded);
 void (undefined as unknown as _AnthropicMetadataExcluded);
-void (undefined as unknown as _AnthropicOutputConfigExcluded);
+void (undefined as unknown as _AnthropicOutputConfigIncluded);
 
 function jsonFetchMock(body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -219,9 +220,9 @@ describe('API parity manifest contract', () => {
       'conversation',
       'truncation',
     ]);
-    expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think']);
+    expect(responses?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
-    expect(anthropic?.sdkOnlyFields).toEqual(['output_config']);
+    expect(anthropic?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.response?.fields).toEqual([
       'id',
       'type',
@@ -229,9 +230,10 @@ describe('API parity manifest contract', () => {
       'model',
       'content',
       'stop_reason',
+      'stop_sequence',
       'usage',
     ]);
-    expect(anthropic?.response?.sdkOnlyFields).toEqual(['stop_sequence']);
+    expect(anthropic?.response?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.stream?.unionName).toBe('AnthropicMessageStreamEvent');
     expect(chat?.fallbackDocsUrl).toContain(
       'raw.githubusercontent.com/ollama/ollama/main/docs/api/openai-compatibility.mdx',
