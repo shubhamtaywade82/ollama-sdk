@@ -122,7 +122,7 @@ export interface AnthropicMessagesRequest {
 /** Strict Ollama-documented Messages request; excludes fields Ollama marks unsupported. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'tool_choice' | 'metadata' | 'output_config'
+  'tool_choice' | 'metadata'
 >;
 
 export interface AnthropicMessagesResponse {
