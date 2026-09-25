@@ -298,7 +298,11 @@ function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStat
       ];
       if (forms.some((form) => line.includes(form))) return true;
       const value = line.trim();
-      return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
+      if (value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':')) {
+        return true;
+      }
+      const tokenPattern = new RegExp('(?:^|[^A-Za-z0-9_])' + escapeRegExp(field) + '(?:$|[^A-Za-z0-9_])', 'i');
+      return tokenPattern.test(line);
     })) return 'supported';
   }
   return 'missing';
