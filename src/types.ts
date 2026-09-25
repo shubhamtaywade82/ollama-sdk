@@ -38,6 +38,9 @@ export interface Message {
   readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
   /** Set on a `role: 'tool'` message to identify which {@link ToolCall.id} this answers. */
+  /** Native Ollama tool result name. Required by `/api/chat` tool history. */
+  readonly tool_name?: string | undefined;
+  /** Client-side correlation id; retained for OpenAI-shaped consumers. */
   readonly tool_call_id?: string | undefined;
   readonly thinking?: string | undefined;
 }
@@ -89,6 +92,8 @@ export interface ModelOptions {
   readonly num_keep?: number | undefined;
   readonly seed?: number | undefined;
   readonly num_predict?: number | undefined;
+  /** Number of tokens to predict with a draft/speculative model, when supported. */
+  readonly draft_num_predict?: number | undefined;
   readonly top_k?: number | undefined;
   readonly top_p?: number | undefined;
   readonly min_p?: number | undefined;
@@ -134,6 +139,12 @@ export interface ChatRequestOptions extends RequestCancellationOptions {
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
   readonly top_logprobs?: number | undefined;
+  /** Experimental image-generation width in pixels. */
+  readonly width?: number | undefined;
+  /** Experimental image-generation height in pixels. */
+  readonly height?: number | undefined;
+  /** Experimental image-generation diffusion steps. */
+  readonly steps?: number | undefined;
 }
 
 export interface ChatResponse {
@@ -145,6 +156,7 @@ export interface ChatResponse {
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
   readonly prompt_eval_count?: number | undefined;
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
@@ -175,6 +187,12 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
   readonly top_logprobs?: number | undefined;
+  /** Experimental image-generation width in pixels. */
+  readonly width?: number | undefined;
+  /** Experimental image-generation height in pixels. */
+  readonly height?: number | undefined;
+  /** Experimental image-generation diffusion steps. */
+  readonly steps?: number | undefined;
 }
 
 export interface GenerateResponse {
@@ -187,12 +205,19 @@ export interface GenerateResponse {
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
   readonly prompt_eval_count?: number | undefined;
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
   readonly thinking?: string | undefined;
   /** Present when the request set `logprobs: true`. */
   readonly logprobs?: readonly Logprob[] | undefined;
+  /** Base64-encoded generated image data for image-generation models. */
+  readonly image?: string | undefined;
+  /** Number of completed image-generation steps. */
+  readonly completed?: number | undefined;
+  /** Total image-generation steps. */
+  readonly total?: number | undefined;
 }
 
 export interface EmbedRequestOptions extends RequestCancellationOptions {
