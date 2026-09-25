@@ -152,9 +152,24 @@ function firstKnownStatus(
 
 type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
 
+type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
+
 function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStatus {
-  for (const line of docs.split(/\r?\n/)) {
-    const matches = aliases.some((field) => {
+  const lines = docs.split(/\r?\n/);
+  for (const field of aliases) {
+    const exactSupported = lines.some((line) =>
+      line.includes('- [x] `' + field + '`') || line.includes('* [x] `' + field + '`'),
+    );
+    if (exactSupported) return 'supported';
+
+    const exactUnsupported = lines.some((line) =>
+      line.includes('- [ ] `' + field + '`') || line.includes('* [ ] `' + field + '`'),
+    );
+    if (exactUnsupported) return 'unsupported';
+  }
+
+  for (const line of lines) {
+    if (aliases.some((field) => {
       const forms = [
         '`' + field + '`',
         '<code>' + field + '</code>',
@@ -166,12 +181,7 @@ function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStat
       if (forms.some((form) => line.includes(form))) return true;
       const value = line.trim();
       return value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':');
-    });
-    if (!matches) continue;
-
-    if (/\[\s*\]/.test(line)) return 'unsupported';
-    if (/\[\s*x\s*\]/i.test(line)) return 'supported';
-    return 'supported';
+    })) return 'supported';
   }
   return 'missing';
 }
