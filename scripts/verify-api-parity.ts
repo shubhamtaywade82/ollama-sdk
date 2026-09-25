@@ -173,6 +173,21 @@ function streamEventSection(docs: string, endpoint: string): string {
   if (!endpointDocs) return '';
   return subsection(endpointDocs, /^#### Streaming events\s*$/m);
 }
+function unsupportedFieldSection(docs: string, endpoint: string): string {
+  const endpointDocs = endpointSection(docs, endpoint);
+  if (!endpointDocs) return '';
+  return subsection(endpointDocs, /^#### Not supported\s*$/m);
+}
+
+function explicitlyUnsupported(docs: string, aliases: readonly string[]): boolean {
+  return aliases.some((field) => {
+    const escaped = escapeRegExp(field);
+    return (
+      new RegExp(escaped + '[^\\n]{0,160}(?:not supported|unsupported)', 'i').test(docs) ||
+      new RegExp('(?:not supported|unsupported)[^\\n]{0,160}' + escaped, 'i').test(docs)
+    );
+  });
+}
 function firstKnownStatus(
   primary: string,
   fallbackSection: string,
@@ -261,9 +276,15 @@ function assertContract(
     );
   }
 
+  const unsupportedSection = unsupportedFieldSection(docs, contract.endpoint);
+  const fallbackUnsupportedSection = unsupportedFieldSection(fallbackDocs, contract.endpoint);
   const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return firstKnownStatus(requestFields, fallbackRequestFields, fallbackDocs, aliases) !== 'unsupported';
+    return !(
+      explicitlyUnsupported(unsupportedSection, aliases) ||
+      explicitlyUnsupported(fallbackUnsupportedSection, aliases) ||
+      explicitlyUnsupported(docs, aliases)
+    );
   });
 
   if (unsupportedDocs.length > 0) {
@@ -315,7 +336,11 @@ function assertContract(
 
     const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
-      return firstKnownStatus(responseSection, fallbackResponseSection, fallbackDocs, aliases) !== 'unsupported';
+      return !(
+        explicitlyUnsupported(responseSection, aliases) ||
+        explicitlyUnsupported(fallbackResponseSection, aliases) ||
+        explicitlyUnsupported(docs, aliases)
+      );
     });
     if (unsupportedResponseDocs.length > 0) {
       throw new Error(
