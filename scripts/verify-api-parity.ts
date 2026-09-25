@@ -203,10 +203,26 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
 
 
 function requestFieldSection(docs: string, endpoint: string): string {
-  // Compatibility pages render request fields directly inside the endpoint block.
-  // Keep the whole endpoint-scoped block because the hosted docs may change heading
-  // wrappers/citation markup without changing the documented field contract.
-  return endpointSection(docs, endpoint);
+  const endpointDocs = endpointSection(docs, endpoint);
+  if (!endpointDocs) return '';
+
+  const lines = endpointDocs.split(/\r?\n/);
+  const label = 'supported request fields';
+  const start = lines.findIndex((line) =>
+    normalizedHeadingText(line).includes(label),
+  );
+  if (start < 0) return endpointDocs;
+
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (/^#{2,6}\s+/.test(line.trim())) {
+      end = index;
+      break;
+    }
+  }
+
+  return lines.slice(start, end).join('\n');
 }
 
 function responseFieldSection(docs: string, endpoint: string): string {
