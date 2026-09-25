@@ -151,7 +151,7 @@ function endpointSection(docs: string, endpoint: string): string {
     let endIndex = lines.length;
     for (let next = index + 1; next < lines.length; next += 1) {
       const nextHeading = lines[next]?.match(/^(#{2,6})\s+/);
-      if (nextHeading && nextHeading[1].length <= level) {
+      if (nextHeading && nextHeading[1] !== undefined && nextHeading[1].length <= level) {
         endIndex = next;
         break;
       }
@@ -160,13 +160,13 @@ function endpointSection(docs: string, endpoint: string): string {
   }
 
   if (endpoint === '/v1/responses') {
-    const responseIndex = lines.findIndex((line) => /^#{2,6}\\s+Responses API\\s*$/i.test(line));
+    const responseIndex = lines.findIndex((line) => /^#{2,6}\s+Responses API\s*$/i.test(line));
     if (responseIndex >= 0) {
       const level = lines[responseIndex].match(/^#+/)?.[0].length ?? 3;
       const tail = lines.slice(responseIndex + 1);
       const next = tail.findIndex((line) => {
-        const heading = line.match(/^(#{2,6})\\s+/);
-        return heading !== null && heading[1].length <= level;
+        const heading = line.match(/^(#{2,6})\s+/);
+        return heading !== null && heading[1] !== undefined && heading[1].length <= level;
       });
       return lines.slice(responseIndex, next >= 0 ? responseIndex + 1 + next : lines.length).join('\n');
     }
