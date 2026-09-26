@@ -53,6 +53,26 @@ describe('MCP bridge parity', () => {
     });
   });
 
+  it('keeps MCP isError results model-readable instead of treating them as transport failures', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{ name: 'lookup', inputSchema: { type: 'object', properties: {} } }],
+      }),
+      callTool: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'No matching record' }],
+        structuredContent: { matches: 0 },
+        isError: true,
+      }),
+    };
+
+    const tools = await loadMcpTools(client);
+    const result = await tools[0]!.execute({}, {});
+
+    expect(result).toContain('[MCP tool error]');
+    expect(result).toContain('No matching record');
+    expect(result).toContain('{"matches":0}');
+  });
+
   it('preserves structured and non-text MCP result blocks for the model', async () => {
     const client: McpClientLike = {
       listTools: async () => ({
