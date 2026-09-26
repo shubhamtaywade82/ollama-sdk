@@ -113,6 +113,8 @@ export interface ModelOptions {
   readonly num_keep?: number | undefined;
   readonly seed?: number | undefined;
   readonly num_predict?: number | undefined;
+  /** Number of tokens to predict with a draft/speculative model, when supported. */
+  readonly draft_num_predict?: number | undefined;
   readonly top_k?: number | undefined;
   readonly top_p?: number | undefined;
   readonly min_p?: number | undefined;
@@ -158,6 +160,12 @@ export interface ChatRequestOptions extends RequestCancellationOptions {
    * model-defined string levels and the model default.
    */
   readonly think?: ThinkValue | undefined;
+  /** Experimental image-generation width in pixels. */
+  readonly width?: number | undefined;
+  /** Experimental image-generation height in pixels. */
+  readonly height?: number | undefined;
+  /** Experimental image-generation diffusion steps. */
+  readonly steps?: number | undefined;
   /** Whether to return log probabilities of the output tokens. See {@link ChatResponse.logprobs}. */
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
@@ -205,6 +213,12 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
   readonly top_logprobs?: number | undefined;
+  /** Experimental image-generation width in pixels. */
+  readonly width?: number | undefined;
+  /** Experimental image-generation height in pixels. */
+  readonly height?: number | undefined;
+  /** Experimental image-generation diffusion steps. */
+  readonly steps?: number | undefined;
 }
 
 export interface GenerateResponse {
@@ -223,6 +237,12 @@ export interface GenerateResponse {
   readonly thinking?: string | undefined;
   /** Present when the request set `logprobs: true`. */
   readonly logprobs?: readonly Logprob[] | undefined;
+  /** Base64-encoded generated image data for image-generation models. */
+  readonly image?: string | undefined;
+  /** Number of completed image-generation steps. */
+  readonly completed?: number | undefined;
+  /** Total image-generation steps. */
+  readonly total?: number | undefined;
 }
 
 export interface EmbedRequestOptions extends RequestCancellationOptions {

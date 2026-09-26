@@ -7,7 +7,7 @@
  */
 import type { ToolDefinition } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import { loadMcpTools, type LoadMcpToolsOptions } from './mcp-tools.js';
+import { listAllMcpTools, loadMcpTools, type LoadMcpToolsOptions } from './mcp-tools.js';
 import type { McpClientLike, McpToolDescriptor } from './types.js';
 
 export type McpBridgeOptions = LoadMcpToolsOptions;
@@ -37,20 +37,19 @@ export class McpBridge {
     }));
   }
 
-  async listTools(): Promise<readonly McpToolDescriptor[]> {
-    const result = await this.client.listTools();
-    return result.tools;
+  async listTools(signal?: AbortSignal): Promise<readonly McpToolDescriptor[]> {
+    return listAllMcpTools(this.client, this.options, signal);
   }
 
-  async definitions(): Promise<ToolDefinition[]> {
-    return McpBridge.toOllamaTools(await this.listTools(), this.options);
+  async definitions(signal?: AbortSignal): Promise<ToolDefinition[]> {
+    return McpBridge.toOllamaTools(await this.listTools(signal), this.options);
   }
 
-  async loadTools() {
-    return loadMcpTools(this.client, this.options);
+  async loadTools(signal?: AbortSignal) {
+    return loadMcpTools(this.client, this.options, signal);
   }
 
-  async register(registry: ToolRegistry): Promise<void> {
-    await registry.registerMany(await this.loadTools());
+  async register(registry: ToolRegistry, signal?: AbortSignal): Promise<void> {
+    await registry.registerMany(await this.loadTools(signal));
   }
 }

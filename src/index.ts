@@ -77,6 +77,7 @@ export {
   OllamaToolTimeoutError,
   OllamaUnsupportedCapabilityError,
   OllamaAgentMaxIterationsError,
+  OllamaAgentMaxToolCallsError,
   OllamaMcpError,
   OllamaIncompatibleModelError,
   OllamaSkillNotFoundError,
@@ -181,16 +182,23 @@ export {
 // MCP
 export {
   loadMcpTools,
+  listAllMcpTools,
   registerMcpTools,
   McpBridge,
   type LoadMcpToolsOptions,
   type McpBridgeOptions,
   type McpClientLike,
+  type McpToolAnnotations,
+  type McpToolExecution,
+  type McpIcon,
+  type McpRequestOptions,
   type McpToolDescriptor,
   type McpListToolsResult,
+  type McpListToolsParams,
   type McpContentBlock,
   type McpCallToolResult,
 } from './mcp/index.js';
+
 
 // Integrations (OpenAI & Anthropic compatibility)
 export {

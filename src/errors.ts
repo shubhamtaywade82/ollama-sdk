@@ -232,6 +232,23 @@ export class OllamaIncompatibleModelError extends OllamaClientError {
     this.reportedCapabilities = options.reportedCapabilities;
   }
 }
+export class OllamaAgentMaxToolCallsError extends OllamaClientError {
+  readonly maxToolCalls: number;
+  readonly toolCallsExecuted: number;
+
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code'> & {
+      maxToolCalls: number;
+      toolCallsExecuted: number;
+    },
+  ) {
+    super(message, { ...options, code: 'agent_max_tool_calls_exceeded', retryable: false });
+    this.maxToolCalls = options.maxToolCalls;
+    this.toolCallsExecuted = options.toolCallsExecuted;
+  }
+}
+
 export class OllamaAgentMaxIterationsError extends OllamaClientError {
   readonly maxIterations: number;
   constructor(

@@ -565,3 +565,41 @@ describe('current OpenAI compatibility parity', () => {
     expect(model.id).toBe('llama3.2');
   });
 });
+
+
+describe('consolidated PR15 API deltas', () => {
+  it('forwards speculative draft_num_predict and experimental image generation fields', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'flux',
+      created_at: '2026-09-26T00:00:00Z',
+      response: '',
+      done: true,
+      image: 'base64-image',
+      completed: 20,
+      total: 20,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.generate({
+      model: 'flux',
+      prompt: 'city',
+      width: 1024,
+      height: 768,
+      steps: 20,
+      options: { draft_num_predict: 8 },
+      stream: false,
+    });
+
+    expect(result.image).toBe('base64-image');
+    expect(result.completed).toBe(20);
+    expect(result.total).toBe(20);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body)).toMatchObject({
+      width: 1024,
+      height: 768,
+      steps: 20,
+      options: { draft_num_predict: 8 },
+    });
+  });
+});

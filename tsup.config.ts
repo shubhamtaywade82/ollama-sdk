@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     skills: 'src/skills/index.ts',
+    'mcp-stdio': 'src/mcp/stdio.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
