@@ -61,6 +61,7 @@ jobs:
           npm install "/tmp/${TARBALL}"
           node -e "const { OllamaClient } = require('@nemesis-oss/ollama-sdk'); if (typeof OllamaClient !== 'function') throw new Error('CJS entry broken');"
           node --input-type=module -e "import { OllamaClient } from '@nemesis-oss/ollama-sdk'; if (typeof OllamaClient !== 'function') throw new Error('ESM entry broken');"
+          node --input-type=module -e "import { connectStdioMcpClient } from '@nemesis-oss/ollama-sdk/mcp/stdio'; if (typeof connectStdioMcpClient !== 'function') throw new Error('MCP stdio entry broken');"
 
   api-parity:
     runs-on: ubuntu-latest
