@@ -180,10 +180,24 @@ export {
 } from './tools/index.js';
 
 // MCP
-export * from './types.js';
-export * from './mcp-tools.js';
-
-export * from './bridge.js';
+export {
+  loadMcpTools,
+  listAllMcpTools,
+  registerMcpTools,
+  McpBridge,
+  type LoadMcpToolsOptions,
+  type McpBridgeOptions,
+  type McpClientLike,
+  type McpToolAnnotations,
+  type McpToolExecution,
+  type McpIcon,
+  type McpRequestOptions,
+  type McpToolDescriptor,
+  type McpListToolsResult,
+  type McpListToolsParams,
+  type McpContentBlock,
+  type McpCallToolResult,
+} from './mcp/index.js';
 
 
 // Integrations (OpenAI & Anthropic compatibility)
