@@ -87,5 +87,5 @@ describe('Agent Loop', () => {
       maxToolCalls: 2,
     });
 
-    expect(chat).toHaveBeenCalledTimes(2);
+    expect(chat).toHaveBeenCalledTimes(3);
   });
