@@ -74,7 +74,11 @@ function formatMcpToolResult(result: McpCallToolResult): string {
     }
   }
 
-  return parts.join('\n');
+  if (result.isError) {
+    parts.unshift('[MCP tool error]');
+  }
+
+  return parts.join('\\n');
 }
 
 function convertMcpDescriptorToTool(
@@ -107,13 +111,8 @@ function convertMcpDescriptorToTool(
           context.signal !== undefined ? { signal: context.signal } : undefined,
         );
 
-        if (result.isError) {
-          throw new OllamaMcpError(`MCP tool "${descriptor.name}" returned error`, {
-            mcpMethod: 'callTool',
-            toolName: descriptor.name,
-          });
-        }
-
+        // MCP tool failures are ordinary CallToolResult values, not transport failures.
+        // Keep the result model-readable so the agent can observe the error and recover.
         return formatMcpToolResult(result);
       } catch (err) {
         if (err instanceof OllamaMcpError) throw err;
