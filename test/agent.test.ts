@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Agent } from '../src/agent/agent.js';
 import { defineTool } from '../src/tools/define-tool.js';
 import { ToolRegistry } from '../src/tools/registry.js';
+import type { ModelOptions } from '../src/types.js';
 
 describe('Agent Loop', () => {
   it('executes tool call and returns final message', async () => {
