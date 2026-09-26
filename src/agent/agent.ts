@@ -112,7 +112,7 @@ export class Agent {
           ...(input.options ?? {}),
           num_ctx: Math.min(
             this.toolContextSize,
-            capabilities.contextLength ?? this.toolContextSize,
+            capabilities?.contextLength ?? this.toolContextSize,
           ),
         }
       : input.options;
