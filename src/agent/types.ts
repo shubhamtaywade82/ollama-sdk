@@ -31,6 +31,8 @@ export interface AgentHooks {
 export interface AgentConfig {
   readonly tools?: ToolRegistry | undefined;
   readonly maxIterations?: number | undefined;
+  /** Maximum total tool calls allowed during one agent run. */
+  readonly maxToolCalls?: number | undefined;
   readonly hooks?: AgentHooks | undefined;
 }
 
