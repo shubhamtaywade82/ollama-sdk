@@ -36,9 +36,6 @@ function aggregateChat(accumulated: ChatStreamResult, chunk: ChatResponse): Chat
         ? chunk.total_duration / NANOS_PER_MS
         : accumulated.totalDurationMs,
     usage: chunk.done ? extractUsage(chunk) : accumulated.usage,
-    image: chunk.image ?? accumulated.image,
-    completed: chunk.completed ?? accumulated.completed,
-    total: chunk.total ?? accumulated.total,
     raw: chunk,
   };
 }
@@ -115,6 +112,9 @@ function aggregateGenerate(
         ? chunk.total_duration / NANOS_PER_MS
         : accumulated.totalDurationMs,
     usage: chunk.done ? extractUsage(chunk) : accumulated.usage,
+    image: chunk.image ?? accumulated.image,
+    completed: chunk.completed ?? accumulated.completed,
+    total: chunk.total ?? accumulated.total,
     raw: chunk,
   };
 }
