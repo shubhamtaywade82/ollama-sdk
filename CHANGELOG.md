@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+- **MCP bridge hardening.** MCP tool discovery now supports bounded pagination, repeated-cursor protection, request cancellation, richer MCP metadata types, and structured/non-text result preservation.
+- **Optional Node MCP stdio adapter.** `@nemesis-oss/ollama-sdk/mcp/stdio` connects to local MCP servers using the official `@modelcontextprotocol/client` v2 transport without importing Node-only code into the root package.
 - **First-class MCP bridge.** `McpBridge` converts MCP tool descriptors to native Ollama function definitions and registers executable MCP-backed tools without coupling the core package to a transport.
 - **Agent capability preflight and adaptive context.** Tool-enabled `Agent` runs using `OllamaClient` now query `/api/show` before the first model turn, throw `OllamaIncompatibleModelError` when `tools` is absent, and default to `num_ctx: 32768` clamped to the model-reported context length; explicit `options.num_ctx` remains authoritative.
 - **Model context metadata.** `ModelCapabilities.contextLength` is parsed from `/api/show` `model_info`, and capability lookup accepts request cancellation.
