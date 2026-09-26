@@ -86,6 +86,9 @@ describe('current native Ollama API parity', () => {
         values: ['low', 'medium', 'high'],
         default: 'medium',
       },
+      model_info: {
+        'gptoss.context_length': 131072,
+      },
     });
     const client = new OllamaClient({ fetch: fetchMock as never });
 
@@ -96,6 +99,7 @@ describe('current native Ollama API parity', () => {
       values: ['low', 'medium', 'high'],
       default: 'medium',
     });
+    expect(capabilities.contextLength).toBe(131072);
   });
 
   it('accepts boolean, null, and model-defined thinking values', async () => {
