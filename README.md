@@ -280,6 +280,40 @@ const response = await agent.run({
 console.log(response.finalMessage.content);
 ```
 
+
+#### MCP bridge, capability preflight, and context sizing
+
+The SDK exposes `McpBridge` as a transport-neutral adapter between an MCP client and
+Ollama's native function-tool format:
+
+```typescript
+import { McpBridge, ToolRegistry } from '@nemesis-oss/ollama-sdk';
+
+const bridge = new McpBridge(mcpClient, { namePrefix: 'mcp_' });
+const registry = new ToolRegistry();
+await bridge.register(registry);
+
+const definitions = await bridge.definitions();
+console.log(definitions);
+```
+
+The bridge does not spawn MCP processes itself, which keeps the package root Edge-runtime
+safe. Pass it a compatible MCP client created with the MCP SDK or another MCP implementation;
+for example, the official `StdioClientTransport` is Node.js-only while Streamable HTTP is
+available for non-Node environments.
+
+When an `Agent` has registered tools and is using an `OllamaClient`, tool capability
+preflight is enabled by default. The agent queries `/api/show` and fails before the first
+model turn with `OllamaIncompatibleModelError` when the model does not advertise `tools`.
+The same metadata is used to size the model context: the default is `num_ctx: 32768`,
+clamped to the model-reported context length when available. An explicit
+`options.num_ctx` always wins.
+
+For legacy/custom `AgentChatClient` implementations, or tests that intentionally do not
+model capability discovery, set `validateToolCapability: false` to preserve the previous
+request behavior and skip the `/api/show` preflight.
+
+
 Ollama's native tool-calling protocol has no OpenAI-style call ID, so the SDK
 synthesizes a stable client-side ID for tracing and execution correlation:
 `response.turns[0].toolCalls[0].id` matches
