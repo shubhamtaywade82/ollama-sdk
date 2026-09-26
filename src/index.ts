@@ -26,6 +26,7 @@ export type {
   ToolProperty,
   ToolFunctionDefinition,
   ToolDefinition,
+  ToolParameters,
   FormatOption,
   ModelOptions,
   LogprobToken,
