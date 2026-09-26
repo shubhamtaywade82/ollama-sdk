@@ -237,7 +237,10 @@ describe('Native Ollama tool-result protocol', () => {
       }),
     ]);
     const client = new OllamaClient({ fetch: fetchMock as never });
-    const agent = new Agent(client, { tools: registry });
+    const agent = new Agent(client, {
+      tools: registry,
+      validateToolCapability: false,
+    });
 
     await agent.run({
       model: 'llama3.2',
