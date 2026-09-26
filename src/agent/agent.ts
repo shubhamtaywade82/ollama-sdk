@@ -2,7 +2,7 @@
  * Multi-turn tool execution loop agent.
  */
 
-import { OllamaAgentMaxIterationsError } from '../errors.js';
+import { OllamaAgentMaxIterationsError, OllamaAgentMaxToolCallsError } from '../errors.js';
 import {
   withSpan,
   ATTR_GEN_AI_SYSTEM,
@@ -44,12 +44,14 @@ export class Agent {
   private readonly client: AgentChatClient;
   private readonly tools?: ToolRegistry | undefined;
   private readonly maxIterations: number;
+  private readonly maxToolCalls?: number | undefined;
   private readonly hooks?: AgentHooks | undefined;
 
   constructor(client: AgentChatClient, config: AgentConfig = {}) {
     this.client = client;
     this.tools = config.tools;
     this.maxIterations = config.maxIterations ?? 10;
+    this.maxToolCalls = config.maxToolCalls;
     this.hooks = config.hooks;
   }
 
@@ -69,6 +71,7 @@ export class Agent {
   private async runLoop(input: AgentRunInput): Promise<AgentResult> {
     const history: Message[] = [...input.messages];
     const turns: AgentTurn[] = [];
+    let toolCallsExecuted = 0;
     const toolDefs = this.tools?.definitions();
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
@@ -103,6 +106,13 @@ export class Agent {
             return { done: true as const, finalMessage: assistantMessage };
           }
 
+          if (this.maxToolCalls !== undefined && toolCallsExecuted + toolCalls.length > this.maxToolCalls) {
+            throw new OllamaAgentMaxToolCallsError(
+              `Agent exceeded max tool calls (${this.maxToolCalls})`,
+              { maxToolCalls: this.maxToolCalls, toolCallsExecuted },
+            );
+          }
+
           for (const tc of toolCalls) {
             this.hooks?.onToolCallStart?.(tc);
           }
@@ -110,6 +120,7 @@ export class Agent {
           const toolResults = await this.tools.executeToolCalls(toolCalls, {
             signal: input.signal,
           });
+          toolCallsExecuted += toolCalls.length;
 
           for (const res of toolResults) {
             this.hooks?.onToolCallEnd?.(res);
