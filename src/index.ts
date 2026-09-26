@@ -77,6 +77,7 @@ export {
   OllamaUnsupportedCapabilityError,
   OllamaAgentMaxIterationsError,
   OllamaMcpError,
+  OllamaIncompatibleModelError,
   OllamaSkillNotFoundError,
   OllamaSkillInvalidError,
   OllamaGenericClientError,
@@ -180,7 +181,9 @@ export {
 export {
   loadMcpTools,
   registerMcpTools,
+  McpBridge,
   type LoadMcpToolsOptions,
+  type McpBridgeOptions,
   type McpClientLike,
   type McpToolDescriptor,
   type McpListToolsResult,
