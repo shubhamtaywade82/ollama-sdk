@@ -37,6 +37,33 @@ describe('McpBridge', () => {
     ]);
   });
 
+  it('preserves arbitrary MCP JSON Schema keywords in the Ollama tool definition', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        value: {
+          type: 'string',
+          enum: ['a', 'b'],
+          anyOf: [{ type: 'string' }, { type: 'null' }],
+        },
+      },
+      required: ['value'],
+      additionalProperties: false,
+      $defs: {
+        value: { type: 'string' },
+      },
+    };
+
+    const definitions = McpBridge.toOllamaTools([
+      {
+        name: 'structured_tool',
+        inputSchema: schema,
+      },
+    ]);
+
+    expect(definitions[0]?.function.parameters).toEqual(schema);
+  });
+
   it('loads and registers MCP-backed tools without losing the original MCP name', async () => {
     const client: McpClientLike = {
       listTools: vi.fn().mockResolvedValue({
