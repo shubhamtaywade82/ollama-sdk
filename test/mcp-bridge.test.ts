@@ -71,7 +71,17 @@ describe('McpBridge', () => {
           {
             name: 'read_file',
             description: 'Read a file',
-            inputSchema: { type: 'object' },
+            inputSchema: {
+              type: 'object',
+              properties: {
+                path: { type: 'string' },
+              },
+              required: ['path'],
+              additionalProperties: false,
+              $defs: {
+                path: { type: 'string' },
+              },
+            },
           },
         ],
       }),
@@ -93,6 +103,12 @@ describe('McpBridge', () => {
     expect(client.callTool).toHaveBeenCalledWith({
       name: 'read_file',
       arguments: {},
+    });
+    expect(registry.get('mcp_read_file')?.definition.function.parameters).toMatchObject({
+      additionalProperties: false,
+      $defs: {
+        path: { type: 'string' },
+      },
     });
   });
 });
