@@ -7,7 +7,7 @@ import { OllamaMcpError } from '../errors.js';
 import type { AnyTool } from '../tools/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { McpClientLike, McpToolDescriptor } from './types.js';
-import type { ToolProperty } from '../types.js';
+import type { ToolDefinition, ToolProperty } from '../types.js';
 
 export interface LoadMcpToolsOptions {
   readonly namePrefix?: string;
