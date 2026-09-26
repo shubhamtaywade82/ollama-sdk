@@ -55,3 +55,37 @@ describe('Agent Loop', () => {
     expect(result.totalIterations).toBe(2);
   });
 });
+
+
+  it('enforces a run-level maximum tool-call budget', async () => {
+    const tool = defineTool({
+      name: 'loop',
+      description: 'Always loops',
+      schema: z.object({ value: z.number() }),
+      execute: ({ value }) => ({ value }),
+    });
+
+    const registry = new ToolRegistry([tool]);
+    const chat = vi.fn().mockResolvedValue({
+      message: {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [{ function: { name: 'loop', arguments: { value: 1 } } }],
+      },
+    });
+
+    const agent = new Agent({ chat }, {
+      tools: registry,
+      maxIterations: 10,
+      maxToolCalls: 2,
+    });
+
+    await expect(
+      agent.run({ model: 'llama3.2', messages: [{ role: 'user', content: 'loop' }] }),
+    ).rejects.toMatchObject({
+      code: 'agent_max_tool_calls_exceeded',
+      maxToolCalls: 2,
+    });
+
+    expect(chat).toHaveBeenCalledTimes(2);
+  });
