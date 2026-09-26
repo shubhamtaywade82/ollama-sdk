@@ -28,6 +28,7 @@ describe('Agentic Workflow and Feature Integrations', () => {
       const agent = new Agent(client, {
         tools: registry,
         maxIterations: 5,
+        validateToolCapability: false,
         hooks: {
           onToolCallStart: (tc) => {
             toolEvents.push(`start:${tc.function.name}`);
@@ -72,7 +73,11 @@ describe('Agentic Workflow and Feature Integrations', () => {
       });
 
       const registry = new ToolRegistry([inventoryTool]);
-      const agent = new Agent(client, { tools: registry, maxIterations: 3 });
+      const agent = new Agent(client, {
+        tools: registry,
+        maxIterations: 3,
+        validateToolCapability: false,
+      });
 
       const result = await agent.run({
         model: MODEL_NAME,
