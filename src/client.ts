@@ -590,11 +590,15 @@ export class OllamaClient {
   }
 
   // --- Capabilities & Health ---
-  capabilities(model: string): Promise<ModelCapabilities> {
-    return this.executeWithFailover((http) => detectModelCapabilities(http, model), {
-      singleEndpoint: true,
-      model,
-    });
+  capabilities(model: string, signal?: AbortSignal): Promise<ModelCapabilities> {
+    return this.executeWithFailover(
+      (http, runnerSignal) => detectModelCapabilities(http, model, runnerSignal),
+      {
+        singleEndpoint: true,
+        model,
+        ...(signal !== undefined ? { signal } : {}),
+      },
+    );
   }
   runtimeMode(): RuntimeMode {
     const ep = this.registry.candidates()[0];
