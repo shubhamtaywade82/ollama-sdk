@@ -34,8 +34,24 @@ import { OllamaClient, Agent, ToolRegistry, defineTool } from ${JSON.stringify(d
 
 globalThis.__EDGE_SMOKE_TEST__ = async function runEdgeSmokeTest() {
   let callCount = 0;
-  const mockFetch = async () => {
+  const mockFetch = async (url) => {
     callCount += 1;
+    if (url.endsWith('/api/show')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          details: {
+            format: 'gguf',
+            family: 'llama',
+            parameter_size: '8B',
+            quantization_level: 'Q4_K_M',
+          },
+          capabilities: ['completion', 'tools'],
+          model_info: { 'llama.context_length': 32768 },
+        }),
+      };
+    }
     if (callCount === 1) {
       return {
         ok: true,
