@@ -6,11 +6,52 @@ import { z } from 'zod';
 import { OllamaMcpError } from '../errors.js';
 import type { AnyTool } from '../tools/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import type { McpCallToolResult, McpClientLike, McpToolDescriptor } from './types.js';
+import type { McpCallToolResult, McpClientLike, McpListToolsParams, McpRequestOptions, McpToolDescriptor } from './types.js';
 import type { ToolDefinition, ToolProperty } from '../types.js';
 
 export interface LoadMcpToolsOptions {
-  readonly namePrefix?: string;
+  readonly namePrefix?: string | undefined;
+  /** Maximum number of paginated tools/list responses to traverse. */
+  readonly maxPages?: number | undefined;
+}
+
+function resolveMaxPages(options: LoadMcpToolsOptions): number {
+  const maxPages = options.maxPages ?? 64;
+  if (!Number.isInteger(maxPages) || maxPages <= 0) {
+    throw new RangeError('MCP maxPages must be a positive integer');
+  }
+  return maxPages;
+}
+
+export async function listAllMcpTools(
+  mcpClient: McpClientLike,
+  options: LoadMcpToolsOptions = {},
+  signal?: AbortSignal,
+): Promise<McpToolDescriptor[]> {
+  const maxPages = resolveMaxPages(options);
+  const tools: McpToolDescriptor[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+
+  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+    const params: McpListToolsParams | undefined =
+      cursor !== undefined ? { cursor } : undefined;
+    const requestOptions: McpRequestOptions | undefined =
+      signal !== undefined ? { signal } : undefined;
+    const page = await mcpClient.listTools(params, requestOptions);
+    tools.push(...page.tools);
+
+    if (page.nextCursor === undefined) {
+      return tools;
+    }
+    if (seenCursors.has(page.nextCursor)) {
+      throw new Error('MCP tools/list returned a repeated nextCursor');
+    }
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+
+  throw new Error('MCP tools/list exceeded maxPages (' + maxPages + ')');
 }
 
 function formatMcpToolResult(result: McpCallToolResult): string {
@@ -56,12 +97,15 @@ function convertMcpDescriptorToTool(
     name: toolName,
     description: descriptor.description ?? '',
     schema: z.record(z.string(), z.unknown()),
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, context: { readonly signal?: AbortSignal | undefined }) => {
       try {
-        const result = await mcpClient.callTool({
-          name: descriptor.name,
-          arguments: args,
-        });
+        const result = await mcpClient.callTool(
+          {
+            name: descriptor.name,
+            arguments: args,
+          },
+          context.signal !== undefined ? { signal: context.signal } : undefined,
+        );
 
         if (result.isError) {
           throw new OllamaMcpError(`MCP tool "${descriptor.name}" returned error`, {
@@ -94,17 +138,10 @@ function convertMcpDescriptorToTool(
 export async function loadMcpTools(
   mcpClient: McpClientLike,
   options: LoadMcpToolsOptions = {},
+  signal?: AbortSignal,
 ): Promise<AnyTool[]> {
   try {
-    const tools: McpToolDescriptor[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const page = await mcpClient.listTools(cursor !== undefined ? { cursor } : undefined);
-      tools.push(...page.tools);
-      cursor = page.nextCursor;
-    } while (cursor !== undefined);
-
+    const tools = await listAllMcpTools(mcpClient, options, signal);
     return tools.map((t) => convertMcpDescriptorToTool(t, mcpClient, options.namePrefix));
   } catch (err) {
     throw new OllamaMcpError('Failed listing MCP tools from client', {
@@ -118,7 +155,8 @@ export async function registerMcpTools(
   registry: ToolRegistry,
   mcpClient: McpClientLike,
   options: LoadMcpToolsOptions = {},
+  signal?: AbortSignal,
 ): Promise<void> {
-  const tools = await loadMcpTools(mcpClient, options);
+  const tools = await loadMcpTools(mcpClient, options, signal);
   registry.registerMany(tools);
 }
