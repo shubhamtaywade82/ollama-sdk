@@ -82,6 +82,8 @@ export async function detectModelCapabilities(
   const reported = showRes.capabilities ?? [];
   const reportedSet = new Set(reported.map((c) => c.toLowerCase()));
 
+  const contextLength = extractContextLength(showRes.model_info);
+
   return {
     model,
     reported,
@@ -91,9 +93,7 @@ export async function detectModelCapabilities(
     supportsCompletion: reportedSet.has('completion') || !reportedSet.has('embedding'),
     supportsThinking: reportedSet.has('thinking'),
     ...(showRes.thinking !== undefined ? { thinking: showRes.thinking } : {}),
-    ...(extractContextLength(showRes.model_info) !== undefined
-      ? { contextLength: extractContextLength(showRes.model_info) }
-      : {}),
+    ...(contextLength !== undefined ? { contextLength } : {}),
     supportsStreaming: true,
     supportsStructuredOutputRequest: inferRuntimeMode(http.baseUrl) !== 'cloud',
   };
