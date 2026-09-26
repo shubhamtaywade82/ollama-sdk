@@ -159,7 +159,8 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking"
+        "thinking",
+        "output_config"
       ],
       "unsupportedFields": [
         "tool_choice",
