@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+- **First-class MCP bridge.** `McpBridge` converts MCP tool descriptors to native Ollama function definitions and registers executable MCP-backed tools without coupling the core package to a transport.
+- **Agent capability preflight and adaptive context.** Tool-enabled `Agent` runs using `OllamaClient` now query `/api/show` before the first model turn, throw `OllamaIncompatibleModelError` when `tools` is absent, and default to `num_ctx: 32768` clamped to the model-reported context length; explicit `options.num_ctx` remains authoritative.
+- **Model context metadata.** `ModelCapabilities.contextLength` is parsed from `/api/show` `model_info`, and capability lookup accepts request cancellation.
 
 - **API parity v4.** Response fields for native endpoints and Anthropic, documented Anthropic stream event names, and live-doc precedence are now verified. `/api/ps` exposes `context_length`, and `/api/copy` is included in the parity surface.
 ### Added
