@@ -74,6 +74,7 @@ export {
   OllamaToolTimeoutError,
   OllamaUnsupportedCapabilityError,
   OllamaAgentMaxIterationsError,
+  OllamaAgentMaxToolCallsError,
   OllamaMcpError,
   OllamaSkillNotFoundError,
   OllamaSkillInvalidError,
