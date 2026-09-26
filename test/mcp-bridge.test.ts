@@ -96,3 +96,80 @@ describe('MCP bridge parity', () => {
     expect(registry.get('two')).toBeDefined();
   });
 });
+
+
+describe('MCP bridge safety and cancellation', () => {
+  it('forwards AbortSignal to listTools and callTool', async () => {
+    const controller = new AbortController();
+    const listTools = vi.fn(async (_params?: unknown, options?: { signal?: AbortSignal }) => {
+      expect(options?.signal).toBe(controller.signal);
+      return {
+        tools: [{ name: 'echo', inputSchema: { type: 'object', properties: {} } }],
+      };
+    });
+    const callTool = vi.fn(async (
+      _params: unknown,
+      options?: { signal?: AbortSignal },
+    ) => {
+      expect(options?.signal).toBe(controller.signal);
+      return { content: [{ type: 'text', text: 'ok' }] };
+    });
+    const client: McpClientLike = { listTools, callTool };
+    const tools = await loadMcpTools(client, {}, controller.signal);
+    await tools[0]!.execute({}, { signal: controller.signal });
+
+    expect(listTools).toHaveBeenCalledWith(undefined, { signal: controller.signal });
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'echo', arguments: {} },
+      { signal: controller.signal },
+    );
+  });
+
+  it('rejects paginated cursor loops instead of spinning forever', async () => {
+    const listTools = vi.fn().mockResolvedValue({
+      tools: [{ name: 'one' }],
+      nextCursor: 'same',
+    });
+    const client: McpClientLike = { listTools, callTool: vi.fn() };
+
+    await expect(loadMcpTools(client)).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'listTools',
+    });
+    expect(listTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces a configurable maximum page count', async () => {
+    const listTools = vi.fn().mockResolvedValue({
+      tools: [{ name: 'one' }],
+      nextCursor: 'next',
+    });
+    const client: McpClientLike = { listTools, callTool: vi.fn() };
+
+    await expect(
+      loadMcpTools(client, { maxPages: 2 }),
+    ).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'listTools',
+    });
+    expect(listTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves structuredContent values that are falsy but valid JSON', async () => {
+    for (const structuredContent of [null, false, 0, '']) {
+      const client: McpClientLike = {
+        listTools: async () => ({
+          tools: [{ name: 'inspect', inputSchema: { type: 'object', properties: {} } }],
+        }),
+        callTool: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'content' }],
+          structuredContent,
+        }),
+      };
+
+      const tools = await loadMcpTools(client);
+      const result = await tools[0]!.execute({}, {});
+      expect(result).toContain(JSON.stringify(structuredContent));
+    }
+  });
+});
