@@ -1,4 +1,4 @@
-# ADR 0008: MCP Boundary and Agent Tool Preconditions
+# ADR 0011: MCP Boundary and Agent Tool Preconditions
 
 ## Status
 

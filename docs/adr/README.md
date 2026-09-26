@@ -19,6 +19,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0008](./0008-endpoint-failover-scope.md)        | Endpoint Failover Scope: Inference Only     |
 | [0009](./0009-anytool-registry-variance.md)      | `AnyTool` and Registry Parameter Variance   |
 | [0010](./0010-ollama-compatibility-contract.md) | Ollama Compatibility Contract and Support Classification |
+| [0011](./0011-mcp-boundary-and-agent-tool-preconditions.md) | MCP Boundary and Agent Tool Preconditions |
 
 A new ADR is warranted for decisions that are expensive to reverse, affect the public
 API surface or dependency contract, or where a future maintainer would reasonably ask
