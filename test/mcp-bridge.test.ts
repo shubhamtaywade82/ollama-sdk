@@ -1,114 +1,195 @@
 import { describe, expect, it, vi } from 'vitest';
 import { McpBridge } from '../src/mcp/bridge.js';
-import type { McpClientLike } from '../src/mcp/types.js';
+import { loadMcpTools } from '../src/mcp/mcp-tools.js';
 import { ToolRegistry } from '../src/tools/registry.js';
+import type { McpClientLike } from '../src/mcp/types.js';
 
-describe('McpBridge', () => {
-  it('converts MCP tool manifests to native Ollama function definitions', () => {
-    const definitions = McpBridge.toOllamaTools([
-      {
-        name: 'get_weather',
-        description: 'Get weather',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            city: { type: 'string' },
-          },
-          required: ['city'],
-        },
-      },
-    ]);
-
-    expect(definitions).toEqual([
-      {
-        type: 'function',
-        function: {
-          name: 'get_weather',
-          description: 'Get weather',
-          parameters: {
-            type: 'object',
-            properties: {
-              city: { type: 'string' },
-            },
-            required: ['city'],
-          },
-        },
-      },
-    ]);
-  });
-
-  it('preserves arbitrary MCP JSON Schema keywords in the Ollama tool definition', () => {
-    const schema = {
-      type: 'object',
-      properties: {
-        value: {
-          type: 'string',
-          enum: ['a', 'b'],
-          anyOf: [{ type: 'string' }, { type: 'null' }],
-        },
-      },
-      required: ['value'],
-      additionalProperties: false,
-      $defs: {
-        value: { type: 'string' },
-      },
-    };
-
-    const definitions = McpBridge.toOllamaTools([
-      {
-        name: 'structured_tool',
-        inputSchema: schema,
-      },
-    ]);
-
-    expect(definitions[0]?.function.parameters).toEqual(schema);
-  });
-
-  it('loads and registers MCP-backed tools without losing the original MCP name', async () => {
-    const client: McpClientLike = {
-      listTools: vi.fn().mockResolvedValue({
+describe('MCP bridge parity', () => {
+  it('discovers all paginated tools and preserves MCP JSON Schema', async () => {
+    const listTools = vi
+      .fn()
+      .mockResolvedValueOnce({
         tools: [
           {
-            name: 'read_file',
-            description: 'Read a file',
+            name: 'search',
+            title: 'Search',
+            description: 'Search documents',
             inputSchema: {
               type: 'object',
-              properties: {
-                path: { type: 'string' },
-              },
-              required: ['path'],
+              properties: { query: { type: 'string' } },
+              required: ['query'],
               additionalProperties: false,
-              $defs: {
-                path: { type: 'string' },
-              },
+            },
+            outputSchema: {
+              type: 'object',
+              properties: { count: { type: 'integer' } },
             },
           },
         ],
+        nextCursor: 'page-2',
+      })
+      .mockResolvedValueOnce({
+        tools: [
+          {
+            name: 'read',
+            description: 'Read a document',
+            inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+          },
+        ],
+      });
+
+    const client: McpClientLike = { listTools, callTool: vi.fn() };
+    const bridge = new McpBridge(client);
+    const definitions = await bridge.definitions();
+
+    expect(listTools).toHaveBeenNthCalledWith(1, undefined, undefined);
+    expect(listTools).toHaveBeenNthCalledWith(2, { cursor: 'page-2' }, undefined);
+    expect(definitions).toHaveLength(2);
+    expect(definitions[0]?.function.name).toBe('search');
+    expect(definitions[0]?.function.parameters).toMatchObject({
+      type: 'object',
+      required: ['query'],
+      additionalProperties: false,
+    });
+  });
+
+  it('keeps MCP isError results model-readable instead of treating them as transport failures', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{ name: 'lookup', inputSchema: { type: 'object', properties: {} } }],
       }),
       callTool: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: 'hello' }],
+        content: [{ type: 'text', text: 'No matching record' }],
+        structuredContent: { matches: 0 },
+        isError: true,
       }),
     };
+
+    const tools = await loadMcpTools(client);
+    const result = await tools[0]!.execute({}, {});
+
+    expect(result).toContain('[MCP tool error]');
+    expect(result).toContain('No matching record');
+    expect(result).toContain('{"matches":0}');
+  });
+
+  it('preserves structured and non-text MCP result blocks for the model', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{ name: 'inspect', inputSchema: { type: 'object', properties: {} } }],
+      }),
+      callTool: vi.fn().mockResolvedValue({
+        content: [
+          { type: 'text', text: 'primary result' },
+          { type: 'resource_link', uri: 'file:///tmp/a.txt', name: 'a.txt' },
+          { type: 'image', data: 'base64', mimeType: 'image/png' },
+        ],
+        structuredContent: { ok: true, count: 2 },
+      }),
+    };
+
+    const tools = await loadMcpTools(client);
+    const result = await tools[0]!.execute({}, {});
+
+    expect(result).toContain('primary result');
+    expect(result).toContain('"type":"resource_link"');
+    expect(result).toContain('"mimeType":"image/png"');
+    expect(result).toContain('"ok":true');
+  });
+
+  it('registers every page of MCP tools into the registry', async () => {
+    const client: McpClientLike = {
+      listTools: vi
+        .fn()
+        .mockResolvedValueOnce({
+          tools: [{ name: 'one', inputSchema: { type: 'object', properties: {} } }],
+          nextCursor: 'next',
+        })
+        .mockResolvedValueOnce({
+          tools: [{ name: 'two', inputSchema: { type: 'object', properties: {} } }],
+        }),
+      callTool: vi.fn(),
+    };
     const registry = new ToolRegistry();
-    const bridge = new McpBridge(client, { namePrefix: 'mcp_' });
+    await new McpBridge(client).register(registry);
+    expect(registry.get('one')).toBeDefined();
+    expect(registry.get('two')).toBeDefined();
+  });
+});
 
-    await bridge.register(registry);
 
-    const result = await registry.executeToolCall({
-      function: { name: 'mcp_read_file', arguments: {} },
+describe('MCP bridge safety and cancellation', () => {
+  it('forwards AbortSignal to listTools and callTool', async () => {
+    const controller = new AbortController();
+    const listTools = vi.fn(async (_params?: unknown, options?: { signal?: AbortSignal }) => {
+      expect(options?.signal).toBe(controller.signal);
+      return {
+        tools: [{ name: 'echo', inputSchema: { type: 'object', properties: {} } }],
+      };
     });
+    const callTool = vi.fn(async (
+      _params: unknown,
+      options?: { signal?: AbortSignal },
+    ) => {
+      expect(options?.signal).toBe(controller.signal);
+      return { content: [{ type: 'text', text: 'ok' }] };
+    });
+    const client: McpClientLike = { listTools, callTool };
+    const tools = await loadMcpTools(client, {}, controller.signal);
+    await tools[0]!.execute({}, { signal: controller.signal });
 
-    expect(result.success).toBe(true);
-    expect(result.outputString).toBe('hello');
-    expect(client.callTool).toHaveBeenCalledWith({
-      name: 'read_file',
-      arguments: {},
+    expect(listTools).toHaveBeenCalledWith(undefined, { signal: controller.signal });
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'echo', arguments: {} },
+      { signal: controller.signal },
+    );
+  });
+
+  it('rejects paginated cursor loops instead of spinning forever', async () => {
+    const listTools = vi.fn().mockResolvedValue({
+      tools: [{ name: 'one' }],
+      nextCursor: 'same',
     });
-    expect(registry.get('mcp_read_file')?.definition.function.parameters).toMatchObject({
-      additionalProperties: false,
-      $defs: {
-        path: { type: 'string' },
-      },
+    const client: McpClientLike = { listTools, callTool: vi.fn() };
+
+    await expect(loadMcpTools(client)).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'listTools',
     });
+    expect(listTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces a configurable maximum page count', async () => {
+    const listTools = vi.fn().mockResolvedValue({
+      tools: [{ name: 'one' }],
+      nextCursor: 'next',
+    });
+    const client: McpClientLike = { listTools, callTool: vi.fn() };
+
+    await expect(
+      loadMcpTools(client, { maxPages: 2 }),
+    ).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'listTools',
+    });
+    expect(listTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves structuredContent values that are falsy but valid JSON', async () => {
+    for (const structuredContent of [null, false, 0, '']) {
+      const client: McpClientLike = {
+        listTools: async () => ({
+          tools: [{ name: 'inspect', inputSchema: { type: 'object', properties: {} } }],
+        }),
+        callTool: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'content' }],
+          structuredContent,
+        }),
+      };
+
+      const tools = await loadMcpTools(client);
+      const result = await tools[0]!.execute({}, {});
+      expect(result).toContain(JSON.stringify(structuredContent));
+    }
   });
 });
