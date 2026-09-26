@@ -78,7 +78,7 @@ function formatMcpToolResult(result: McpCallToolResult): string {
     parts.unshift('[MCP tool error]');
   }
 
-  return parts.join('\\n');
+  return parts.join('\n');
 }
 
 function convertMcpDescriptorToTool(
