@@ -70,6 +70,39 @@ describe('Agent tool preflight and context management', () => {
     execute: ({ city }) => 'Sunny in ' + city,
   });
 
+  it('skips capability discovery and automatic context sizing when preflight is disabled', async () => {
+    const tool = defineTool({
+      name: 'echo',
+      description: 'Echo',
+      schema: z.object({ text: z.string() }),
+      execute: ({ text }) => text,
+    });
+    const capabilities = vi.fn();
+    const requests: Array<{ options?: ModelOptions }> = [];
+    const client = {
+      capabilities,
+      chat: vi.fn().mockImplementation(async (request) => {
+        requests.push(request);
+        return {
+          message: { role: 'assistant' as const, content: 'done' },
+        };
+      }),
+    };
+
+    const agent = new Agent(client, {
+      tools: new ToolRegistry([tool]),
+      validateToolCapability: false,
+    });
+
+    await agent.run({
+      model: 'legacy',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(capabilities).not.toHaveBeenCalled();
+    expect(requests[0]?.options).toBeUndefined();
+  });
+
   it('rejects tool loops when the model does not advertise tool support', async () => {
     const chat = vi.fn();
     const client = {
