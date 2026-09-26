@@ -126,3 +126,41 @@ describe('Compatibility bridge request typing (mocked network)', () => {
     expect(body.messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
   });
 });
+
+
+describe('OpenAI compatibility streaming', () => {
+  it('parses OpenAI SSE chat completion chunks', async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"llama3.2","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\\n\\n'));
+        controller.enqueue(encoder.encode('data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"llama3.2","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}\\n\\n'));
+        controller.enqueue(encoder.encode('data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"llama3.2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\\n\\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\\n\\n'));
+        controller.close();
+      },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body,
+    });
+
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.openai.chatCompletionsStream({
+      model: 'llama3.2',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+    });
+
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]?.choices[0]?.delta.content).toBe('Hello');
+    expect(chunks[1]?.choices[0]?.delta.content).toBe(' world');
+    expect(chunks[2]?.choices[0]?.finish_reason).toBe('stop');
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toContain('"stream":true');
+  });
+});
