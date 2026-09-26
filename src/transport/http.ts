@@ -3,7 +3,10 @@
  */
 
 import { mapError } from '../errors.js';
+import { composeMiddleware, type Middleware, type RequestContext } from '../middleware.js';
+import type { RequestLifecycleHook } from '../logger.js';
 import { parseNdjsonStream } from '../streaming/ndjson.js';
+import { parseSseStream, type SseEvent } from '../streaming/sse.js';
 import type { AbortableAsyncIterable } from '../streaming/types.js';
 import {
   withSpan,
@@ -34,11 +37,35 @@ export type FetchLike = typeof globalThis.fetch;
 export type BinaryBody = Uint8Array | ArrayBuffer | string | Blob | ReadableStream<Uint8Array>;
 export type HttpBody = unknown;
 
+let requestSequence = 0;
+
+function createRequestId(): string {
+  requestSequence += 1;
+  return `ollama-http-${requestSequence}`;
+}
+
+function sameHeaders(actual: Record<string, string>, expected: Headers): boolean {
+  const actualEntries = Object.fromEntries(
+    Object.entries(actual).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+  const expectedEntries = Object.fromEntries(expected.entries());
+  const actualKeys = Object.keys(actualEntries);
+  const expectedKeys = Object.keys(expectedEntries);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => actualEntries[key] === expectedEntries[key])
+  );
+}
+
 export interface HttpClientOptions {
   readonly baseUrl: string;
   readonly apiKey?: string | undefined;
   readonly headers?: Record<string, string> | undefined;
   readonly fetch?: FetchLike | undefined;
+  readonly middleware?: readonly Middleware[] | undefined;
+  readonly onLifecycleEvent?: RequestLifecycleHook | undefined;
+  /** Reuse a logical request id across endpoint failover/retry attempts. */
+  readonly requestId?: string | undefined;
 }
 
 export interface HttpRequestOptions {
@@ -55,12 +82,18 @@ export class HttpClient {
   private readonly apiKey?: string | undefined;
   private readonly defaultHeaders: Record<string, string>;
   private readonly fetchImpl: FetchLike;
+  private readonly middleware: readonly Middleware[];
+  private readonly onLifecycleEvent: RequestLifecycleHook | undefined;
+  private readonly requestId?: string | undefined;
 
   constructor(options: HttpClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this.defaultHeaders = options.headers ?? {};
     this.fetchImpl = options.fetch ?? globalThis.fetch;
+    this.middleware = options.middleware ?? [];
+    this.onLifecycleEvent = options.onLifecycleEvent;
+    this.requestId = options.requestId;
   }
 
   private buildHeaders(customHeaders?: Record<string, string> | undefined): Record<string, string> {
@@ -73,6 +106,159 @@ export class HttpClient {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
     return headers;
+  }
+
+  private async fetchWithMiddleware(request: RequestContext): Promise<Response> {
+    const requestId = this.requestId ?? createRequestId();
+    const startedAt = Date.now();
+    let rawResponse: unknown;
+    this.onLifecycleEvent?.({
+      type: 'start',
+      requestId,
+      method: request.method,
+      url: request.url,
+      timestamp: startedAt,
+    });
+
+    const finalHandler = async (req: RequestContext): Promise<{
+      status: number;
+      headers: Record<string, string>;
+      body: Response;
+    }> => {
+      const init: RequestInit = {
+        method: req.method,
+        headers: req.headers,
+        ...(req.body !== undefined ? { body: req.body as NonNullable<RequestInit['body']> } : {}),
+        ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      };
+      const response = await this.fetchImpl(req.url, init);
+      rawResponse = response;
+      const responseHeaders =
+        response.headers && typeof response.headers.entries === 'function'
+          ? Object.fromEntries(response.headers.entries())
+          : {};
+      return {
+        status: response.status,
+        headers: responseHeaders,
+        body: response,
+      };
+    };
+
+    try {
+      if (this.middleware.length === 0) {
+        const response = await this.fetchImpl(request.url, {
+          method: request.method,
+          headers: request.headers,
+          ...(request.body !== undefined
+            ? { body: request.body as NonNullable<RequestInit['body']> }
+            : {}),
+          ...(request.signal !== undefined ? { signal: request.signal } : {}),
+        });
+        if (response.status >= 200 && response.status < 300) {
+          this.onLifecycleEvent?.({
+            type: 'success',
+            requestId,
+            durationMs: Date.now() - startedAt,
+            status: response.status,
+            timestamp: Date.now(),
+          });
+        } else {
+          this.onLifecycleEvent?.({
+            type: 'error',
+            requestId,
+            durationMs: Date.now() - startedAt,
+            error: mapError(new Error(`HTTP ${response.status}`), {
+              request: { method: request.method, url: request.url },
+              response: { status: response.status },
+            }),
+            timestamp: Date.now(),
+          });
+        }
+        return response;
+      }
+
+      const pipeline = composeMiddleware(this.middleware, finalHandler);
+      const context = await pipeline(request);
+
+      let response: Response;
+      if (rawResponse !== undefined && context.body === rawResponse) {
+        response = rawResponse as Response;
+        if (
+          context.status !== response.status ||
+          !sameHeaders(context.headers, response.headers)
+        ) {
+          const cloned = response.clone();
+          response = new Response(cloned.body, {
+            status: context.status,
+            headers: context.headers,
+          });
+        }
+      } else if (context.body instanceof Response) {
+        if (
+          context.status === context.body.status &&
+          sameHeaders(context.headers, context.body.headers)
+        ) {
+          response = context.body;
+        } else {
+          const cloned = context.body.clone();
+          response = new Response(cloned.body, {
+            status: context.status,
+            headers: context.headers,
+          });
+        }
+      } else if (
+        context.body === undefined ||
+        typeof context.body === 'string' ||
+        context.body instanceof ArrayBuffer ||
+        ArrayBuffer.isView(context.body) ||
+        context.body instanceof Blob ||
+        context.body instanceof ReadableStream
+      ) {
+        response = new Response(context.body as RequestInit['body'], {
+          status: context.status,
+          headers: context.headers,
+        });
+      } else {
+        response = new Response(JSON.stringify(context.body), {
+          status: context.status,
+          headers: context.headers,
+        });
+      }
+
+      if (context.status >= 200 && context.status < 300) {
+        this.onLifecycleEvent?.({
+          type: 'success',
+          requestId,
+          durationMs: Date.now() - startedAt,
+          status: context.status,
+          timestamp: Date.now(),
+        });
+      } else {
+        this.onLifecycleEvent?.({
+          type: 'error',
+          requestId,
+          durationMs: Date.now() - startedAt,
+          error: mapError(new Error(`HTTP ${context.status}`), {
+            request: { method: request.method, url: request.url },
+            response: { status: context.status, headers: context.headers },
+          }),
+          timestamp: Date.now(),
+        });
+      }
+      return response;
+    } catch (error) {
+      const mapped = mapError(error, {
+        request: { method: request.method, url: request.url },
+      });
+      this.onLifecycleEvent?.({
+        type: 'error',
+        requestId,
+        durationMs: Date.now() - startedAt,
+        error: mapped,
+        timestamp: Date.now(),
+      });
+      throw mapped;
+    }
   }
 
   async request<T>(options: HttpRequestOptions): Promise<T> {
@@ -98,14 +284,13 @@ export class HttpClient {
                 ? JSON.stringify(options.body)
                 : undefined;
 
-          const init: RequestInit = {
+          const response = await this.fetchWithMiddleware({
+            url,
             method,
             headers,
             ...(bodyInit !== undefined ? { body: bodyInit } : {}),
             ...(options.signal !== undefined ? { signal: options.signal } : {}),
-          };
-
-          const response = await this.fetchImpl(url, init);
+          });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
@@ -145,6 +330,89 @@ export class HttpClient {
     );
   }
 
+  /**
+   * Opens an event-stream response and exposes parsed SSE events.
+   *
+   * This is intentionally schema-agnostic so OpenAI and Anthropic compatibility layers
+   * can decode their provider-specific event payloads without duplicating transport logic.
+   */
+  async requestSseStream(options: HttpRequestOptions): Promise<AbortableAsyncIterable<SseEvent>> {
+    const url = `${this.baseUrl}${options.path}`;
+    const method = options.method ?? 'POST';
+    const headers = {
+      ...this.buildHeaders(options.headers),
+      Accept: 'text/event-stream',
+    };
+
+    return withSpan(
+      `${method} ${routeTemplate(options.path)}`,
+      httpSpanAttributes(method, url),
+      async (span) => {
+        try {
+          const controller = new AbortController();
+          const removeAbortListener =
+            options.signal !== undefined
+              ? (() => {
+                  if (options.signal.aborted) {
+                    controller.abort(options.signal.reason);
+                  } else {
+                    const onAbort = (): void => controller.abort(options.signal?.reason);
+                    options.signal.addEventListener('abort', onAbort, { once: true });
+                    return () => options.signal?.removeEventListener('abort', onAbort);
+                  }
+                  return undefined;
+                })()
+              : undefined;
+
+          const response = await this.fetchWithMiddleware({
+            url,
+            method,
+            headers,
+            ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+            signal: controller.signal,
+          });
+          span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
+
+          if (!response.ok) {
+            removeAbortListener?.();
+            const errorText = await response.text();
+            throw mapError(new Error(errorText || `HTTP ${response.status}`), {
+              request: { method, url },
+              response: { status: response.status, body: errorText },
+            });
+          }
+
+          if (!response.body) {
+            removeAbortListener?.();
+            throw mapError(new Error('Response body is null, cannot stream SSE'), {
+              request: { method, url },
+            });
+          }
+
+          const stream = (async function* (): AsyncGenerator<SseEvent, void, undefined> {
+            try {
+              yield* parseSseStream(response.body!);
+            } finally {
+              removeAbortListener?.();
+            }
+          })();
+
+          return {
+            [Symbol.asyncIterator]() {
+              return stream[Symbol.asyncIterator]();
+            },
+            abort: () => {
+              removeAbortListener?.();
+              controller.abort();
+            },
+          } as AbortableAsyncIterable<SseEvent>;
+        } catch (err) {
+          throw mapError(err, { request: { method, url } });
+        }
+      },
+    );
+  }
+
   async requestStream<T>(options: HttpRequestOptions): Promise<AbortableAsyncIterable<T>> {
     const url = `${this.baseUrl}${options.path}`;
     const method = options.method ?? 'POST';
@@ -155,17 +423,32 @@ export class HttpClient {
       httpSpanAttributes(method, url),
       async (span) => {
         try {
-          const init: RequestInit = {
+          const controller = new AbortController();
+          const removeAbortListener =
+            options.signal !== undefined
+              ? (() => {
+                  if (options.signal.aborted) {
+                    controller.abort(options.signal.reason);
+                  } else {
+                    const onAbort = (): void => controller.abort(options.signal?.reason);
+                    options.signal.addEventListener('abort', onAbort, { once: true });
+                    return () => options.signal?.removeEventListener('abort', onAbort);
+                  }
+                  return undefined;
+                })()
+              : undefined;
+
+          const response = await this.fetchWithMiddleware({
+            url,
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-            ...(options.signal !== undefined ? { signal: options.signal } : {}),
-          };
-
-          const response = await this.fetchImpl(url, init);
+            signal: controller.signal,
+          });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
+            removeAbortListener?.();
             const errorText = await response.text();
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
@@ -174,6 +457,7 @@ export class HttpClient {
           }
 
           if (!response.body) {
+            removeAbortListener?.();
             throw mapError(new Error('Response body is null, cannot stream'), {
               request: { method, url },
             });
@@ -182,7 +466,17 @@ export class HttpClient {
           const stream = parseNdjsonStream<T>(response.body);
           const abortable: AbortableAsyncIterable<T> = {
             [Symbol.asyncIterator]() {
-              return stream[Symbol.asyncIterator]();
+              return (async function* (): AsyncGenerator<T, void, undefined> {
+                try {
+                  yield* stream;
+                } finally {
+                  removeAbortListener?.();
+                }
+              })()[Symbol.asyncIterator]();
+            },
+            abort: () => {
+              removeAbortListener?.();
+              controller.abort();
             },
           };
           return abortable;

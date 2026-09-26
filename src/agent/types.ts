@@ -2,7 +2,7 @@
  * Agent loop options, turn state, and execution hooks.
  */
 
-import type { Message, ModelOptions, ToolCall } from '../types.js';
+import type { Message, ModelOptions, ThinkValue, ToolCall } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ToolExecutionResult } from '../tools/types.js';
 
@@ -32,12 +32,19 @@ export interface AgentConfig {
   readonly tools?: ToolRegistry | undefined;
   readonly maxIterations?: number | undefined;
   readonly hooks?: AgentHooks | undefined;
+  /** Validate tool support from /api/show before starting a tool-enabled run. Default: true. */
+  readonly validateToolCapability?: boolean | undefined;
+  /**
+   * Automatic context size for tool-enabled runs when options.num_ctx is not supplied.
+   * Defaults to 32768 and is clamped to the model-reported maximum when available.
+   */
+  readonly toolContextSize?: number | undefined;
 }
 
 export interface AgentRunInput {
   readonly model: string;
   readonly messages: readonly Message[];
   readonly options?: ModelOptions | undefined;
-  readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  readonly think?: ThinkValue | undefined;
   readonly signal?: AbortSignal | undefined;
 }

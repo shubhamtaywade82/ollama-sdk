@@ -192,3 +192,117 @@ describe('Agent tool_call_id correlation', () => {
     expect(toolMessage?.toolCallId).toBe(assignedId);
   });
 });
+
+
+describe('Native Ollama tool-result protocol', () => {
+  it('uses tool_name and does not send SDK-only tool_call_id in an Agent turn', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          model: 'llama3.2',
+          created_at: '2026-09-24T00:00:00Z',
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              { function: { name: 'echo', arguments: { text: 'hi' } } },
+            ],
+          },
+          done: true,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          model: 'llama3.2',
+          created_at: '2026-09-24T00:00:01Z',
+          message: {
+            role: 'assistant',
+            content: 'done',
+          },
+          done: true,
+        }),
+      });
+
+    const registry = new ToolRegistry([
+      defineTool({
+        name: 'echo',
+        description: 'Echoes input',
+        schema: z.object({ text: z.string() }),
+        execute: ({ text }) => text,
+      }),
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const agent = new Agent(client, {
+      tools: registry,
+      validateToolCapability: false,
+    });
+
+    await agent.run({
+      model: 'llama3.2',
+      messages: [{ role: 'user', content: 'go' }],
+    });
+
+    const secondRequestBody = JSON.parse(
+      String(fetchMock.mock.calls[1]![1]!.body),
+    ) as {
+      messages: Array<Record<string, unknown>>;
+    };
+    const toolMessage = secondRequestBody.messages.at(-1);
+
+    expect(toolMessage).toMatchObject({
+      role: 'tool',
+      tool_name: 'echo',
+      content: 'hi',
+    });
+    expect(toolMessage).not.toHaveProperty('tool_call_id');
+  });
+
+  it('strips a legacy SDK-only tool_call_id if supplied manually', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        model: 'llama3.2',
+        created_at: '2026-09-24T00:00:00Z',
+        message: {
+          role: 'assistant',
+          content: 'done',
+        },
+        done: true,
+      }),
+    });
+
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.chat({
+      model: 'llama3.2',
+      messages: [
+        { role: 'user', content: 'go' },
+        {
+          role: 'tool',
+          tool_name: 'echo',
+          tool_call_id: 'call_legacy',
+          content: 'hi',
+        },
+      ],
+      stream: false,
+    });
+
+    const requestBody = JSON.parse(
+      String(fetchMock.mock.calls[0]![1]!.body),
+    ) as {
+      messages: Array<Record<string, unknown>>;
+    };
+
+    expect(requestBody.messages[1]).toEqual({
+      role: 'tool',
+      tool_name: 'echo',
+      content: 'hi',
+    });
+  });
+});

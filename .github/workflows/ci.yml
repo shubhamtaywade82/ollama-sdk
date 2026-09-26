@@ -27,6 +27,9 @@ jobs:
 
       - run: npm run lint
 
+      - name: Verify Ollama API parity manifest
+        run: npm run verify:api-parity
+
       - run: npm test
 
       - run: npm run build
@@ -58,6 +61,21 @@ jobs:
           npm install "/tmp/${TARBALL}"
           node -e "const { OllamaClient } = require('@nemesis-oss/ollama-sdk'); if (typeof OllamaClient !== 'function') throw new Error('CJS entry broken');"
           node --input-type=module -e "import { OllamaClient } from '@nemesis-oss/ollama-sdk'; if (typeof OllamaClient !== 'function') throw new Error('ESM entry broken');"
+
+  api-parity:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+      - run: npm run verify:api-parity
 
   edge-runtime:
     runs-on: ubuntu-latest

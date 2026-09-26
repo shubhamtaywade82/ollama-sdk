@@ -69,6 +69,13 @@ import type {
   WebSearchResponse,
 } from './types.js';
 
+let logicalRequestSequence = 0;
+
+function createLogicalRequestId(): string {
+  logicalRequestSequence += 1;
+  return `ollama-request-${logicalRequestSequence}`;
+}
+
 export class OllamaClient {
   readonly registry: EndpointRegistry;
   readonly models: ModelsClient;
@@ -77,6 +84,8 @@ export class OllamaClient {
   private readonly failoverCodes: Set<string>;
   private readonly fetchImpl: FetchLike;
   private readonly logger: Logger;
+  private readonly middleware: OllamaClientConfig['middleware'];
+  private readonly onLifecycleEvent: OllamaClientConfig['onLifecycleEvent'];
   /**
    * API key for Ollama's hosted web tools (`webSearch`/`webFetch`), which always target
    * `OLLAMA_CLOUD_BASE_URL` regardless of `config.endpoints` — an Ollama account API key
@@ -107,6 +116,8 @@ export class OllamaClient {
     this.failoverCodes = new Set(config.failoverOn ?? DEFAULT_FAILOVER_CODES);
     this.fetchImpl = config.fetch ?? globalThis.fetch;
     this.logger = config.logger ?? (config.debug ? createConsoleLogger() : NOOP_LOGGER);
+    this.middleware = config.middleware;
+    this.onLifecycleEvent = config.onLifecycleEvent;
     this.retryConfig =
       typeof config.retries === 'number'
         ? { ...DEFAULT_RETRY_CONFIG, maxRetries: config.retries }
@@ -172,6 +183,8 @@ export class OllamaClient {
     },
   ): Promise<T> {
     const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
+    const requestId = createLogicalRequestId();
+    let deferTimeoutCancel = false;
     try {
       let lastError: Error | undefined;
 
@@ -213,6 +226,9 @@ export class OllamaClient {
             ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
             ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
             fetch: this.fetchImpl,
+            middleware: this.middleware,
+            onLifecycleEvent: this.onLifecycleEvent,
+            requestId,
           });
 
           // Acquired synchronously, right after this endpoint was chosen from
@@ -228,10 +244,27 @@ export class OllamaClient {
                 [ATTR_OLLAMA_ENDPOINT_NAME]: endpoint.name,
                 [ATTR_OLLAMA_ENDPOINT_ATTEMPT]: attemptIndex,
               },
-              () => withRetry(() => operation(http, timeout.signal), this.retryConfig),
+              () =>
+                withRetry(() => operation(http, timeout.signal), {
+                  ...this.retryConfig,
+                  onRetry: (error, attempt, delayMs) => {
+                    this.retryConfig.onRetry?.(error, attempt, delayMs);
+                    this.onLifecycleEvent?.({
+                      type: 'retry',
+                      requestId,
+                      attempt: attempt + 1,
+                      error,
+                      delayMs,
+                      timestamp: Date.now(),
+                    });
+                  },
+                }, timeout.signal),
             );
             this.registry.reportSuccess(endpoint.name);
-            if (options?.holdUntil) holdPromise = options.holdUntil(result);
+            if (options?.holdUntil) {
+              holdPromise = options.holdUntil(result);
+              deferTimeoutCancel = true;
+            }
             return result;
           } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
@@ -244,7 +277,10 @@ export class OllamaClient {
             if (holdPromise) {
               void holdPromise
                 .catch(() => undefined)
-                .finally(() => this.registry.release(endpoint.name));
+                .finally(() => {
+                  timeout.cancel();
+                  this.registry.release(endpoint.name);
+                });
             } else {
               this.registry.release(endpoint.name);
             }
@@ -253,7 +289,7 @@ export class OllamaClient {
         throw lastError ?? new Error('No healthy Ollama endpoints available');
       }
     } finally {
-      timeout.cancel();
+      if (!deferTimeoutCancel) timeout.cancel();
     }
   }
 
@@ -268,7 +304,14 @@ export class OllamaClient {
   async chat(
     req: ChatRequestOptions,
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
-    const messages = await withEncodedMessageImages(req.messages);
+    const encodedMessages = await withEncodedMessageImages(req.messages);
+    const messages = encodedMessages.map((message) => {
+      if (message.role === 'tool' && message.tool_call_id !== undefined) {
+        const { tool_call_id: _toolCallId, ...nativeMessage } = message;
+        return nativeMessage;
+      }
+      return message;
+    });
     if (req.stream) {
       return this.executeWithFailover(
         async (http, signal) => {
@@ -279,7 +322,7 @@ export class OllamaClient {
             body: { ...req, messages, stream: true },
             signal,
           });
-          return normalizeChatStream(stream);
+          return normalizeChatStream(stream, signal);
         },
         {
           signal: req.signal,
@@ -369,7 +412,7 @@ export class OllamaClient {
             body: { ...encodedReq, stream: true },
             signal,
           });
-          return normalizeGenerateStream(stream);
+          return normalizeGenerateStream(stream, signal);
         },
         {
           signal: encodedReq.signal,
@@ -517,31 +560,58 @@ export class OllamaClient {
     options: RequestCancellationOptions,
   ): Promise<T> {
     const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, options.signal);
+    const requestId = createLogicalRequestId();
     try {
       const http = new HttpClient({
         baseUrl: OLLAMA_CLOUD_BASE_URL,
         apiKey: this.cloudApiKey,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
+        requestId,
       });
-      return await withRetry(() => operation(http, timeout.signal), this.retryConfig);
+      return await withRetry(() => operation(http, timeout.signal), {
+        ...this.retryConfig,
+        onRetry: (error, attempt, delayMs) => {
+          this.retryConfig.onRetry?.(error, attempt, delayMs);
+          this.onLifecycleEvent?.({
+            type: 'retry',
+            requestId,
+            attempt: attempt + 1,
+            error,
+            delayMs,
+            timestamp: Date.now(),
+          });
+        },
+      }, timeout.signal);
     } finally {
       timeout.cancel();
     }
   }
 
   // --- Capabilities & Health ---
-  capabilities(model: string): Promise<ModelCapabilities> {
-    return this.executeWithFailover((http) => detectModelCapabilities(http, model), {
-      singleEndpoint: true,
-      model,
-    });
+  capabilities(model: string, signal?: AbortSignal): Promise<ModelCapabilities> {
+    return this.executeWithFailover(
+      (http, runnerSignal) => detectModelCapabilities(http, model, runnerSignal),
+      {
+        singleEndpoint: true,
+        model,
+        ...(signal !== undefined ? { signal } : {}),
+      },
+    );
   }
   runtimeMode(): RuntimeMode {
     const ep = this.registry.candidates()[0];
     return inferRuntimeMode(ep?.baseUrl ?? DEFAULT_BASE_URL);
   }
   healthCheck(): Promise<EndpointHealthCheckResult[]> {
-    return Promise.all(this.registry.list().map((ep) => checkEndpointHealth(ep, this.fetchImpl)));
+    return Promise.all(
+      this.registry
+        .list()
+        .map((ep) =>
+          checkEndpointHealth(ep, this.fetchImpl, 5000, this.middleware, this.onLifecycleEvent),
+        ),
+    );
   }
   endpointStatus(): EndpointHealth[] {
     return this.registry.status();
@@ -556,7 +626,10 @@ export class OllamaClient {
         apiKey: ep?.apiKey,
         headers: ep?.headers,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
       }),
+      (op, opts) => this.executeWithFailover(op, opts),
     );
   }
   get anthropic(): AnthropicCompatClient {
@@ -567,7 +640,10 @@ export class OllamaClient {
         apiKey: ep?.apiKey,
         headers: ep?.headers,
         fetch: this.fetchImpl,
+        middleware: this.middleware,
+        onLifecycleEvent: this.onLifecycleEvent,
       }),
+      (op, opts) => this.executeWithFailover(op, opts),
     );
   }
 }

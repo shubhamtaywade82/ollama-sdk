@@ -4,6 +4,15 @@
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool' | 'thought';
 
+/** Ollama native thinking control: booleans, null for model default, or model-defined levels. */
+export type ThinkValue = boolean | string | null;
+
+/** Thinking capability metadata returned by `/api/show`. */
+export interface ThinkingMetadata {
+  readonly values: readonly (boolean | string)[];
+  readonly default?: boolean | string | null | undefined;
+}
+
 export interface ToolCallFunction {
   readonly name: string;
   readonly arguments: Record<string, unknown>;
@@ -37,7 +46,16 @@ export interface Message {
    */
   readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
-  /** Set on a `role: 'tool'` message to identify which {@link ToolCall.id} this answers. */
+  /**
+   * Ollama's native `/api/chat` field identifying which tool produced this result.
+   * For `role: 'tool'` messages this should be the registered tool's name.
+   */
+  readonly tool_name?: string | undefined;
+  /**
+   * @deprecated SDK-local correlation metadata only. Ollama's native `/api/chat` protocol
+   * does not use `tool_call_id`; native requests strip this field before transmission.
+   * OpenAI compatibility uses its own `OpenAIMessage.tool_call_id` type.
+   */
   readonly tool_call_id?: string | undefined;
   readonly thinking?: string | undefined;
 }
@@ -49,16 +67,22 @@ export interface ToolProperty {
   readonly items?: Record<string, unknown> | undefined;
   readonly properties?: Record<string, unknown> | undefined;
   readonly required?: readonly string[] | undefined;
+  /** Additional JSON Schema keywords are preserved for MCP/provider interoperability. */
+  readonly [keyword: string]: unknown;
+}
+
+export interface ToolParameters {
+  readonly type: 'object';
+  readonly properties: Record<string, ToolProperty>;
+  readonly required?: readonly string[] | undefined;
+  /** Additional JSON Schema keywords such as $defs, anyOf, allOf, and additionalProperties. */
+  readonly [keyword: string]: unknown;
 }
 
 export interface ToolFunctionDefinition {
   readonly name: string;
   readonly description: string;
-  readonly parameters: {
-    readonly type: 'object';
-    readonly properties: Record<string, ToolProperty>;
-    readonly required?: readonly string[] | undefined;
-  };
+  readonly parameters: ToolParameters;
 }
 
 export interface ToolDefinition {
@@ -129,7 +153,11 @@ export interface ChatRequestOptions extends RequestCancellationOptions {
   readonly options?: ModelOptions | undefined;
   readonly stream?: boolean | undefined;
   readonly keep_alive?: string | number | undefined;
-  readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  /**
+   * Controls thinking output. Use `client.capabilities(model).thinking` to discover
+   * model-defined string levels and the model default.
+   */
+  readonly think?: ThinkValue | undefined;
   /** Whether to return log probabilities of the output tokens. See {@link ChatResponse.logprobs}. */
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
@@ -145,6 +173,8 @@ export interface ChatResponse {
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
   readonly prompt_eval_count?: number | undefined;
+  /** Number of prompt tokens read from the KV cache. */
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
@@ -170,7 +200,7 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly images?: readonly (string | Uint8Array)[] | undefined;
   readonly options?: ModelOptions | undefined;
   readonly keep_alive?: string | number | undefined;
-  readonly think?: boolean | 'low' | 'medium' | 'high' | 'max' | undefined;
+  readonly think?: ThinkValue | undefined;
   /** Whether to return log probabilities of the output tokens. See {@link GenerateResponse.logprobs}. */
   readonly logprobs?: boolean | undefined;
   /** Number of most likely alternative tokens to return at each position. Requires `logprobs: true`. */
@@ -242,6 +272,8 @@ export interface ModelResponse {
   readonly details: ModelDetails;
   readonly expires_at?: string | undefined;
   readonly size_vram?: number | undefined;
+  /** Context window length reported for currently running models by /api/ps. */
+  readonly context_length?: number | undefined;
 }
 
 export interface ListResponse {
@@ -265,6 +297,8 @@ export interface ShowResponse {
   readonly messages?: readonly Message[] | undefined;
   readonly model_info?: Record<string, unknown> | undefined;
   readonly capabilities?: readonly string[] | undefined;
+  /** Model-defined thinking levels and default, when reported by Ollama. */
+  readonly thinking?: ThinkingMetadata | undefined;
   readonly modified_at?: string | undefined;
 }
 
@@ -301,8 +335,12 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly modelfile?: string | undefined;
   readonly stream?: boolean | undefined;
   readonly quantize?: string | undefined;
+  /** Quantization level to apply to draft weights during import. */
+  readonly draft_quantize?: string | undefined;
   readonly from?: string | undefined;
   readonly files?: Record<string, string> | undefined;
+  /** Draft source file names mapped to their SHA-256 digests. */
+  readonly draft_files?: Record<string, string> | undefined;
   readonly adapters?: Record<string, string> | undefined;
   readonly template?: string | undefined;
   readonly renderer?: string | undefined;
@@ -312,6 +350,8 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   /** Modelfile `PARAMETER` instructions, e.g. `{ temperature: 0.7, stop: ['\n'] }`. */
   readonly parameters?: Record<string, unknown> | undefined;
   readonly messages?: readonly Message[] | undefined;
+  /** Minimum Ollama version required by the model. */
+  readonly requires?: string | undefined;
 }
 
 export interface DeleteRequestOptions extends RequestCancellationOptions {

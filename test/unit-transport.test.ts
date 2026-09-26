@@ -57,6 +57,22 @@ describe('Unit: Transport & Resilience', () => {
       expect(fn).toHaveBeenCalledTimes(3);
     });
 
+    it('cancels an in-progress retry backoff via AbortSignal', async () => {
+      const controller = new AbortController();
+      const fn = vi.fn().mockRejectedValue(new OllamaServerError('Busy', { status: 503 }));
+      const retryPromise = withRetry(
+        fn,
+        { maxRetries: 3, initialDelayMs: 10_000, maxDelayMs: 10_000, backoffFactor: 1 },
+        controller.signal,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      controller.abort();
+
+      await expect(retryPromise).rejects.toMatchObject({ code: 'aborted' });
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
     it('aborts retries immediately on non-retryable errors', async () => {
       const fn = vi.fn().mockRejectedValue(new OllamaAuthError('Bad token'));
       await expect(

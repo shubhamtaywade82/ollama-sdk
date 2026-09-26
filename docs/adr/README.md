@@ -18,6 +18,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0007](./0007-synthetic-tool-call-ids.md)        | Synthetic Tool-Call IDs                     |
 | [0008](./0008-endpoint-failover-scope.md)        | Endpoint Failover Scope: Inference Only     |
 | [0009](./0009-anytool-registry-variance.md)      | `AnyTool` and Registry Parameter Variance   |
+| [0010](./0010-ollama-compatibility-contract.md) | Ollama Compatibility Contract and Support Classification |
 
 A new ADR is warranted for decisions that are expensive to reverse, affect the public
 API surface or dependency contract, or where a future maintainer would reasonably ask

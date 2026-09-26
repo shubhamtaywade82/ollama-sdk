@@ -58,6 +58,38 @@ describe('Concurrency slot lifecycle: streaming', () => {
     expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
   });
 
+  it('releases the slot when an unconsumed native stream is aborted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              `{"model":"llama3","created_at":"t","message":{"role":"assistant","content":"hi"},"done":false}\n`,
+            ),
+          );
+        },
+      }),
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'a', baseUrl: 'http://a.local' }],
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const stream = await client.chatStream({
+      model: 'llama3',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+    stream.abort();
+    await expect(stream.finalResult).rejects.toMatchObject({ code: 'aborted' });
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+
   it('releases the slot if stream consumption errors partway through', async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
@@ -94,6 +126,45 @@ describe('Concurrency slot lifecycle: streaming', () => {
     expect(events.some((e) => e.type === 'error')).toBe(true);
     await expect(stream.finalResult).rejects.toThrow();
 
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
+  });
+});
+
+describe('Concurrency slot lifecycle: retry cancellation', () => {
+  it('releases the endpoint slot when AbortSignal cancels retry backoff', async () => {
+    const controller = new AbortController();
+    let fetchCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ error: 'busy' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const client = new OllamaClient({
+      endpoints: [{ name: 'only', baseUrl: 'http://only.local' }],
+      retries: {
+        maxRetries: 3,
+        backoff: { initialDelayMs: 10_000, maxDelayMs: 10_000, backoffFactor: 1 },
+      },
+      endpointHealth: { maxConcurrentPerEndpoint: 1 },
+      fetch: fetchMock as never,
+    });
+
+    const request = client.chat({
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hello' }],
+      signal: controller.signal,
+    });
+
+    await flush();
+    expect(fetchCalls).toBe(1);
+    expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
+
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ code: 'aborted' });
+    expect(fetchCalls).toBe(1);
     expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
   });
 });
@@ -259,7 +330,11 @@ describe('Concurrency slot lifecycle: Agent tool execution', () => {
       },
     });
 
-    const agent = new Agent(client, { tools: new ToolRegistry([slowTool]), maxIterations: 4 });
+    const agent = new Agent(client, {
+      tools: new ToolRegistry([slowTool]),
+      maxIterations: 4,
+      validateToolCapability: false,
+    });
     const result = await agent.run({
       model: 'agent-model',
       messages: [{ role: 'user', content: 'do the thing' }],

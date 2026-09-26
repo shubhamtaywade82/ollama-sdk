@@ -209,6 +209,29 @@ export class OllamaModelRoutingError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown before an agent tool loop starts when the selected model's /api/show metadata
+ * does not advertise a capability required by the loop.
+ */
+export class OllamaIncompatibleModelError extends OllamaClientError {
+  readonly model: string;
+  readonly capability: string;
+  readonly reportedCapabilities: readonly string[];
+
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      model: string;
+      capability: string;
+      reportedCapabilities: readonly string[];
+    },
+  ) {
+    super(message, { ...options, code: 'incompatible_model', retryable: false });
+    this.model = options.model;
+    this.capability = options.capability;
+    this.reportedCapabilities = options.reportedCapabilities;
+  }
+}
 export class OllamaAgentMaxIterationsError extends OllamaClientError {
   readonly maxIterations: number;
   constructor(

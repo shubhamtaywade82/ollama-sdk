@@ -4,6 +4,8 @@
 
 import { HttpClient, type FetchLike } from '../transport/http.js';
 import type { OllamaEndpoint } from './endpoint-registry.js';
+import type { Middleware } from '../middleware.js';
+import type { RequestLifecycleHook } from '../logger.js';
 import type { VersionResponse } from '../types.js';
 
 export interface EndpointHealthCheckResult {
@@ -19,12 +21,16 @@ export async function checkEndpointHealth(
   endpoint: OllamaEndpoint,
   fetchImpl?: FetchLike,
   timeoutMs = 5000,
+  middleware?: readonly Middleware[] | undefined,
+  onLifecycleEvent?: RequestLifecycleHook | undefined,
 ): Promise<EndpointHealthCheckResult> {
   const client = new HttpClient({
     baseUrl: endpoint.baseUrl,
     apiKey: endpoint.apiKey,
     headers: endpoint.headers,
     fetch: fetchImpl,
+    middleware,
+    onLifecycleEvent,
   });
 
   const startTime = Date.now();

@@ -1,0 +1,125 @@
+<!--
+Pinned rendered contract for https://docs.ollama.com/api/openai-compatibility
+Reviewed: 2026-09-25
+This fallback intentionally mirrors the hosted documentation's endpoint/request-field
+contract rather than the Ollama server source structs, because the hosted API reference
+is the compatibility contract this SDK tracks.
+-->
+
+# OpenAI compatibility
+
+## /v1/chat/completions
+
+#### Supported features
+
+- [Input] Chat completions
+- [Input] Streaming
+- [Input] JSON mode
+- [Input] Reproducible outputs
+- [Input] Vision
+- [Input] Tools
+- [Input] Reasoning/thinking control (for thinking models)
+- [Input] Logprobs
+
+#### Supported request fields
+
+- [Input] `model`
+- [Input] `messages`
+- [Input] `frequency_penalty`
+- [Input] `presence_penalty`
+- [Input] `response_format`
+- [Input] `seed`
+- [Input] `stop`
+- [Input] `stream`
+- [Input] `stream_options`
+- [Input] `temperature`
+- [Input] `top_p`
+- [Input] `max_tokens`
+- [Input] `tools`
+- [Input] `reasoning_effort`
+- [Input] `reasoning`
+- [Input] `tool_choice`
+- [Input] `logit_bias`
+- [Input] `user`
+- [Input] `n`
+
+## /v1/completions
+
+#### Supported features
+
+- [Input] Completions
+- [Input] Streaming
+- [Input] JSON mode
+- [Input] Reproducible outputs
+- [Input] Logprobs
+
+#### Supported request fields
+
+- [Input] `model`
+- [Input] `prompt`
+- [Input] `frequency_penalty`
+- [Input] `presence_penalty`
+- [Input] `seed`
+- [Input] `stop`
+- [Input] `stream`
+- [Input] `stream_options`
+- [Input] `temperature`
+- [Input] `top_p`
+- [Input] `max_tokens`
+- [Input] `suffix`
+- [Input] `best_of`
+- [Input] `echo`
+- [Input] `logit_bias`
+- [Input] `user`
+- [Input] `n`
+
+## /v1/models
+
+#### Notes
+
+- `created` corresponds to when the model was last modified.
+- `owned_by` corresponds to the Ollama username, defaulting to `library`.
+
+## /v1/models/{model}
+
+#### Notes
+
+- `created` corresponds to when the model was last modified.
+- `owned_by` corresponds to the Ollama username, defaulting to `library`.
+
+## /v1/embeddings
+
+#### Supported request fields
+
+- [Input] `model`
+- [Input] `input`
+- [Input] `encoding format`
+- [Input] `dimensions`
+- [Input] `user`
+
+## /v1/responses
+
+Note: Added in Ollama v0.13.3.
+
+Only the non-stateful flavor is supported; there is no `previous_response_id` or `conversation` support.
+
+#### Supported features
+
+- [Input] Streaming
+- [Input] Tools (function calling)
+- [Input] Reasoning summaries (for thinking models)
+- [Input] Stateful requests
+
+#### Supported request fields
+
+- [Input] `model`
+- [Input] `input`
+- [Input] `instructions`
+- [Input] `tools`
+- [Input] `stream`
+- [Input] `temperature`
+- [Input] `top_p`
+- [Input] `max_output_tokens`
+- [Input] `previous_response_id`
+- [Input] `conversation`
+- [Input] `truncation`

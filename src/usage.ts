@@ -7,6 +7,8 @@ export const NANOS_PER_SECOND = 1_000_000_000;
 
 export interface TokenUsage {
   readonly promptTokens: number;
+  /** Prompt tokens read from Ollama's KV cache. */
+  readonly cachedPromptTokens?: number | undefined;
   readonly completionTokens: number;
   readonly totalTokens: number;
   readonly tokensPerSecond?: number | undefined;
@@ -18,6 +20,7 @@ export interface TokenUsage {
 
 export interface RawUsageSource {
   readonly prompt_eval_count?: number | undefined;
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
@@ -40,6 +43,9 @@ export function extractUsage(raw: RawUsageSource): TokenUsage {
 
   return {
     promptTokens,
+    ...(raw.prompt_eval_cached_count !== undefined
+      ? { cachedPromptTokens: raw.prompt_eval_cached_count }
+      : {}),
     completionTokens,
     totalTokens,
     ...(tokensPerSecond !== undefined ? { tokensPerSecond } : {}),

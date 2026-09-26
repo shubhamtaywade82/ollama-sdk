@@ -2,7 +2,7 @@
  * Dual-mode (AsyncIterator and EventEmitter-like) stream wrapper.
  */
 
-import { mapError, type OllamaClientError } from '../errors.js';
+import { mapError, OllamaAbortError, type OllamaClientError } from '../errors.js';
 import type { AbortableAsyncIterable, OllamaStreamEvent, OllamaStreamEventType } from './types.js';
 
 type ChunkMapper<TChunk, TFinal> = (
@@ -22,17 +22,29 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
   private readonly finalResultPromise: Promise<TFinal>;
   private resolveFinal!: (value: TFinal) => void;
   private rejectFinal!: (reason: OllamaClientError) => void;
+  private removeAbortListener: (() => void) | undefined;
 
   constructor(
     private readonly source: AbortableAsyncIterable<TChunk>,
     private readonly mapChunk: ChunkMapper<TChunk, TFinal>,
     private readonly aggregate: Aggregator<TChunk, TFinal>,
     private readonly initial: TFinal,
+    signal?: AbortSignal,
   ) {
     this.finalResultPromise = new Promise<TFinal>((resolve, reject) => {
       this.resolveFinal = resolve;
       this.rejectFinal = reject;
     });
+
+    if (signal !== undefined) {
+      const onAbort = (): void => this.abort();
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+        this.removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+      }
+    }
   }
 
   get finalResult(): Promise<TFinal> {
@@ -40,7 +52,10 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
   }
 
   abort(): void {
+    this.removeAbortListener?.();
+    this.removeAbortListener = undefined;
     this.source.abort?.();
+    this.rejectFinal(new OllamaAbortError('Ollama stream aborted'));
   }
 
   on<TType extends OllamaStreamEventType>(
@@ -89,7 +104,11 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
           }
         }
       }
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
     } catch (error) {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
       const mapped = mapError(error);
       this.emit({ type: 'error', data: { error: mapped } });
       this.rejectFinal(mapped);
@@ -108,12 +127,14 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
     }
     this.mode = 'iterator';
     let accumulated = this.initial;
+    let completed = false;
     try {
       for await (const chunk of this.source) {
         accumulated = this.aggregate(accumulated, chunk);
         const events = this.mapChunk(chunk, accumulated);
         for (const event of events) {
           if (event.type === 'done') {
+            completed = true;
             this.resolveFinal(event.data.result);
           }
           yield event;
@@ -123,6 +144,13 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
       const mapped = mapError(error);
       this.rejectFinal(mapped);
       yield { type: 'error', data: { error: mapped } };
+    } finally {
+      this.removeAbortListener?.();
+      this.removeAbortListener = undefined;
+      if (!completed) {
+        this.source.abort?.();
+        this.rejectFinal(new OllamaAbortError('Ollama stream ended before completion'));
+      }
     }
   }
 }

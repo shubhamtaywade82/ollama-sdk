@@ -48,9 +48,13 @@ exactly this, so its absence here was a real interop gap, not just a documentati
   `toolCallId?: string`, echoing the originating `ToolCall.id` — populated by
   `ToolRegistry.executeToolCall` on both the success and error-handling paths, including
   the not-registered/validation-failure early exits.
-- `Message` gains an optional `tool_call_id?: string`, and `Agent` sets it on the
-  `role: 'tool'` history entry it appends for each result, taken from
-  `ToolExecutionResult.toolCallId`.
+- `Message` gains an optional `tool_name?: string` for native Ollama tool-result
+  messages, and `Agent` sets it to `ToolExecutionResult.toolName` on each
+  `role: 'tool'` history entry.
+- `Message.tool_call_id?: string` is retained as **SDK-local compatibility metadata** for
+  existing transcripts and consumers. `OllamaClient.chat()` strips it from native
+  `/api/chat` request bodies, so the SDK does not send an undocumented OpenAI-style field
+  to Ollama. OpenAI compatibility uses its own `OpenAIMessage.tool_call_id` field.
 - The `execute_tool` OTel span (ADR 0005) gains a `gen_ai.tool.call.id` attribute when the
   call has an id, matching the OpenTelemetry Gen AI semantic conventions.
 - `id` is **optional**, not required, on `ToolCall` — so existing code that constructs a
@@ -95,11 +99,9 @@ exactly this, so its absence here was a real interop gap, not just a documentati
   fields on existing public types — additive, not breaking, but they are now part of the
   public API surface and returned by default from every `OllamaClient.chat`/`chatStream`
   call that includes tool calls, whether or not the consumer asked for id correlation.
-- The extra `tool_call_id` field on `role: 'tool'` history messages is sent back to Ollama
-  on the next turn as part of the request body. Ollama's `/api/chat` does not document
-  this field and is expected to ignore unknown JSON properties (consistent with how the
-  rest of this SDK already tolerates/relies on additive fields); this was not verified
-  against a live server as part of this change.
+- Native `role: 'tool'` history messages now carry the documented `tool_name` field.
+  The SDK-local `tool_call_id` correlation value is not transmitted to Ollama. A regression
+  test asserts the exact serialized request body for an Agent tool round trip.
 - Ids are generated per-process, in-memory, with no persistence or cross-process
   stability — a call replayed from a saved transcript or reconstructed in a different
   process will get a _different_ synthesized id than it had originally. This matches how

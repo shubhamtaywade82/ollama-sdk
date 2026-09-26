@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from '../transport/http.js';
-import type { ListResponse, ModelResponse, ShowResponse } from '../types.js';
+import type { ListResponse, ModelResponse, ShowResponse, ThinkingMetadata } from '../types.js';
 
 export type RuntimeMode = 'local' | 'cloud' | 'unknown';
 
@@ -15,7 +15,11 @@ export interface ModelCapabilities {
   readonly supportsEmbedding: boolean;
   readonly supportsCompletion: boolean;
   readonly supportsThinking: boolean;
+  /** Model-defined thinking values and default, when /api/show reports them. */
+  readonly thinking?: ThinkingMetadata | undefined;
   readonly supportsStreaming: true;
+  /** Maximum model context length reported by /api/show model_info, when available. */
+  readonly contextLength?: number | undefined;
   /**
    * Best-effort inference, not a guarantee: Ollama's `/api/show` does not report structured
    * output support as a queryable capability, so this is inferred from {@link inferRuntimeMode}
@@ -49,17 +53,36 @@ export function inferRuntimeMode(baseUrl: string): RuntimeMode {
   }
 }
 
+function extractContextLength(modelInfo?: Record<string, unknown>): number | undefined {
+  if (!modelInfo) return undefined;
+  for (const [key, value] of Object.entries(modelInfo)) {
+    if (
+      key.endsWith('.context_length') &&
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value > 0
+    ) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function detectModelCapabilities(
   http: HttpClient,
   model: string,
+  signal?: AbortSignal,
 ): Promise<ModelCapabilities> {
   const showRes = await http.request<ShowResponse>({
     path: '/api/show',
     body: { model },
+    ...(signal !== undefined ? { signal } : {}),
   });
 
   const reported = showRes.capabilities ?? [];
   const reportedSet = new Set(reported.map((c) => c.toLowerCase()));
+
+  const contextLength = extractContextLength(showRes.model_info);
 
   return {
     model,
@@ -69,6 +92,8 @@ export async function detectModelCapabilities(
     supportsEmbedding: reportedSet.has('embedding'),
     supportsCompletion: reportedSet.has('completion') || !reportedSet.has('embedding'),
     supportsThinking: reportedSet.has('thinking'),
+    ...(showRes.thinking !== undefined ? { thinking: showRes.thinking } : {}),
+    ...(contextLength !== undefined ? { contextLength } : {}),
     supportsStreaming: true,
     supportsStructuredOutputRequest: inferRuntimeMode(http.baseUrl) !== 'cloud',
   };

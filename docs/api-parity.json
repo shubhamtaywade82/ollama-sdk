@@ -1,0 +1,492 @@
+{
+  "version": 4,
+  "source": "https://docs.ollama.com/api",
+  "surfaces": [
+    {
+      "id": "openai-chat",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "sourceFile": "src/integrations/openai.ts",
+      "interfaceName": "OpenAIChatCompletionRequest",
+      "endpoint": "/v1/chat/completions",
+      "fields": [
+        "model",
+        "messages",
+        "frequency_penalty",
+        "presence_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "stream",
+        "stream_options",
+        "temperature",
+        "top_p",
+        "max_tokens",
+        "tools",
+        "reasoning_effort",
+        "reasoning",
+        "tool_choice",
+        "logit_bias",
+        "user",
+        "n"
+      ],
+      "unsupportedFields": [],
+      "sdkOnlyFields": [
+        "parallel_tool_calls"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+      "nestedUnsupportedFields": []
+    },
+    {
+      "id": "openai-completions",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "sourceFile": "src/integrations/openai.ts",
+      "interfaceName": "OpenAICompletionRequest",
+      "endpoint": "/v1/completions",
+      "fields": [
+        "model",
+        "prompt",
+        "frequency_penalty",
+        "presence_penalty",
+        "seed",
+        "stop",
+        "stream",
+        "stream_options",
+        "temperature",
+        "top_p",
+        "max_tokens",
+        "suffix",
+        "best_of",
+        "echo",
+        "logit_bias",
+        "user",
+        "n"
+      ],
+      "unsupportedFields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+    },
+    {
+      "id": "openai-embeddings",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "sourceFile": "src/integrations/openai.ts",
+      "interfaceName": "OpenAIEmbeddingRequest",
+      "endpoint": "/v1/embeddings",
+      "fields": [
+        "model",
+        "input",
+        "encoding_format",
+        "dimensions",
+        "user"
+      ],
+      "docAliases": {
+        "encoding_format": [
+          "encoding_format",
+          "encoding format"
+        ]
+      },
+      "unsupportedFields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+    },
+    {
+      "id": "openai-responses",
+      "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+      "sourceFile": "src/integrations/openai.ts",
+      "interfaceName": "OpenAIResponsesRequest",
+      "endpoint": "/v1/responses",
+      "fields": [
+        "model",
+        "input",
+        "instructions",
+        "tools",
+        "stream",
+        "temperature",
+        "top_p",
+        "max_output_tokens",
+        "truncation"
+      ],
+      "unsupportedFields": [
+        "previous_response_id",
+        "conversation"
+      ],
+      "sdkOnlyFields": [
+        "reasoning",
+        "think",
+        "parallel_tool_calls"
+      ],
+      "stream": {
+        "sourceFile": "src/integrations/openai.ts",
+        "unionName": "OpenAIResponsesStreamEvent",
+        "interfaceNames": [
+          "OpenAIResponsesOutputTextDeltaEvent",
+          "OpenAIResponsesOutputTextDoneEvent",
+          "OpenAIResponsesFunctionCallArgumentsDeltaEvent",
+          "OpenAIResponsesFunctionCallArgumentsDoneEvent",
+          "OpenAIResponsesReasoningTextDeltaEvent",
+          "OpenAIResponsesReasoningTextDoneEvent",
+          "OpenAIResponsesReasoningSummaryPartAddedEvent",
+          "OpenAIResponsesReasoningSummaryPartDoneEvent",
+          "OpenAIResponsesReasoningSummaryTextDeltaEvent",
+          "OpenAIResponsesReasoningSummaryTextDoneEvent",
+          "OpenAIResponsesOutputItemAddedEvent",
+          "OpenAIResponsesOutputItemDoneEvent",
+          "OpenAIResponsesContentPartAddedEvent",
+          "OpenAIResponsesContentPartDoneEvent",
+          "OpenAIResponsesRefusalDeltaEvent",
+          "OpenAIResponsesRefusalDoneEvent",
+          "OpenAIResponsesCreatedEvent",
+          "OpenAIResponsesInProgressEvent",
+          "OpenAIResponsesQueuedEvent",
+          "OpenAIResponsesCompletedEvent",
+          "OpenAIResponsesFailedEvent",
+          "OpenAIResponsesIncompleteEvent"
+        ]
+      },
+      "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
+    },
+    {
+      "id": "anthropic-messages",
+      "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
+      "sourceFile": "src/integrations/anthropic.ts",
+      "interfaceName": "AnthropicMessagesRequest",
+      "endpoint": "/v1/messages",
+      "fields": [
+        "model",
+        "max_tokens",
+        "messages",
+        "system",
+        "stream",
+        "temperature",
+        "top_p",
+        "top_k",
+        "stop_sequences",
+        "tools",
+        "thinking",
+        "output_config"
+      ],
+      "unsupportedFields": [
+        "tool_choice",
+        "metadata"
+      ],
+      "response": {
+        "sourceFile": "src/integrations/anthropic.ts",
+        "interfaceName": "AnthropicMessagesResponse",
+        "fields": [
+          "id",
+          "type",
+          "role",
+          "model",
+          "content",
+          "stop_reason",
+          "usage"
+        ],
+        "sdkOnlyFields": [
+          "stop_sequence"
+        ]
+      },
+      "sdkOnlyFields": [],
+      "stream": {
+        "sourceFile": "src/integrations/anthropic.ts",
+        "unionName": "AnthropicMessageStreamEvent",
+        "interfaceNames": [
+          "AnthropicMessageStartEvent",
+          "AnthropicContentBlockStartEvent",
+          "AnthropicContentBlockDeltaEvent",
+          "AnthropicContentBlockStopEvent",
+          "AnthropicMessageDeltaEvent",
+          "AnthropicMessageStopEvent",
+          "AnthropicPingEvent",
+          "AnthropicErrorEvent"
+        ],
+        "eventTypes": [
+          "message_start",
+          "content_block_start",
+          "content_block_delta",
+          "content_block_stop",
+          "message_delta",
+          "message_stop",
+          "ping",
+          "error"
+        ]
+      },
+      "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
+      "nestedUnsupportedFields": [
+        "messages[].content[].cache_control",
+        "system[].cache_control"
+      ]
+    },
+    {
+      "id": "native-chat",
+      "docsUrl": "https://docs.ollama.com/api/chat",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "ChatRequestOptions",
+      "endpoint": "/api/chat",
+      "fields": [
+        "model",
+        "messages",
+        "tools",
+        "format",
+        "options",
+        "stream",
+        "think",
+        "keep_alive",
+        "logprobs",
+        "top_logprobs"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ChatResponse",
+        "fields": [
+          "model",
+          "created_at",
+          "message",
+          "done",
+          "done_reason",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count",
+          "prompt_eval_duration",
+          "eval_count",
+          "eval_duration",
+          "logprobs"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-generate",
+      "docsUrl": "https://docs.ollama.com/api/generate",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "GenerateRequestOptions",
+      "endpoint": "/api/generate",
+      "fields": [
+        "model",
+        "prompt",
+        "suffix",
+        "images",
+        "format",
+        "system",
+        "stream",
+        "think",
+        "raw",
+        "keep_alive",
+        "options",
+        "logprobs",
+        "top_logprobs"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "GenerateResponse",
+        "fields": [
+          "model",
+          "created_at",
+          "response",
+          "thinking",
+          "done",
+          "done_reason",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count",
+          "prompt_eval_duration",
+          "eval_count",
+          "eval_duration",
+          "logprobs"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-embed",
+      "docsUrl": "https://docs.ollama.com/api/embed",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "EmbedRequestOptions",
+      "endpoint": "/api/embed",
+      "fields": [
+        "model",
+        "input",
+        "truncate",
+        "dimensions",
+        "keep_alive",
+        "options"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "EmbedResponse",
+        "fields": [
+          "model",
+          "embeddings",
+          "total_duration",
+          "load_duration",
+          "prompt_eval_count"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-create",
+      "docsUrl": "https://docs.ollama.com/api/create",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "CreateRequestOptions",
+      "endpoint": "/api/create",
+      "fields": [
+        "model",
+        "from",
+        "template",
+        "renderer",
+        "parser",
+        "license",
+        "system",
+        "parameters",
+        "messages",
+        "quantize",
+        "stream"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-delete",
+      "docsUrl": "https://docs.ollama.com/api/delete",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "DeleteRequestOptions",
+      "endpoint": "/api/delete",
+      "fields": [
+        "model"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+    },
+    {
+      "id": "native-push",
+      "docsUrl": "https://docs.ollama.com/api/push",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "PushRequestOptions",
+      "endpoint": "/api/push",
+      "fields": [
+        "model",
+        "insecure",
+        "stream"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-pull",
+      "docsUrl": "https://docs.ollama.com/api/pull",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "PullRequestOptions",
+      "endpoint": "/api/pull",
+      "fields": [
+        "model",
+        "insecure",
+        "stream"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ProgressResponse",
+        "fields": [
+          "status"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-copy",
+      "docsUrl": "https://docs.ollama.com/api/copy",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "CopyRequestOptions",
+      "endpoint": "/api/copy",
+      "fields": [
+        "source",
+        "destination"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml"
+    },
+    {
+      "id": "native-show",
+      "docsUrl": "https://docs.ollama.com/api-reference/show-model-details",
+      "sourceFile": "src/types.ts",
+      "interfaceName": "ShowRequestOptions",
+      "endpoint": "/api/show",
+      "fields": [
+        "model",
+        "verbose"
+      ],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ShowResponse",
+        "fields": [
+          "parameters",
+          "license",
+          "modified_at",
+          "details",
+          "template",
+          "capabilities",
+          "model_info"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-tags",
+      "docsUrl": "https://docs.ollama.com/api/tags",
+      "endpoint": "/api/tags",
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "ListResponse",
+        "fields": [
+          "models"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-ps",
+      "docsUrl": "https://docs.ollama.com/api/ps",
+      "endpoint": "/api/ps",
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "PsResponse",
+        "fields": [
+          "models"
+        ],
+        "sdkOnlyFields": []
+      }
+    },
+    {
+      "id": "native-version",
+      "docsUrl": "https://docs.ollama.com/api-reference/get-version",
+      "endpoint": "/api/version",
+      "fields": [],
+      "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+      "response": {
+        "sourceFile": "src/types.ts",
+        "interfaceName": "VersionResponse",
+        "fields": [
+          "version"
+        ],
+        "sdkOnlyFields": []
+      }
+    }
+  ]
+}

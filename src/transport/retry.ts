@@ -2,7 +2,7 @@
  * Retry policy and execution runner.
  */
 
-import { OllamaClientError } from '../errors.js';
+import { OllamaAbortError, OllamaClientError } from '../errors.js';
 import { calculateBackoff, type BackoffOptions, DEFAULT_BACKOFF } from './backoff.js';
 
 export interface RetryConfig {
@@ -24,7 +24,38 @@ function isRetryableDefault(error: Error): boolean {
   return false;
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+function abortError(
+  signal: AbortSignal | undefined,
+  fallbackMessage: string,
+): OllamaAbortError | OllamaClientError {
+  const reason = signal?.reason;
+  if (reason instanceof OllamaClientError) return reason;
+  return new OllamaAbortError(
+    reason instanceof Error && reason.message ? reason.message : fallbackMessage,
+    { cause: reason },
+  );
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError(signal, 'Retry backoff aborted'));
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      if (timerId !== undefined) clearTimeout(timerId);
+      signal?.removeEventListener('abort', onAbort);
+      reject(abortError(signal, 'Retry backoff aborted'));
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 /**
  * Executes an async operation with retries according to config.
@@ -32,6 +63,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 export async function withRetry<T>(
   operation: (attempt: number) => Promise<T>,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
+  signal?: AbortSignal,
 ): Promise<T> {
   let attempt = 0;
   while (true) {
@@ -45,7 +77,7 @@ export async function withRetry<T>(
       }
       const delayMs = calculateBackoff(attempt, config.backoff);
       config.onRetry?.(error, attempt, delayMs);
-      await sleep(delayMs);
+      await sleep(delayMs, signal);
       attempt += 1;
     }
   }
