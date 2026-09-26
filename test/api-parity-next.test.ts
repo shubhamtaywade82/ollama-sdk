@@ -126,6 +126,7 @@ describe('next Ollama API parity', () => {
     });
 
     const toolMessage = captured[1]?.messages.at(-1);
+    expect(captured[1]?.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool']);
     expect(toolMessage?.role).toBe('tool');
     expect(toolMessage?.tool_name).toBe('get_weather');
     expect(toolMessage?.tool_call_id).toMatch(/^call_/);
