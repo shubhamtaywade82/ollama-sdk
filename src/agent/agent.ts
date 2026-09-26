@@ -87,9 +87,9 @@ export class Agent {
     const hasTools = toolDefs !== undefined && toolDefs.length > 0;
     let capabilities: ModelCapabilities | undefined;
 
-    if (hasTools && this.client.capabilities) {
+    if (hasTools && this.validateToolCapability && this.client.capabilities) {
       capabilities = await this.client.capabilities(input.model, input.signal);
-      if (this.validateToolCapability && !capabilities.supportsTools) {
+      if (!capabilities.supportsTools) {
         throw new OllamaIncompatibleModelError(
           `Model "${input.model}" does not advertise the "tools" capability.`,
           {
