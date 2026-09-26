@@ -51,6 +51,7 @@ export class Agent {
   private readonly client: AgentChatClient;
   private readonly tools?: ToolRegistry | undefined;
   private readonly maxIterations: number;
+  private readonly maxToolCalls?: number | undefined;
   private readonly hooks?: AgentHooks | undefined;
   private readonly validateToolCapability: boolean;
   private readonly toolContextSize: number;
@@ -59,7 +60,11 @@ export class Agent {
     this.client = client;
     this.tools = config.tools;
     this.maxIterations = config.maxIterations ?? 10;
+    this.maxToolCalls = config.maxToolCalls;
     this.hooks = config.hooks;
+    if (this.maxToolCalls !== undefined && (!Number.isInteger(this.maxToolCalls) || this.maxToolCalls < 0)) {
+      throw new RangeError('Agent maxToolCalls must be a non-negative integer');
+    }
     this.validateToolCapability = config.validateToolCapability ?? true;
     this.toolContextSize = config.toolContextSize ?? 32768;
     if (!Number.isInteger(this.toolContextSize) || this.toolContextSize <= 0) {
@@ -117,6 +122,8 @@ export class Agent {
         }
       : input.options;
 
+    let toolCallsExecuted = 0;
+
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       const outcome = await withSpan(
         'ollama.agent.turn',
@@ -149,6 +156,13 @@ export class Agent {
             return { done: true as const, finalMessage: assistantMessage };
           }
 
+          if (this.maxToolCalls !== undefined && toolCallsExecuted + toolCalls.length > this.maxToolCalls) {
+            throw new OllamaAgentMaxToolCallsError(
+              `Agent exceeded max tool calls (${this.maxToolCalls})`,
+              { maxToolCalls: this.maxToolCalls, toolCallsExecuted },
+            );
+          }
+
           for (const tc of toolCalls) {
             this.hooks?.onToolCallStart?.(tc);
           }
@@ -156,6 +170,7 @@ export class Agent {
           const toolResults = await this.tools.executeToolCalls(toolCalls, {
             signal: input.signal,
           });
+          toolCallsExecuted += toolCalls.length;
 
           for (const res of toolResults) {
             this.hooks?.onToolCallEnd?.(res);
