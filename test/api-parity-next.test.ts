@@ -102,7 +102,7 @@ describe('next Ollama API parity', () => {
         };
       })
       .mockImplementationOnce(async (request: { messages: readonly { role: string; tool_name?: string; tool_call_id?: string }[] }) => {
-        captured.push({ messages: request.messages });
+        captured.push({ messages: request.messages.map((message) => ({ ...message })) });
         return {
           message: { role: 'assistant', content: 'It is sunny.' },
         };
