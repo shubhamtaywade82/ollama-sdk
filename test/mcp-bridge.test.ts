@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { McpBridge } from '../src/mcp/bridge.js';
 import { loadMcpTools } from '../src/mcp/mcp-tools.js';
 import { ToolRegistry } from '../src/tools/registry.js';
+import { OllamaToolValidationError } from '../src/errors.js';
 import type { McpClientLike } from '../src/mcp/types.js';
 
 describe('MCP bridge parity', () => {
@@ -95,6 +96,78 @@ describe('MCP bridge parity', () => {
     expect(result).toContain('"type":"resource_link"');
     expect(result).toContain('"mimeType":"image/png"');
     expect(result).toContain('"ok":true');
+  });
+
+  it('validates model tool arguments against the MCP input schema before calling the server', async () => {
+    const callTool = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+    });
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{
+          name: 'search',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', minLength: 3 },
+              limit: { type: 'integer', minimum: 1 },
+            },
+            required: ['query'],
+            additionalProperties: false,
+          },
+        }],
+      }),
+      callTool,
+    };
+
+    const tools = await loadMcpTools(client);
+    const registry = new ToolRegistry(tools);
+
+    const invalid = await registry.executeToolCall({
+      id: 'call-invalid',
+      function: { name: 'search', arguments: { limit: 0 } },
+    });
+
+    expect(invalid.success).toBe(false);
+    if (invalid.success) throw new Error('expected invalid MCP arguments to fail validation');
+    expect(invalid.error).toBeInstanceOf(OllamaToolValidationError);
+    expect(callTool).not.toHaveBeenCalled();
+
+    const valid = await registry.executeToolCall({
+      id: 'call-valid',
+      function: { name: 'search', arguments: { query: 'ollama', limit: 5 } },
+    });
+
+    expect(valid.success).toBe(true);
+    if (!valid.success) throw new Error('expected valid MCP arguments to execute');
+    expect(valid.outputString).toBe('ok');
+    expect(callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the raw MCP CallToolResult when structured result mode is enabled', async () => {
+    const rawResult = {
+      content: [
+        { type: 'text', text: 'primary result' },
+        { type: 'resource_link', uri: 'file:///tmp/a.txt' },
+      ],
+      structuredContent: { ok: true, count: 2 },
+      isError: false,
+      _meta: { source: 'test' },
+    };
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{
+          name: 'inspect',
+          inputSchema: { type: 'object', properties: {} },
+        }],
+      }),
+      callTool: vi.fn().mockResolvedValue(rawResult),
+    };
+
+    const tools = await loadMcpTools(client, { resultMode: 'structured' });
+    const result = await tools[0]!.execute({}, {});
+
+    expect(result).toEqual(rawResult);
   });
 
   it('registers every page of MCP tools into the registry', async () => {

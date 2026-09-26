@@ -66,12 +66,21 @@ console.log(final.usage);
 
 ## MCP bridge
 
-The SDK exposes a transport-neutral `McpBridge` that converts MCP `tools/list` descriptors into native Ollama function tools and registers executable MCP-backed tools.
+The SDK exposes a transport-neutral `McpBridge` that converts MCP `tools/list` descriptors into native Ollama function tools and registers executable MCP-backed tools. MCP tool arguments are validated against the advertised JSON Schema at the `ToolRegistry` boundary (including object, array, scalar, required, enum, and common numeric/string constraints).
 
 - Paginated `tools/list` discovery follows `nextCursor`, with repeated-cursor and page-limit protection.
 - MCP JSON Schema is preserved in the generated Ollama tool definition.
 - `structuredContent` and non-text MCP content blocks are retained in the model-visible tool result.
 - MCP `isError: true` results remain model-readable; they are not treated as transport failures.
+
+`loadMcpTools()` keeps the historical model-oriented string result by default. Set `resultMode: 'structured'` when application code needs the raw MCP `CallToolResult`, including `structuredContent`, content blocks, `isError`, and `_meta`:
+
+```typescript
+const tools = await loadMcpTools(mcpClient, { resultMode: 'structured' });
+```
+
+- Input JSON Schema validation happens before the MCP server is called, preventing invalid model-generated arguments from crossing the protocol boundary.
+- `resultMode: 'structured'` is available for lossless programmatic access to raw MCP tool results while preserving the legacy text mode by default.
 - `AbortSignal` propagates through discovery and tool execution.
 - The optional Node-only `@nemesis-oss/ollama-sdk/mcp/stdio` subpath uses the official MCP v2 stdio transport without importing Node-only code from the root package.
 

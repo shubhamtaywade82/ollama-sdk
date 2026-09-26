@@ -3,16 +3,30 @@
  */
 
 import { z } from 'zod';
+import { validateJsonSchema } from './json-schema.js';
 import { OllamaMcpError } from '../errors.js';
 import type { AnyTool } from '../tools/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import type { McpCallToolResult, McpClientLike, McpListToolsParams, McpRequestOptions, McpToolDescriptor } from './types.js';
+import type {
+  McpCallToolResult,
+  McpClientLike,
+  McpListToolsParams,
+  McpRequestOptions,
+  McpToolDescriptor,
+} from './types.js';
 import type { ToolDefinition, ToolProperty } from '../types.js';
+
+export type McpToolResultMode = 'text' | 'structured';
 
 export interface LoadMcpToolsOptions {
   readonly namePrefix?: string | undefined;
   /** Maximum number of paginated tools/list responses to traverse. */
   readonly maxPages?: number | undefined;
+  /**
+   * Return MCP's raw CallToolResult to programmatic callers instead of the legacy
+   * model-oriented text representation. The default preserves existing behavior.
+   */
+  readonly resultMode?: McpToolResultMode | undefined;
 }
 
 function resolveMaxPages(options: LoadMcpToolsOptions): number {
@@ -81,10 +95,24 @@ function formatMcpToolResult(result: McpCallToolResult): string {
   return parts.join('\n');
 }
 
+function createInputValidator(inputSchema: Record<string, unknown>): z.ZodType<Record<string, unknown>> {
+  return z.custom<Record<string, unknown>>().superRefine((value, ctx) => {
+    const issues = validateJsonSchema(value, inputSchema);
+    for (const issue of issues) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...issue.path],
+        message: issue.message,
+      });
+    }
+  });
+}
+
 function convertMcpDescriptorToTool(
   descriptor: McpToolDescriptor,
   mcpClient: McpClientLike,
   namePrefix = '',
+  resultMode: McpToolResultMode = 'text',
 ): AnyTool {
   const toolName = `${namePrefix}${descriptor.name}`;
   const inputSchema = descriptor.inputSchema ?? { type: 'object', properties: {} };
@@ -100,7 +128,7 @@ function convertMcpDescriptorToTool(
   return {
     name: toolName,
     description: descriptor.description ?? '',
-    schema: z.record(z.string(), z.unknown()),
+    schema: createInputValidator(inputSchema),
     execute: async (args: Record<string, unknown>, context: { readonly signal?: AbortSignal | undefined }) => {
       try {
         const result = await mcpClient.callTool(
@@ -113,7 +141,7 @@ function convertMcpDescriptorToTool(
 
         // MCP tool failures are ordinary CallToolResult values, not transport failures.
         // Keep the result model-readable so the agent can observe the error and recover.
-        return formatMcpToolResult(result);
+        return resultMode === 'structured' ? result : formatMcpToolResult(result);
       } catch (err) {
         if (err instanceof OllamaMcpError) throw err;
         throw new OllamaMcpError(`Failed calling MCP tool "${descriptor.name}"`, {
@@ -141,7 +169,7 @@ export async function loadMcpTools(
 ): Promise<AnyTool[]> {
   try {
     const tools = await listAllMcpTools(mcpClient, options, signal);
-    return tools.map((t) => convertMcpDescriptorToTool(t, mcpClient, options.namePrefix));
+    return tools.map((t) => convertMcpDescriptorToTool(t, mcpClient, options.namePrefix, options.resultMode));
   } catch (err) {
     throw new OllamaMcpError('Failed listing MCP tools from client', {
       mcpMethod: 'listTools',
