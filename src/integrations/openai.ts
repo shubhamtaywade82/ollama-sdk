@@ -36,6 +36,21 @@ export interface OpenAIMessage {
   readonly tool_call_id?: string | undefined;
 }
 
+export interface OpenAIChatCompletionChunkChoice {
+  readonly index: number;
+  readonly delta: Partial<OpenAIMessage> & { readonly role?: OpenAIMessage['role'] | undefined };
+  readonly finish_reason: string | null;
+}
+
+export interface OpenAIChatCompletionChunk {
+  readonly id: string;
+  readonly object: 'chat.completion.chunk';
+  readonly created: number;
+  readonly model: string;
+  readonly choices: readonly OpenAIChatCompletionChunkChoice[];
+  readonly usage?: OpenAIChatCompletionResponse['usage'];
+}
+
 export interface OpenAIStreamOptions {
   /** Emit a final SSE chunk carrying `usage` (prompt/completion/total tokens) before `[DONE]`. */
   readonly include_usage?: boolean | undefined;
@@ -199,6 +214,18 @@ export class OpenAICompatClient {
     signal?: AbortSignal,
   ): Promise<OpenAIChatCompletionResponse> {
     return this.createChatCompletion(request, signal);
+  }
+
+  async chatCompletionsStream(
+    request: OpenAIChatCompletionRequest,
+    signal?: AbortSignal,
+  ): Promise<AsyncIterable<OpenAIChatCompletionChunk>> {
+    const stream = await this.http.requestSseStream<OpenAIChatCompletionChunk>({
+      path: '/v1/chat/completions',
+      body: { ...request, stream: true },
+      signal,
+    });
+    return stream;
   }
 
   async listModels(signal?: AbortSignal): Promise<OpenAIListModelsResponse> {
