@@ -121,16 +121,26 @@ describe('MCP bridge parity', () => {
     };
 
     const tools = await loadMcpTools(client);
+    const registry = new ToolRegistry(tools);
 
-    await expect(
-      tools[0]!.execute({ limit: 0 }, {}),
-    ).rejects.toBeInstanceOf(OllamaToolValidationError);
+    const invalid = await registry.executeToolCall({
+      id: 'call-invalid',
+      function: { name: 'search', arguments: { limit: 0 } },
+    });
 
+    expect(invalid.success).toBe(false);
+    if (invalid.success) throw new Error('expected invalid MCP arguments to fail validation');
+    expect(invalid.error).toBeInstanceOf(OllamaToolValidationError);
     expect(callTool).not.toHaveBeenCalled();
 
-    await expect(
-      tools[0]!.execute({ query: 'ollama', limit: 5 }, {}),
-    ).resolves.toBe('ok');
+    const valid = await registry.executeToolCall({
+      id: 'call-valid',
+      function: { name: 'search', arguments: { query: 'ollama', limit: 5 } },
+    });
+
+    expect(valid.success).toBe(true);
+    if (!valid.success) throw new Error('expected valid MCP arguments to execute');
+    expect(valid.outputString).toBe('ok');
     expect(callTool).toHaveBeenCalledTimes(1);
   });
 
