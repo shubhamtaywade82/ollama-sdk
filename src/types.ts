@@ -67,16 +67,22 @@ export interface ToolProperty {
   readonly items?: Record<string, unknown> | undefined;
   readonly properties?: Record<string, unknown> | undefined;
   readonly required?: readonly string[] | undefined;
+  /** Additional JSON Schema keywords are preserved for MCP/provider interoperability. */
+  readonly [keyword: string]: unknown;
+}
+
+export interface ToolParameters {
+  readonly type: 'object';
+  readonly properties: Record<string, ToolProperty>;
+  readonly required?: readonly string[] | undefined;
+  /** Additional JSON Schema keywords such as $defs, anyOf, allOf, and additionalProperties. */
+  readonly [keyword: string]: unknown;
 }
 
 export interface ToolFunctionDefinition {
   readonly name: string;
   readonly description: string;
-  readonly parameters: {
-    readonly type: 'object';
-    readonly properties: Record<string, ToolProperty>;
-    readonly required?: readonly string[] | undefined;
-  };
+  readonly parameters: ToolParameters;
 }
 
 export interface ToolDefinition {
