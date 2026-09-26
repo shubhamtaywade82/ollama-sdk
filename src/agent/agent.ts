@@ -2,7 +2,10 @@
  * Multi-turn tool execution loop agent.
  */
 
-import { OllamaAgentMaxIterationsError } from '../errors.js';
+import {
+  OllamaAgentMaxIterationsError,
+  OllamaIncompatibleModelError,
+} from '../errors.js';
 import {
   withSpan,
   ATTR_GEN_AI_SYSTEM,
@@ -13,11 +16,15 @@ import {
   GEN_AI_SYSTEM_OLLAMA,
 } from '../telemetry/index.js';
 import { ensureToolCallIds } from '../tools/tool-call-id.js';
+import type { ModelCapabilities } from '../capabilities/capabilities.js';
 import type { Message, ModelOptions, ThinkValue, ToolDefinition } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { AgentConfig, AgentHooks, AgentResult, AgentRunInput, AgentTurn } from './types.js';
 
 export interface AgentChatClient {
+  capabilities?:
+    | ((model: string, signal?: AbortSignal) => Promise<ModelCapabilities>)
+    | undefined;
   chat(request: {
     readonly model: string;
     readonly messages: readonly Message[];
@@ -45,12 +52,19 @@ export class Agent {
   private readonly tools?: ToolRegistry | undefined;
   private readonly maxIterations: number;
   private readonly hooks?: AgentHooks | undefined;
+  private readonly validateToolCapability: boolean;
+  private readonly toolContextSize: number;
 
   constructor(client: AgentChatClient, config: AgentConfig = {}) {
     this.client = client;
     this.tools = config.tools;
     this.maxIterations = config.maxIterations ?? 10;
     this.hooks = config.hooks;
+    this.validateToolCapability = config.validateToolCapability ?? true;
+    this.toolContextSize = config.toolContextSize ?? 32768;
+    if (!Number.isInteger(this.toolContextSize) || this.toolContextSize <= 0) {
+      throw new RangeError('Agent toolContextSize must be a positive integer');
+    }
   }
 
   run(input: AgentRunInput): Promise<AgentResult> {
@@ -70,6 +84,33 @@ export class Agent {
     const history: Message[] = [...input.messages];
     const turns: AgentTurn[] = [];
     const toolDefs = this.tools?.definitions();
+    const hasTools = toolDefs !== undefined && toolDefs.length > 0;
+    let capabilities: ModelCapabilities | undefined;
+
+    if (hasTools && this.client.capabilities) {
+      capabilities = await this.client.capabilities(input.model, input.signal);
+      if (this.validateToolCapability && !capabilities.supportsTools) {
+        throw new OllamaIncompatibleModelError(
+          `Model "${input.model}" does not advertise the "tools" capability.`,
+          {
+            model: input.model,
+            capability: 'tools',
+            reportedCapabilities: capabilities.reported,
+          },
+        );
+      }
+    }
+
+    const effectiveOptions =
+      hasTools && input.options?.num_ctx === undefined
+        ? {
+            ...(input.options ?? {}),
+            num_ctx: Math.min(
+              this.toolContextSize,
+              capabilities?.contextLength ?? this.toolContextSize,
+            ),
+          }
+        : input.options;
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       const outcome = await withSpan(
@@ -82,7 +123,7 @@ export class Agent {
             model: input.model,
             messages: history,
             ...(toolDefs !== undefined ? { tools: toolDefs } : {}),
-            ...(input.options !== undefined ? { options: input.options } : {}),
+            ...(effectiveOptions !== undefined ? { options: effectiveOptions } : {}),
             ...(input.think !== undefined ? { think: input.think } : {}),
             stream: false,
             ...(input.signal !== undefined ? { signal: input.signal } : {}),
