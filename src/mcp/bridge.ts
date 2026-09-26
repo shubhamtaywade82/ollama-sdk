@@ -38,8 +38,16 @@ export class McpBridge {
   }
 
   async listTools(): Promise<readonly McpToolDescriptor[]> {
-    const result = await this.client.listTools();
-    return result.tools;
+    const tools: McpToolDescriptor[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const page = await this.client.listTools(cursor !== undefined ? { cursor } : undefined);
+      tools.push(...page.tools);
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+
+    return tools;
   }
 
   async definitions(): Promise<ToolDefinition[]> {
