@@ -22,6 +22,12 @@ function convertMcpDescriptorToTool(
   const inputSchema = descriptor.inputSchema ?? { type: 'object', properties: {} };
   const properties = (inputSchema['properties'] ?? {}) as Record<string, ToolProperty>;
   const required = (inputSchema['required'] ?? []) as string[];
+  const parameters = {
+    ...inputSchema,
+    type: 'object' as const,
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+  } as ToolDefinition['function']['parameters'];
 
   return {
     name: toolName,
@@ -58,11 +64,7 @@ function convertMcpDescriptorToTool(
       function: {
         name: toolName,
         description: descriptor.description ?? '',
-        parameters: {
-          type: 'object',
-          properties,
-          ...(required.length > 0 ? { required } : {}),
-        },
+        parameters,
       },
     },
   };
