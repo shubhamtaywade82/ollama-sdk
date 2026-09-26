@@ -4,11 +4,16 @@
 
 import { z } from 'zod';
 import { validateJsonSchema } from './json-schema.js';
-import type { McpCallToolResult, McpClientLike, McpListToolsParams, McpRequestOptions, McpToolDescriptor } from './types.js';
 import { OllamaMcpError } from '../errors.js';
 import type { AnyTool } from '../tools/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import type { McpCallToolResult, McpClientLike, McpListToolsParams, McpRequestOptions, McpToolDescriptor } from './types.js';
+import type {
+  McpCallToolResult,
+  McpClientLike,
+  McpListToolsParams,
+  McpRequestOptions,
+  McpToolDescriptor,
+} from './types.js';
 import type { ToolDefinition, ToolProperty } from '../types.js';
 
 export type McpToolResultMode = 'text' | 'structured';
