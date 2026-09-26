@@ -13,6 +13,29 @@ export interface LoadMcpToolsOptions {
   readonly namePrefix?: string;
 }
 
+function formatMcpToolResult(result: McpCallToolResult): string {
+  const parts = result.content.map((block) => {
+    if (block.type === 'text' && typeof block.text === 'string') {
+      return block.text;
+    }
+    try {
+      return JSON.stringify(block);
+    } catch {
+      return `[${block.type}]`;
+    }
+  });
+
+  if (result.structuredContent !== undefined) {
+    try {
+      parts.push(JSON.stringify(result.structuredContent));
+    } catch {
+      // Preserve the regular content if structuredContent cannot be serialized.
+    }
+  }
+
+  return parts.join('\n');
+}
+
 function convertMcpDescriptorToTool(
   descriptor: McpToolDescriptor,
   mcpClient: McpClientLike,
@@ -47,9 +70,7 @@ function convertMcpDescriptorToTool(
           });
         }
 
-        return result.content
-          .map((b) => (b.type === 'text' && b.text ? b.text : `[${b.type}]`))
-          .join('\n');
+        return formatMcpToolResult(result);
       } catch (err) {
         if (err instanceof OllamaMcpError) throw err;
         throw new OllamaMcpError(`Failed calling MCP tool "${descriptor.name}"`, {
@@ -75,7 +96,15 @@ export async function loadMcpTools(
   options: LoadMcpToolsOptions = {},
 ): Promise<AnyTool[]> {
   try {
-    const { tools } = await mcpClient.listTools();
+    const tools: McpToolDescriptor[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const page = await mcpClient.listTools(cursor !== undefined ? { cursor } : undefined);
+      tools.push(...page.tools);
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+
     return tools.map((t) => convertMcpDescriptorToTool(t, mcpClient, options.namePrefix));
   } catch (err) {
     throw new OllamaMcpError('Failed listing MCP tools from client', {
