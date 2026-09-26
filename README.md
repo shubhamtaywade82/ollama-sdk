@@ -787,7 +787,8 @@ class or narrow to a specific `code`:
 | `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | A tool call's arguments, or a `chatWithSchema`/`generateWithSchema` result, failed Zod validation.                                                                                                                                                       |
 | `OllamaUnsupportedCapabilityError` | `unsupported_capability`        | `false`     | A `format` (structured output) request was made against an endpoint inferred as Ollama Cloud, which doesn't currently support it. Thrown before any network call; in `DEFAULT_FAILOVER_CODES`, so a multi-endpoint setup tries the next candidate first. |
 | `OllamaAgentMaxIterationsError`    | `agent_max_iterations_exceeded` | `false`     | An `Agent` run exceeded `maxTurns` without producing a final answer.                                                                                                                                                                                     |
-| `OllamaMcpError`                   | `mcp_error`                     | varies      | An MCP `listTools`/`callTool` call failed.                                                                                                                                                                                                               |
+| `OllamaIncompatibleModelError` | `incompatible_model` | `false` | A tool-enabled Agent run was blocked by the model capability preflight because `/api/show` did not advertise `tools`. |
+  | `OllamaMcpError`                   | `mcp_error`                     | varies      | An MCP `listTools`/`callTool` call failed.                                                                                                                                                                                                               |
 | `OllamaSkillNotFoundError`         | `skill_not_found`               | `false`     | `applySkill` referenced a skill that isn't registered.                                                                                                                                                                                                   |
 | `OllamaSkillInvalidError`          | `skill_invalid`                 | `false`     | A skill's frontmatter or contents failed to parse.                                                                                                                                                                                                       |
 | `OllamaGenericClientError`         | `client_error`                  | `false`     | Any other non-2xx response not covered above.                                                                                                                                                                                                            |
@@ -821,7 +822,7 @@ observe per-endpoint circuit state directly.
 
 ## Testing
 
-The test suite contains 121 automated tests across 4 testing tiers:
+The test suite contains more than 220 automated tests across 4 testing tiers:
 
 ```bash
 # Run unit, integration, and functional test suite
