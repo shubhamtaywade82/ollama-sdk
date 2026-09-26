@@ -18,6 +18,8 @@ export interface ModelCapabilities {
   /** Model-defined thinking values and default, when /api/show reports them. */
   readonly thinking?: ThinkingMetadata | undefined;
   readonly supportsStreaming: true;
+  /** Maximum model context length reported by /api/show model_info, when available. */
+  readonly contextLength?: number | undefined;
   /**
    * Best-effort inference, not a guarantee: Ollama's `/api/show` does not report structured
    * output support as a queryable capability, so this is inferred from {@link inferRuntimeMode}
@@ -51,13 +53,30 @@ export function inferRuntimeMode(baseUrl: string): RuntimeMode {
   }
 }
 
+function extractContextLength(modelInfo?: Record<string, unknown>): number | undefined {
+  if (!modelInfo) return undefined;
+  for (const [key, value] of Object.entries(modelInfo)) {
+    if (
+      key.endsWith('.context_length') &&
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value > 0
+    ) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function detectModelCapabilities(
   http: HttpClient,
   model: string,
+  signal?: AbortSignal,
 ): Promise<ModelCapabilities> {
   const showRes = await http.request<ShowResponse>({
     path: '/api/show',
     body: { model },
+    ...(signal !== undefined ? { signal } : {}),
   });
 
   const reported = showRes.capabilities ?? [];
@@ -72,6 +91,9 @@ export async function detectModelCapabilities(
     supportsCompletion: reportedSet.has('completion') || !reportedSet.has('embedding'),
     supportsThinking: reportedSet.has('thinking'),
     ...(showRes.thinking !== undefined ? { thinking: showRes.thinking } : {}),
+    ...(extractContextLength(showRes.model_info) !== undefined
+      ? { contextLength: extractContextLength(showRes.model_info) }
+      : {}),
     supportsStreaming: true,
     supportsStructuredOutputRequest: inferRuntimeMode(http.baseUrl) !== 'cloud',
   };
