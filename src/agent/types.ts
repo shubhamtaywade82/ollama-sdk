@@ -2,7 +2,6 @@
  * Agent loop options, turn state, and execution hooks.
  */
 
-import type { ModelCapabilities } from '../capabilities/capabilities.js';
 import type { Message, ModelOptions, ThinkValue, ToolCall } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ToolExecutionResult } from '../tools/types.js';
