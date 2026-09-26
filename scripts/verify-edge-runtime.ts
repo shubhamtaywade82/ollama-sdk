@@ -35,7 +35,6 @@ import { OllamaClient, Agent, ToolRegistry, defineTool } from ${JSON.stringify(d
 globalThis.__EDGE_SMOKE_TEST__ = async function runEdgeSmokeTest() {
   let callCount = 0;
   const mockFetch = async (url) => {
-    callCount += 1;
     if (url.endsWith('/api/show')) {
       return {
         ok: true,
@@ -52,6 +51,7 @@ globalThis.__EDGE_SMOKE_TEST__ = async function runEdgeSmokeTest() {
         }),
       };
     }
+    callCount += 1;
     if (callCount === 1) {
       return {
         ok: true,
