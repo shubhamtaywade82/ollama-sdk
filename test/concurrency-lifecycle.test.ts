@@ -330,7 +330,11 @@ describe('Concurrency slot lifecycle: Agent tool execution', () => {
       },
     });
 
-    const agent = new Agent(client, { tools: new ToolRegistry([slowTool]), maxIterations: 4 });
+    const agent = new Agent(client, {
+      tools: new ToolRegistry([slowTool]),
+      maxIterations: 4,
+      validateToolCapability: false,
+    });
     const result = await agent.run({
       model: 'agent-model',
       messages: [{ role: 'user', content: 'do the thing' }],
