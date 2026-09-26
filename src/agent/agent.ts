@@ -4,6 +4,7 @@
 
 import {
   OllamaAgentMaxIterationsError,
+  OllamaAgentMaxToolCallsError,
   OllamaIncompatibleModelError,
 } from '../errors.js';
 import {
