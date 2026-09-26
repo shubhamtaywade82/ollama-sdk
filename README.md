@@ -41,7 +41,7 @@ The MCP TypeScript SDK v2 implements the 2026-07-28 protocol revision. Its `list
 
 ```typescript
 import { connectStdioMcpClient } from '@nemesis-oss/ollama-sdk/mcp/stdio';
-import { McpBridge, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
+import { Agent, McpBridge, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
 
 const connection = await connectStdioMcpClient({
   command: 'npx',
@@ -53,7 +53,7 @@ const registry = new ToolRegistry();
 await bridge.register(registry);
 
 const client = new OllamaClient();
-const agent = client.agent({ tools: registry });
+const agent = new Agent(client, { tools: registry });
 const result = await agent.run({
   model: 'qwen3',
   messages: [{ role: 'user', content: 'List the available files.' }],
