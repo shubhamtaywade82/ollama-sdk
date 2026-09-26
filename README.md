@@ -63,6 +63,46 @@ const final = await stream.finalResult;
 console.log(final.usage);
 ```
 
+
+## MCP bridge
+
+The SDK exposes a transport-neutral `McpBridge` that converts MCP `tools/list` descriptors into native Ollama function tools and registers executable MCP-backed tools.
+
+- Paginated `tools/list` discovery follows `nextCursor`, with repeated-cursor and page-limit protection.
+- MCP JSON Schema is preserved in the generated Ollama tool definition.
+- `structuredContent` and non-text MCP content blocks are retained in the model-visible tool result.
+- MCP `isError: true` results remain model-readable; they are not treated as transport failures.
+- `AbortSignal` propagates through discovery and tool execution.
+- The optional Node-only `@nemesis-oss/ollama-sdk/mcp/stdio` subpath uses the official MCP v2 stdio transport without importing Node-only code from the root package.
+
+The MCP TypeScript SDK v2 implements the 2026-07-28 protocol revision. Its `listTools()` client path aggregates pagination, and `CallToolResult` represents tool failures as ordinary results with `isError`, while `structuredContent` is available for machine-readable output. citeturn0search0turn1search4turn0search6
+
+### MCP stdio example
+
+```typescript
+import { connectStdioMcpClient } from '@nemesis-oss/ollama-sdk/mcp/stdio';
+import { Agent, McpBridge, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
+
+const connection = await connectStdioMcpClient({
+  command: 'npx',
+  args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+});
+
+const bridge = new McpBridge(connection.client, { namePrefix: 'mcp_' });
+const registry = new ToolRegistry();
+await bridge.register(registry);
+
+const client = new OllamaClient();
+const agent = new Agent(client, { tools: registry });
+const result = await agent.run({
+  model: 'qwen3',
+  messages: [{ role: 'user', content: 'List the available files.' }],
+});
+
+await connection.close();
+console.log(result.finalMessage.content);
+```
+
 ## Installation
 
 ```bash
