@@ -28,7 +28,11 @@ export class McpBridge {
       function: {
         name: prefix + tool.name,
         description: tool.description ?? '',
-        parameters: (tool.inputSchema ?? { type: 'object', properties: {} }) as ToolDefinition['function']['parameters'],
+        parameters: {
+          ...(tool.inputSchema ?? { type: 'object', properties: {} }),
+          type: 'object' as const,
+          properties: ((tool.inputSchema ?? {})['properties'] ?? {}) as ToolDefinition['function']['parameters']['properties'],
+        } as ToolDefinition['function']['parameters'],
       },
     }));
   }
