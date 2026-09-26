@@ -240,7 +240,11 @@ const weatherTool = defineTool({
 });
 
 const registry = new ToolRegistry([weatherTool]);
-const agent = new Agent(client, { tools: registry, maxIterations: 5 });
+const agent = new Agent(client, {
+  tools: registry,
+  maxIterations: 5,
+  maxToolCalls: 12, // hard per-run tool execution budget
+});
 
 const response = await agent.run({
   model: 'qwen3:8b',
@@ -271,6 +275,8 @@ unaware of credentials entirely. See
 for a worked example and a runnable scenario.
 
 ### Tool Execution Safety & Sandboxing
+
+Agent runs can also enforce a hard `maxToolCalls` budget across the entire run. When exceeded, the SDK throws `OllamaAgentMaxToolCallsError` rather than continuing an unbounded tool loop.
 
 Tool arguments and, indirectly, which tools get called at all are driven by model
 output — treat them as untrusted input. `ToolRegistry` supports three defensive
