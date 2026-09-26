@@ -101,16 +101,21 @@ export class Agent {
       }
     }
 
-    const effectiveOptions =
-      hasTools && input.options?.num_ctx === undefined
-        ? {
-            ...(input.options ?? {}),
-            num_ctx: Math.min(
-              this.toolContextSize,
-              capabilities?.contextLength ?? this.toolContextSize,
-            ),
-          }
-        : input.options;
+    const shouldAutoSizeContext =
+      hasTools &&
+      this.validateToolCapability &&
+      capabilities !== undefined &&
+      input.options?.num_ctx === undefined;
+
+    const effectiveOptions = shouldAutoSizeContext
+      ? {
+          ...(input.options ?? {}),
+          num_ctx: Math.min(
+            this.toolContextSize,
+            capabilities.contextLength ?? this.toolContextSize,
+          ),
+        }
+      : input.options;
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       const outcome = await withSpan(
