@@ -237,6 +237,12 @@ export interface GenerateResponse {
   readonly thinking?: string | undefined;
   /** Present when the request set `logprobs: true`. */
   readonly logprobs?: readonly Logprob[] | undefined;
+  /** Base64-encoded generated image data for image-generation models. */
+  readonly image?: string | undefined;
+  /** Number of completed image-generation steps. */
+  readonly completed?: number | undefined;
+  /** Total image-generation steps. */
+  readonly total?: number | undefined;
 }
 
 export interface EmbedRequestOptions extends RequestCancellationOptions {
