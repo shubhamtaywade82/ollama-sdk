@@ -17,6 +17,8 @@ export interface StdioMcpServerParameters {
   readonly args?: readonly string[] | undefined;
   readonly cwd?: string | undefined;
   readonly env?: Record<string, string> | undefined;
+  readonly maxBufferSize?: number | undefined;
+  readonly stderr?: 'inherit' | 'pipe' | 'ignore' | undefined;
 }
 
 export interface StdioMcpClientOptions {
@@ -86,6 +88,8 @@ export async function connectStdioMcpClient(
     ...(server.args !== undefined ? { args: [...server.args] } : {}),
     ...(server.cwd !== undefined ? { cwd: server.cwd } : {}),
     ...(server.env !== undefined ? { env: server.env } : {}),
+    ...(server.maxBufferSize !== undefined ? { maxBufferSize: server.maxBufferSize } : {}),
+    ...(server.stderr !== undefined ? { stderr: server.stderr } : {}),
   });
 
   await client.connect(transport);
