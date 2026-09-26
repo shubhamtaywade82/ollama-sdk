@@ -42,7 +42,7 @@ describe('MCP bridge parity', () => {
     const bridge = new McpBridge(client);
     const definitions = await bridge.definitions();
 
-    expect(listTools).toHaveBeenNthCalledWith(1);
+    expect(listTools).toHaveBeenNthCalledWith(1, undefined);
     expect(listTools).toHaveBeenNthCalledWith(2, { cursor: 'page-2' });
     expect(definitions).toHaveLength(2);
     expect(definitions[0]?.function.name).toBe('search');
