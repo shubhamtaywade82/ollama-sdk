@@ -184,7 +184,6 @@
           "stop_sequence"
         ]
       },
-      "sdkOnlyFields": [],
       "stream": {
         "sourceFile": "src/integrations/anthropic.ts",
         "unionName": "AnthropicMessageStreamEvent",
