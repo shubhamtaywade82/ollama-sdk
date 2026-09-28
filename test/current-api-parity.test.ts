@@ -29,6 +29,7 @@ describe('API parity manifest contract', () => {
     expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think', 'parallel_tool_calls']);
     expect(responses?.stream?.interfaceNames).toHaveLength(22);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
+    expect(anthropic?.sdkOnlyFields).toEqual(['output_config']);
     expect(anthropic?.response?.fields).toEqual([
       'id',
       'type',
@@ -321,7 +322,7 @@ describe('strict Ollama Anthropic request types', () => {
     expect(request.thinking?.budget_tokens).toBe(128);
   });
 
-  it('does not expose the undocumented output_config field on the strict Ollama request', () => {
+  it('does not expose undocumented output_config or redacted-thinking input blocks', () => {
     const request: OllamaAnthropicMessagesRequest = {
       model: 'qwen3',
       max_tokens: 64,
@@ -331,6 +332,20 @@ describe('strict Ollama Anthropic request types', () => {
     };
 
     expect(request.model).toBe('qwen3');
+
+    const redactedRequest: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{
+        role: 'user',
+        content: [{
+          // @ts-expect-error redacted_thinking is not an Ollama-supported input content block.
+          type: 'redacted_thinking',
+          data: 'secret',
+        }],
+      }],
+    };
+    expect(redactedRequest.model).toBe('qwen3');
   });
   it('does not transmit output_config, which is not part of the current Ollama Messages contract', async () => {
     const fetchMock = jsonFetchMock({
