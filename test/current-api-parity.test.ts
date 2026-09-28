@@ -292,6 +292,39 @@ describe('Anthropic unsupported-feature sanitization', () => {
     expect(body.messages[0].content[0].cache_control).toBeUndefined();
     expect(body.system[0].cache_control).toBeUndefined();
   });
+
+  it('strips unsupported cache_control from nested tool_result text blocks', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-nested-cache',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 16,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'tool_1',
+          content: [{
+            type: 'text',
+            text: 'tool output',
+            cache_control: { type: 'ephemeral' },
+          }],
+        }],
+      }],
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body);
+    expect(body.messages[0].content[0].content[0].cache_control).toBeUndefined();
+  });
 });
 
 describe('strict Ollama Anthropic request types', () => {
@@ -346,6 +379,25 @@ describe('strict Ollama Anthropic request types', () => {
       }],
     };
     expect(redactedRequest.model).toBe('qwen3');
+
+    const nestedCacheControlRequest: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'tool_1',
+          content: [{
+            type: 'text',
+            text: 'tool output',
+            // @ts-expect-error cache_control is unsupported even inside tool_result text blocks.
+            cache_control: { type: 'ephemeral' },
+          }],
+        }],
+      }],
+    };
+    expect(nestedCacheControlRequest.model).toBe('qwen3');
   });
   it('does not transmit output_config, which is not part of the current Ollama Messages contract', async () => {
     const fetchMock = jsonFetchMock({
