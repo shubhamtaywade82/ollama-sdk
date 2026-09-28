@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { firstKnownStatus } from '../scripts/parity-status.js';
+import {
+  explicitlyUnsupported,
+  firstKnownStatus,
+  nestedFieldName,
+} from '../scripts/parity-status.js';
 
 describe('API parity documentation evidence', () => {
   it('does not let a stale fallback promote a missing live field', () => {
@@ -36,5 +40,20 @@ describe('API parity documentation evidence', () => {
     ].join('\n');
 
     expect(firstKnownStatus(liveSection, staleFallback, ['tool_choice'])).toBe('unsupported');
+  });
+});
+
+describe('API parity unsupported evidence', () => {
+  it('recognizes explicit unsupported prose', () => {
+    expect(
+      explicitlyUnsupported(
+        'Prompt caching via `cache_control` blocks is not supported.',
+        ['cache_control'],
+      ),
+    ).toBe(true);
+  });
+
+  it('extracts the leaf field from a nested contract path', () => {
+    expect(nestedFieldName('messages[].content[].cache_control')).toBe('cache_control');
   });
 });
