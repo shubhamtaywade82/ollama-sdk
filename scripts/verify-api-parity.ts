@@ -7,7 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { docsFieldStatus, firstKnownStatus } from './parity-status.js';
+import {
+  docsFieldStatus,
+  explicitlyUnsupported,
+  firstKnownStatus,
+  nestedFieldName,
+} from './parity-status.js';
 
 interface FieldSectionContract {
   readonly sourceFile: string;
@@ -268,22 +273,6 @@ function unsupportedFieldSection(docs: string, endpoint: string): string {
   ]);
 }
 
-function explicitlyUnsupported(docs: string, aliases: readonly string[]): boolean {
-  return aliases.some((field) => {
-    const escaped = escapeRegExp(field);
-    return (
-      new RegExp(
-        escaped + '[^\\n]{0,160}(?:not supported|unsupported)',
-        'i',
-      ).test(docs) ||
-      new RegExp(
-        '(?:not supported|unsupported)[^\\n]{0,160}' + escaped,
-        'i',
-      ).test(docs)
-    );
-  });
-}
-
 function assertContract(
   contract: SurfaceContract,
   docs: string,
@@ -329,16 +318,13 @@ function assertContract(
 
   const unsupportedSection = unsupportedFieldSection(docs, contract.endpoint);
   const fallbackUnsupportedSection = unsupportedFieldSection(fallbackDocs, contract.endpoint);
+  const unsupportedEvidence = unsupportedSection || fallbackUnsupportedSection;
   const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    const liveStatus = docsFieldStatus(requestFields, aliases);
-    const fallbackStatus = docsFieldStatus(fallbackRequestFields, aliases);
-    return !(
-      liveStatus === 'unsupported' ||
-      fallbackStatus === 'unsupported' ||
-      explicitlyUnsupported(unsupportedSection, aliases) ||
-      explicitlyUnsupported(fallbackUnsupportedSection, aliases) ||
-      explicitlyUnsupported(docs, aliases)
+    return (
+      docsFieldStatus(unsupportedEvidence, aliases) !== 'unsupported' &&
+      !explicitlyUnsupported(unsupportedEvidence, aliases) &&
+      !explicitlyUnsupported(docs, aliases)
     );
   });
 
@@ -347,11 +333,23 @@ function assertContract(
       `[${contract.id}] Explicitly unsupported field(s) changed status in Ollama docs: ${unsupportedDocs.join(', ')}`,
     );
   }
+  const nestedUnsupported = contract.nestedUnsupportedFields ?? [];
+  const nestedEvidence = unsupportedSection || fallbackUnsupportedSection;
+  const invalidNestedUnsupported = nestedUnsupported.filter((path) => {
+    const leaf = nestedFieldName(path);
+    return !explicitlyUnsupported(nestedEvidence, [leaf]) && !explicitlyUnsupported(docs, [leaf]);
+  });
+  if (invalidNestedUnsupported.length > 0) {
+    throw new Error(
+      `[${contract.id}] Nested unsupported field(s) lack explicit Ollama unsupported evidence: ${invalidNestedUnsupported.join(', ')}`,
+    );
+  }
 
+  const sdkOnlyEvidence = requestFields || fallbackRequestFields;
   const sdkOnlyDocs = (contract.sdkOnlyFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return [requestFields, fallbackRequestFields].some((section) =>
-      aliases.some((alias) => section.includes('[Input] `' + alias + '`')),
+    return aliases.some((alias) =>
+      sdkOnlyEvidence.includes('[Input] `' + alias + '`'),
     );
   });
 
@@ -395,14 +393,16 @@ function assertContract(
       );
     }
 
+    const unsupportedResponseEvidence =
+      unsupportedFieldSection(docs, contract.endpoint) ||
+      unsupportedFieldSection(fallbackDocs, contract.endpoint);
     const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
-      const unsupportedEvidence =
-        unsupportedFieldSection(docs, contract.endpoint) ||
-        unsupportedFieldSection(fallbackDocs, contract.endpoint) ||
-        '';
-      const status = docsFieldStatus(unsupportedEvidence, aliases);
-      return status !== 'unsupported' && !explicitlyUnsupported(unsupportedEvidence, aliases);
+      return (
+        docsFieldStatus(unsupportedResponseEvidence, aliases) !== 'unsupported' &&
+        !explicitlyUnsupported(unsupportedResponseEvidence, aliases) &&
+        !explicitlyUnsupported(docs, aliases)
+      );
     });
     if (unsupportedResponseDocs.length > 0) {
       throw new Error(
