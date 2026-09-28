@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  docsMentionField,
   explicitlyUnsupported,
   firstKnownStatus,
   nestedFieldName,
@@ -44,6 +45,15 @@ describe('API parity documentation evidence', () => {
 });
 
 describe('API parity unsupported evidence', () => {
+  it('recognizes fields listed in an unsupported table', () => {
+    expect(
+      docsMentionField(
+        'Not supported\\nFeature | Description\\n\\--- | ---\\ntool_choice | Forcing a specific tool',
+        ['tool_choice'],
+      ),
+    ).toBe(true);
+  });
+
   it('recognizes explicit unsupported prose', () => {
     expect(
       explicitlyUnsupported(
