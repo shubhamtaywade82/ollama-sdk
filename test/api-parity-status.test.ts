@@ -48,7 +48,12 @@ describe('API parity unsupported evidence', () => {
   it('recognizes fields listed in an unsupported table', () => {
     expect(
       docsMentionField(
-        'Not supported\\nFeature | Description\\n\\--- | ---\\ntool_choice | Forcing a specific tool',
+        [
+          'Not supported',
+          'Feature | Description',
+          '--- | ---',
+          'tool_choice | Forcing a specific tool',
+        ].join('\n'),
         ['tool_choice'],
       ),
     ).toBe(true);
