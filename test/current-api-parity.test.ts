@@ -423,7 +423,6 @@ describe('strict Ollama Anthropic request types', () => {
   });
 });
 
-});
 
 describe('expanded Anthropic compatibility typing', () => {
   it('accepts current tool choice and metadata shapes while the Ollama bridge sanitizes unsupported fields', async () => {
