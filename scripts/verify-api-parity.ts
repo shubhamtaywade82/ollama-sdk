@@ -181,11 +181,12 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
   const normalizedLabel = label.toLowerCase();
   const start = lines.findIndex((line) => {
     const trimmed = line.trim();
+    if (!trimmed.startsWith('#')) return false;
     const value = normalizedHeadingText(line);
     return (
       value === normalizedLabel ||
       value.endsWith(normalizedLabel) ||
-      (trimmed.startsWith('#') && value.includes(normalizedLabel))
+      value.includes(normalizedLabel)
     );
   });
   if (start < 0) return '';
@@ -215,9 +216,10 @@ function requestFieldSection(docs: string, endpoint: string): string {
 
   const lines = endpointDocs.split(/\r?\n/);
   const label = 'supported request fields';
-  const start = lines.findIndex((line) =>
-    normalizedHeadingText(line).includes(label),
-  );
+  const start = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed.startsWith('#') && normalizedHeadingText(line).includes(label);
+  });
   if (start < 0) return '';
 
   let end = lines.length;
