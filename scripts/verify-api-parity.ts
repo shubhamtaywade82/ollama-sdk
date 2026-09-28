@@ -42,6 +42,7 @@ interface SurfaceContract {
   readonly fields: readonly string[];
   readonly unsupportedFields?: readonly string[];
   readonly sdkOnlyFields?: readonly string[];
+  readonly nestedUnsupportedFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
   readonly response?: FieldSectionContract;
   readonly stream?: StreamContract;
