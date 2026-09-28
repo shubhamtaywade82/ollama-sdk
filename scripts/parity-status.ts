@@ -76,6 +76,36 @@ export function firstKnownStatus(
     : docsFieldStatus(fallback, aliases);
 }
 
+export function docsMentionField(
+  docs: string,
+  aliases: readonly string[],
+): boolean {
+  return docs.split(/\r?\n/).some((line) =>
+    aliases.some((field) => {
+      const forms = [
+        '`' + field + '`',
+        '<code>' + field + '</code>',
+        '"' + field + '":',
+        "'" + field + "':",
+        '| ' + field + ' |',
+        '<td>' + field + '</td>',
+      ];
+      if (forms.some((form) => line.includes(form))) return true;
+      const value = line.trim();
+      if (
+        value === field ||
+        value.startsWith(field + ':') ||
+        value.startsWith('- ' + field + ':')
+      ) return true;
+      const tokenPattern = new RegExp(
+        '(?:^|[^A-Za-z0-9_])' + escapeRegExp(field) + '(?:$|[^A-Za-z0-9_])',
+        'i',
+      );
+      return tokenPattern.test(line);
+    }),
+  );
+}
+
 export function explicitlyUnsupported(
   docs: string,
   aliases: readonly string[],
