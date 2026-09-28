@@ -133,7 +133,10 @@ export type OllamaAnthropicTextContentBlock = Omit<
 
 export type OllamaAnthropicContentBlock =
   | OllamaAnthropicTextContentBlock
-  | Exclude<AnthropicContentBlock, AnthropicTextContentBlock>;
+  | AnthropicImageContentBlock
+  | AnthropicToolUseContentBlock
+  | AnthropicToolResultContentBlock
+  | AnthropicThinkingContentBlock;
 
 export type OllamaAnthropicMessage = Omit<AnthropicMessage, 'content'> & {
   readonly content: string | readonly OllamaAnthropicContentBlock[];
@@ -151,10 +154,11 @@ export type OllamaAnthropicSystem =
 /** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'messages' | 'system' | 'tool_choice' | 'metadata'
+  'messages' | 'system' | 'thinking' | 'output_config' | 'tool_choice' | 'metadata'
 > & {
   readonly messages: readonly OllamaAnthropicMessage[];
   readonly system?: OllamaAnthropicSystem | undefined;
+  readonly thinking?: AnthropicThinkingConfig | undefined;
 };
 
 export interface AnthropicMessagesResponse {
@@ -315,7 +319,12 @@ function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicM
       })
     : request.system;
 
-  const { tool_choice: _toolChoice, metadata: _metadata, ...sanitized } = request;
+  const {
+    tool_choice: _toolChoice,
+    metadata: _metadata,
+    output_config: _outputConfig,
+    ...sanitized
+  } = request;
   return {
     ...sanitized,
     messages,
