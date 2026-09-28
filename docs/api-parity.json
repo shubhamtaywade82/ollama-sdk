@@ -159,12 +159,14 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking",
-        "output_config"
+        "thinking"
       ],
       "unsupportedFields": [
         "tool_choice",
         "metadata"
+      ],
+      "sdkOnlyFields": [
+        "output_config"
       ],
       "response": {
         "sourceFile": "src/integrations/anthropic.ts",
