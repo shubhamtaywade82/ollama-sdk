@@ -338,7 +338,11 @@ function assertContract(
   const nestedEvidence = unsupportedSection || fallbackUnsupportedSection;
   const invalidNestedUnsupported = nestedUnsupported.filter((path) => {
     const leaf = nestedFieldName(path);
-    return !explicitlyUnsupported(nestedEvidence, [leaf]) && !explicitlyUnsupported(docs, [leaf]);
+    return (
+      !docsMentionField(nestedEvidence, [leaf]) &&
+      !explicitlyUnsupported(nestedEvidence, [leaf]) &&
+      !explicitlyUnsupported(docs, [leaf])
+    );
   });
   if (invalidNestedUnsupported.length > 0) {
     throw new Error(
