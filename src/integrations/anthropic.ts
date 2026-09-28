@@ -131,11 +131,18 @@ export type OllamaAnthropicTextContentBlock = Omit<
   'cache_control'
 >;
 
+export type OllamaAnthropicToolResultContentBlock = Omit<
+  AnthropicToolResultContentBlock,
+  'content'
+> & {
+  readonly content?: string | readonly OllamaAnthropicTextContentBlock[] | undefined;
+};
+
 export type OllamaAnthropicContentBlock =
   | OllamaAnthropicTextContentBlock
   | AnthropicImageContentBlock
   | AnthropicToolUseContentBlock
-  | AnthropicToolResultContentBlock
+  | OllamaAnthropicToolResultContentBlock
   | AnthropicThinkingContentBlock;
 
 export type OllamaAnthropicMessage = Omit<AnthropicMessage, 'content'> & {
@@ -300,23 +307,42 @@ function mergeContentBlock(
   return current;
 }
 
+function sanitizeAnthropicTextBlock(
+  block: AnthropicTextContentBlock,
+): OllamaAnthropicTextContentBlock {
+  if (block.cache_control === undefined) return block;
+  const { cache_control: _cacheControl, ...sanitized } = block;
+  return sanitized;
+}
+
+function sanitizeAnthropicContentBlock(
+  block: AnthropicContentBlock,
+): AnthropicContentBlock {
+  if (block.type === 'text') {
+    return sanitizeAnthropicTextBlock(block);
+  }
+
+  if (block.type === 'tool_result' && Array.isArray(block.content)) {
+    return {
+      ...block,
+      content: block.content.map(sanitizeAnthropicTextBlock),
+    };
+  }
+
+  return block;
+}
+
 function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicMessagesRequest {
   const messages = request.messages.map((message) => {
     if (typeof message.content === 'string') return message;
-    const content = message.content.map((block) => {
-      if (block.type !== 'text' || block.cache_control === undefined) return block;
-      const { cache_control: _cacheControl, ...sanitized } = block;
-      return sanitized;
-    });
-    return { ...message, content };
+    return {
+      ...message,
+      content: message.content.map(sanitizeAnthropicContentBlock),
+    };
   });
 
   const system = Array.isArray(request.system)
-    ? request.system.map((block) => {
-        if (block.cache_control === undefined) return block;
-        const { cache_control: _cacheControl, ...sanitized } = block;
-        return sanitized;
-      })
+    ? request.system.map(sanitizeAnthropicTextBlock)
     : request.system;
 
   const {
@@ -325,6 +351,7 @@ function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicM
     output_config: _outputConfig,
     ...sanitized
   } = request;
+
   return {
     ...sanitized,
     messages,
