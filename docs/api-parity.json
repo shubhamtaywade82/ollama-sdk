@@ -212,6 +212,7 @@
       "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
       "nestedUnsupportedFields": [
         "messages[].content[].cache_control",
+        "messages[].content[].content[].cache_control",
         "system[].cache_control"
       ]
     },
