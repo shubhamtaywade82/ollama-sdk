@@ -294,7 +294,7 @@ describe('Anthropic unsupported-feature sanitization', () => {
 });
 
 describe('strict Ollama Anthropic request types', () => {
-  it('accepts supported Ollama fields and content blocks without unsupported controls', () => {
+  it('accepts documented Ollama fields and content blocks', () => {
     const request: OllamaAnthropicMessagesRequest = {
       model: 'qwen3',
       max_tokens: 64,
@@ -314,13 +314,48 @@ describe('strict Ollama Anthropic request types', () => {
         description: 'Get weather',
         input_schema: { type: 'object' },
       }],
-      thinking: { type: 'enabled' },
-      output_config: { effort: 'medium' },
+      thinking: { type: 'enabled', budget_tokens: 128 },
     };
 
     expect(request.messages[0]?.content).toHaveLength(2);
-    expect(request.output_config?.effort).toBe('medium');
+    expect(request.thinking?.budget_tokens).toBe(128);
   });
+
+  it('does not expose the undocumented output_config field on the strict Ollama request', () => {
+    const request: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'hello' }],
+      // @ts-expect-error output_config is retained only on the broad compatibility type.
+      output_config: { effort: 'medium' },
+    };
+
+    expect(request.model).toBe('qwen3');
+  });
+  it('does not transmit output_config, which is not part of the current Ollama Messages contract', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-output-config',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 16,
+      messages: [{ role: 'user', content: 'hello' }],
+      output_config: { effort: 'medium' },
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body);
+    expect(body.output_config).toBeUndefined();
+  });
+});
+
 });
 
 describe('expanded Anthropic compatibility typing', () => {
