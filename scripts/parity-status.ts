@@ -75,3 +75,21 @@ export function firstKnownStatus(
     ? docsFieldStatus(primary, aliases)
     : docsFieldStatus(fallback, aliases);
 }
+
+export function explicitlyUnsupported(
+  docs: string,
+  aliases: readonly string[],
+): boolean {
+  return aliases.some((field) => {
+    const escaped = escapeRegExp(field);
+    return (
+      new RegExp(escaped + '[^\\n]{0,160}(?:not supported|unsupported)', 'i').test(docs) ||
+      new RegExp('(?:not supported|unsupported)[^\\n]{0,160}' + escaped, 'i').test(docs)
+    );
+  });
+}
+
+export function nestedFieldName(path: string): string {
+  const segments = path.split('.');
+  return segments[segments.length - 1] ?? path;
+}
