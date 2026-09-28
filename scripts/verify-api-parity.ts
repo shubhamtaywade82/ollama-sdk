@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 import ts from 'typescript';
 import {
   docsFieldStatus,
+  docsMentionField,
   explicitlyUnsupported,
   firstKnownStatus,
   nestedFieldName,
@@ -323,7 +324,7 @@ function assertContract(
   const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
     return (
-      docsFieldStatus(unsupportedEvidence, aliases) !== 'unsupported' &&
+      !docsMentionField(unsupportedEvidence, aliases) &&
       !explicitlyUnsupported(unsupportedEvidence, aliases) &&
       !explicitlyUnsupported(docs, aliases)
     );
@@ -400,7 +401,7 @@ function assertContract(
     const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
       return (
-        docsFieldStatus(unsupportedResponseEvidence, aliases) !== 'unsupported' &&
+        !docsMentionField(unsupportedResponseEvidence, aliases) &&
         !explicitlyUnsupported(unsupportedResponseEvidence, aliases) &&
         !explicitlyUnsupported(docs, aliases)
       );
