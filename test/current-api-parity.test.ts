@@ -26,7 +26,7 @@ describe('API parity manifest contract', () => {
     expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(embeddings?.unsupportedFields).toEqual([]);
     expect(responses?.unsupportedFields).toEqual(['previous_response_id', 'conversation']);
-    expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think', 'parallel_tool_calls']);
+    expect(responses?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(responses?.stream?.interfaceNames).toHaveLength(22);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
     expect(anthropic?.sdkOnlyFields).toEqual(['output_config']);
