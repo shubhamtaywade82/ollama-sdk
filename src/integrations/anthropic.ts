@@ -169,7 +169,7 @@ export type OllamaAnthropicSystem =
 /** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'messages' | 'system' | 'tools' | 'thinking' | 'output_config' | 'tool_choice' | 'metadata'
+  'messages' | 'system' | 'tools' | 'thinking' | 'tool_choice' | 'metadata'
 > & {
   readonly messages: readonly OllamaAnthropicMessage[];
   readonly system?: OllamaAnthropicSystem | undefined;
@@ -357,7 +357,6 @@ function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicM
   const {
     tool_choice: _toolChoice,
     metadata: _metadata,
-    output_config: _outputConfig,
     ...sanitized
   } = request;
 
