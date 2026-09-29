@@ -68,7 +68,13 @@ async function loadClientModule(): Promise<DynamicMcpClient> {
 }
 
 function parseServerUrl(value: string | URL): URL {
-  const url = value instanceof URL ? value : new URL(value);
+  let url: URL;
+  try {
+    url = value instanceof URL ? new URL(value.href) : new URL(value);
+  } catch (error) {
+    throw new TypeError('MCP HTTP server URL must be a valid absolute URL', { cause: error });
+  }
+
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new TypeError('MCP HTTP server URL must use http: or https:');
   }
