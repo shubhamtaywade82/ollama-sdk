@@ -4,6 +4,7 @@ import {
   explicitlyUnsupported,
   firstKnownStatus,
   nestedFieldName,
+  endpointSection,
 } from '../scripts/parity-status.js';
 
 describe('API parity documentation evidence', () => {
@@ -41,6 +42,28 @@ describe('API parity documentation evidence', () => {
     ].join('\n');
 
     expect(firstKnownStatus(liveSection, staleFallback, ['tool_choice'])).toBe('unsupported');
+  });
+});
+
+describe('API parity endpoint extraction', () => {
+  it('selects the actual Responses endpoint instead of the earlier code-example heading', () => {
+    const docs = [
+      '### Simple /v1/responses example',
+      'curl http://localhost:11434/v1/responses',
+      '## Responses API',
+      'POST /v1/responses',
+      '#### Supported request fields',
+      '- [Input] `model`',
+      '- [Input] `reasoning`',
+      '  - [Input] `effort`',
+      '- [Input] `think`',
+      '## Models',
+    ].join('\\n');
+
+    const section = endpointSection(docs, '/v1/responses');
+    expect(section).toContain('- [Input] `reasoning`');
+    expect(section).toContain('- [Input] `think`');
+    expect(section).not.toContain('curl http://localhost:11434/v1/responses');
   });
 });
 
