@@ -13,6 +13,7 @@ import {
   firstKnownStatus,
   nestedFieldName,
   endpointSection,
+  supportedFeatureStatus,
 } from './parity-status.js';
 
 interface FieldSectionContract {
@@ -45,6 +46,7 @@ interface SurfaceContract {
   readonly sdkOnlyFields?: readonly string[];
   readonly nestedUnsupportedFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
+  readonly featureAliases?: Readonly<Record<string, readonly string[]>>;
   readonly response?: FieldSectionContract;
   readonly stream?: StreamContract;
 }
@@ -59,6 +61,10 @@ const ROOT = resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(
   readFileSync(resolve(ROOT, 'docs/api-parity.json'), 'utf8'),
 ) as ParityManifest;
+
+function supportedFeatureStatusFromModule(): (aliases: readonly string[], docs: string) => ReturnType<typeof supportedFeatureStatus> {
+  return supportedFeatureStatus;
+}
 
 function sourceProperties(sourceFile: string, interfaceName: string): Set<string> {
   const sourcePath = resolve(ROOT, sourceFile);
