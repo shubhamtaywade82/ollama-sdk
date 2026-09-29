@@ -5,6 +5,7 @@ import {
   firstKnownStatus,
   nestedFieldName,
   endpointSection,
+  supportedFeatureStatus,
 } from '../scripts/parity-status.js';
 
 describe('API parity documentation evidence', () => {
@@ -93,5 +94,19 @@ describe('API parity unsupported evidence', () => {
 
   it('extracts the leaf field from a nested contract path', () => {
     expect(nestedFieldName('messages[].content[].cache_control')).toBe('cache_control');
+  });
+});
+
+
+describe('API parity supported feature evidence', () => {
+  it('recognizes supported features that are documented outside request-field tables', () => {
+    const docs = [
+      '#### Supported features',
+      '  * [Input] Logprobs',
+      '#### Supported request fields',
+      '  * [Input] `model`',
+    ].join('\n');
+
+    expect(supportedFeatureStatus(docs, ['Logprobs'])).toBe('supported');
   });
 });
