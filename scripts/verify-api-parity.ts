@@ -143,6 +143,40 @@ async function fetchDocs(url: string): Promise<string> {
   const body = await response.text();
   return contentType.includes('text/html') ? normalizeHtmlDocs(body) : body;
 }
+function normalizedHeadingText(line: string): string {
+  return line
+    .trim()
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function labeledSection(docs: string, label: string, stopLabels: readonly string[]): string {
+  const lines = docs.split(/\r?\n/);
+  const normalizedLabel = label.toLowerCase();
+  const start = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('#')) return false;
+    const value = normalizedHeadingText(line);
+    return value === normalizedLabel || value.endsWith(normalizedLabel) || value.includes(normalizedLabel);
+  });
+  if (start < 0) return '';
+
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    const value = normalizedHeadingText(line);
+    if (
+      stopLabels.some((stop) => value === stop.toLowerCase() || value.endsWith(stop.toLowerCase())) ||
+      (/^#{2,6}\s+/.test(line.trim()) && stopLabels.some((stop) => value.includes(stop.toLowerCase())))
+    ) {
+      end = index;
+      break;
+    }
+  }
+
+  return lines.slice(start, end).join('\n');
+}
 function requestFieldSection(docs: string, endpoint: string): string {
   const endpointDocs = endpointSection(docs, endpoint);
   if (!endpointDocs) return '';
