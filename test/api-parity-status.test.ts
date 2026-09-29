@@ -58,7 +58,7 @@ describe('API parity endpoint extraction', () => {
       '  - [Input] `effort`',
       '- [Input] `think`',
       '## Models',
-    ].join('\\n');
+    ].join('\n');
 
     const section = endpointSection(docs, '/v1/responses');
     expect(section).toContain('- [Input] `reasoning`');
