@@ -434,16 +434,15 @@ describe('strict Ollama Anthropic request types', () => {
     expect(invalidTool.model).toBe('qwen3');
   });
 
-  it('does not expose undocumented output_config or redacted-thinking input blocks', () => {
+  it('exposes supported output_config and rejects redacted-thinking input blocks', () => {
     const request: OllamaAnthropicMessagesRequest = {
       model: 'qwen3',
       max_tokens: 64,
       messages: [{ role: 'user', content: 'hello' }],
-      // @ts-expect-error output_config is retained only on the broad compatibility type.
       output_config: { effort: 'medium' },
     };
 
-    expect(request.model).toBe('qwen3');
+    expect(request.output_config?.effort).toBe('medium');
 
     const redactedRequest: OllamaAnthropicMessagesRequest = {
       model: 'qwen3',
@@ -478,7 +477,7 @@ describe('strict Ollama Anthropic request types', () => {
     };
     expect(nestedCacheControlRequest.model).toBe('qwen3');
   });
-  it('does not transmit output_config, which is not part of the current Ollama Messages contract', async () => {
+  it('transmits supported output_config effort', async () => {
     const fetchMock = jsonFetchMock({
       id: 'msg-output-config',
       type: 'message',
@@ -498,7 +497,7 @@ describe('strict Ollama Anthropic request types', () => {
     });
 
     const body = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body);
-    expect(body.output_config).toBeUndefined();
+    expect(body.output_config).toEqual({ effort: 'medium' });
   });
 });
 
