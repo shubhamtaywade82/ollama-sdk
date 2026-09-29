@@ -159,12 +159,14 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking",
-        "output_config"
+        "thinking"
       ],
       "unsupportedFields": [
         "tool_choice",
         "metadata"
+      ],
+      "sdkOnlyFields": [
+        "output_config"
       ],
       "response": {
         "sourceFile": "src/integrations/anthropic.ts",
@@ -182,7 +184,6 @@
           "stop_sequence"
         ]
       },
-      "sdkOnlyFields": [],
       "stream": {
         "sourceFile": "src/integrations/anthropic.ts",
         "unionName": "AnthropicMessageStreamEvent",
@@ -210,6 +211,7 @@
       "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
       "nestedUnsupportedFields": [
         "messages[].content[].cache_control",
+        "messages[].content[].content[].cache_control",
         "system[].cache_control"
       ]
     },

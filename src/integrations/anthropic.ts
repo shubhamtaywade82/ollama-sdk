@@ -131,9 +131,19 @@ export type OllamaAnthropicTextContentBlock = Omit<
   'cache_control'
 >;
 
+export type OllamaAnthropicToolResultContentBlock = Omit<
+  AnthropicToolResultContentBlock,
+  'content'
+> & {
+  readonly content?: string | readonly OllamaAnthropicTextContentBlock[] | undefined;
+};
+
 export type OllamaAnthropicContentBlock =
   | OllamaAnthropicTextContentBlock
-  | Exclude<AnthropicContentBlock, AnthropicTextContentBlock>;
+  | AnthropicImageContentBlock
+  | AnthropicToolUseContentBlock
+  | OllamaAnthropicToolResultContentBlock
+  | AnthropicThinkingContentBlock;
 
 export type OllamaAnthropicMessage = Omit<AnthropicMessage, 'content'> & {
   readonly content: string | readonly OllamaAnthropicContentBlock[];
@@ -151,10 +161,11 @@ export type OllamaAnthropicSystem =
 /** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'messages' | 'system' | 'tool_choice' | 'metadata'
+  'messages' | 'system' | 'thinking' | 'output_config' | 'tool_choice' | 'metadata'
 > & {
   readonly messages: readonly OllamaAnthropicMessage[];
   readonly system?: OllamaAnthropicSystem | undefined;
+  readonly thinking?: AnthropicThinkingConfig | undefined;
 };
 
 export interface AnthropicMessagesResponse {
@@ -296,26 +307,51 @@ function mergeContentBlock(
   return current;
 }
 
+function sanitizeAnthropicTextBlock(
+  block: AnthropicTextContentBlock,
+): OllamaAnthropicTextContentBlock {
+  if (block.cache_control === undefined) return block;
+  const { cache_control: _cacheControl, ...sanitized } = block;
+  return sanitized;
+}
+
+function sanitizeAnthropicContentBlock(
+  block: AnthropicContentBlock,
+): AnthropicContentBlock {
+  if (block.type === 'text') {
+    return sanitizeAnthropicTextBlock(block);
+  }
+
+  if (block.type === 'tool_result' && Array.isArray(block.content)) {
+    return {
+      ...block,
+      content: block.content.map(sanitizeAnthropicTextBlock),
+    };
+  }
+
+  return block;
+}
+
 function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicMessagesRequest {
   const messages = request.messages.map((message) => {
     if (typeof message.content === 'string') return message;
-    const content = message.content.map((block) => {
-      if (block.type !== 'text' || block.cache_control === undefined) return block;
-      const { cache_control: _cacheControl, ...sanitized } = block;
-      return sanitized;
-    });
-    return { ...message, content };
+    return {
+      ...message,
+      content: message.content.map(sanitizeAnthropicContentBlock),
+    };
   });
 
   const system = Array.isArray(request.system)
-    ? request.system.map((block) => {
-        if (block.cache_control === undefined) return block;
-        const { cache_control: _cacheControl, ...sanitized } = block;
-        return sanitized;
-      })
+    ? request.system.map(sanitizeAnthropicTextBlock)
     : request.system;
 
-  const { tool_choice: _toolChoice, metadata: _metadata, ...sanitized } = request;
+  const {
+    tool_choice: _toolChoice,
+    metadata: _metadata,
+    output_config: _outputConfig,
+    ...sanitized
+  } = request;
+
   return {
     ...sanitized,
     messages,

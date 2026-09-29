@@ -222,6 +222,7 @@ export {
   type AnthropicMetadata,
   type OllamaAnthropicTextContentBlock,
   type OllamaAnthropicContentBlock,
+  type OllamaAnthropicToolResultContentBlock,
   type OllamaAnthropicMessage,
   type OllamaAnthropicSystemTextBlock,
   type OllamaAnthropicSystem,

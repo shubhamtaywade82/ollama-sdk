@@ -7,6 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
+import {
+  docsMentionField,
+  explicitlyUnsupported,
+  firstKnownStatus,
+  nestedFieldName,
+} from './parity-status.js';
 
 interface FieldSectionContract {
   readonly sourceFile: string;
@@ -36,6 +42,7 @@ interface SurfaceContract {
   readonly fields: readonly string[];
   readonly unsupportedFields?: readonly string[];
   readonly sdkOnlyFields?: readonly string[];
+  readonly nestedUnsupportedFields?: readonly string[];
   readonly docAliases?: Readonly<Record<string, readonly string[]>>;
   readonly response?: FieldSectionContract;
   readonly stream?: StreamContract;
@@ -174,11 +181,12 @@ function labeledSection(docs: string, label: string, stopLabels: readonly string
   const normalizedLabel = label.toLowerCase();
   const start = lines.findIndex((line) => {
     const trimmed = line.trim();
+    if (!trimmed.startsWith('#')) return false;
     const value = normalizedHeadingText(line);
     return (
       value === normalizedLabel ||
       value.endsWith(normalizedLabel) ||
-      (trimmed.startsWith('#') && value.includes(normalizedLabel))
+      value.includes(normalizedLabel)
     );
   });
   if (start < 0) return '';
@@ -208,10 +216,11 @@ function requestFieldSection(docs: string, endpoint: string): string {
 
   const lines = endpointDocs.split(/\r?\n/);
   const label = 'supported request fields';
-  const start = lines.findIndex((line) =>
-    normalizedHeadingText(line).includes(label),
-  );
-  if (start < 0) return endpointDocs;
+  const start = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed.startsWith('#') && normalizedHeadingText(line).includes(label);
+  });
+  if (start < 0) return '';
 
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index += 1) {
@@ -242,8 +251,7 @@ function responseFieldSection(docs: string, endpoint: string): string {
       'Partial support',
       'Models',
       'Notes',
-    ]) ||
-    endpointDocs
+    ])
   );
 }
 
@@ -255,7 +263,7 @@ function streamEventSection(docs: string, endpoint: string): string {
     'Not supported',
     'Partial support',
     'Notes',
-  ]) || endpointDocs;
+  ]);
 }
 
 function unsupportedFieldSection(docs: string, endpoint: string): string {
@@ -268,81 +276,6 @@ function unsupportedFieldSection(docs: string, endpoint: string): string {
   ]);
 }
 
-function explicitlyUnsupported(docs: string, aliases: readonly string[]): boolean {
-  return aliases.some((field) => {
-    const escaped = escapeRegExp(field);
-    return (
-      new RegExp(
-        escaped + '[^\\n]{0,160}(?:not supported|unsupported)',
-        'i',
-      ).test(docs) ||
-      new RegExp(
-        '(?:not supported|unsupported)[^\\n]{0,160}' + escaped,
-        'i',
-      ).test(docs)
-    );
-  });
-}
-
-function firstKnownStatus(
-  primary: string,
-  fallbackSection: string,
-  fallbackWhole: string,
-  aliases: readonly string[],
-): DocFieldStatus {
-  // Live hosted documentation is authoritative. A pinned fallback may intentionally
-  // lag behind it, so a supported live field must not be downgraded by an older
-  // fallback snapshot that still marks the same field unsupported.
-  const statuses = [
-    docsFieldStatus(primary, aliases),
-    docsFieldStatus(fallbackSection, aliases),
-    docsFieldStatus(fallbackWhole, aliases),
-  ];
-  if (statuses.includes('supported')) return 'supported';
-  if (statuses.includes('unsupported')) return 'unsupported';
-  return 'missing';
-}
-
-type DocFieldStatus = 'supported' | 'unsupported' | 'missing';
-
-function docsFieldStatus(docs: string, aliases: readonly string[]): DocFieldStatus {
-  const lines = docs.split(/\r?\n/);
-  for (const field of aliases) {
-    const exactSupported = lines.some((line) =>
-      line.includes('- [x] `' + field + '`') ||
-      line.includes('* [x] `' + field + '`') ||
-      line.includes('[Input] `' + field + '`') ||
-      line.includes('Input] `' + field + '`'),
-    );
-    if (exactSupported) return 'supported';
-
-    const exactUnsupported = lines.some((line) =>
-      line.includes('- [ ] `' + field + '`') || line.includes('* [ ] `' + field + '`'),
-    );
-    if (exactUnsupported) return 'unsupported';
-  }
-
-  for (const line of lines) {
-    if (aliases.some((field) => {
-      const forms = [
-        '`' + field + '`',
-        '<code>' + field + '</code>',
-        '"' + field + '":',
-        "'" + field + "':",
-        '| ' + field + ' |',
-        '<td>' + field + '</td>',
-      ];
-      if (forms.some((form) => line.includes(form))) return true;
-      const value = line.trim();
-      if (value === field || value.startsWith(field + ':') || value.startsWith('- ' + field + ':')) {
-        return true;
-      }
-      const tokenPattern = new RegExp('(?:^|[^A-Za-z0-9_])' + escapeRegExp(field) + '(?:$|[^A-Za-z0-9_])', 'i');
-      return tokenPattern.test(line);
-    })) return 'supported';
-  }
-  return 'missing';
-}
 function assertContract(
   contract: SurfaceContract,
   docs: string,
@@ -373,7 +306,11 @@ function assertContract(
     requestFieldSection(fallbackDocs, contract.endpoint) || fallbackDocs;
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return firstKnownStatus(requestFields, fallbackRequestFields, fallbackDocs, aliases) !== 'supported';
+    return firstKnownStatus(
+      requestFields,
+      fallbackRequestFields || fallbackDocs,
+      aliases,
+    ) !== 'supported';
   });
 
   if (missingDocs.length > 0) {
@@ -384,16 +321,13 @@ function assertContract(
 
   const unsupportedSection = unsupportedFieldSection(docs, contract.endpoint);
   const fallbackUnsupportedSection = unsupportedFieldSection(fallbackDocs, contract.endpoint);
+  const unsupportedEvidence = unsupportedSection || fallbackUnsupportedSection;
   const unsupportedDocs = (contract.unsupportedFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    const liveStatus = docsFieldStatus(requestFields, aliases);
-    const fallbackStatus = docsFieldStatus(fallbackRequestFields, aliases);
-    return !(
-      liveStatus === 'unsupported' ||
-      fallbackStatus === 'unsupported' ||
-      explicitlyUnsupported(unsupportedSection, aliases) ||
-      explicitlyUnsupported(fallbackUnsupportedSection, aliases) ||
-      explicitlyUnsupported(docs, aliases)
+    return (
+      !docsMentionField(unsupportedEvidence, aliases) &&
+      !explicitlyUnsupported(unsupportedEvidence, aliases) &&
+      !explicitlyUnsupported(docs, aliases)
     );
   });
 
@@ -402,11 +336,27 @@ function assertContract(
       `[${contract.id}] Explicitly unsupported field(s) changed status in Ollama docs: ${unsupportedDocs.join(', ')}`,
     );
   }
+  const nestedUnsupported = contract.nestedUnsupportedFields ?? [];
+  const nestedEvidence = unsupportedSection || fallbackUnsupportedSection;
+  const invalidNestedUnsupported = nestedUnsupported.filter((path) => {
+    const leaf = nestedFieldName(path);
+    return (
+      !docsMentionField(nestedEvidence, [leaf]) &&
+      !explicitlyUnsupported(nestedEvidence, [leaf]) &&
+      !explicitlyUnsupported(docs, [leaf])
+    );
+  });
+  if (invalidNestedUnsupported.length > 0) {
+    throw new Error(
+      `[${contract.id}] Nested unsupported field(s) lack explicit Ollama unsupported evidence: ${invalidNestedUnsupported.join(', ')}`,
+    );
+  }
 
+  const sdkOnlyEvidence = requestFields || fallbackRequestFields;
   const sdkOnlyDocs = (contract.sdkOnlyFields ?? []).filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return [requestFields, fallbackRequestFields].some((section) =>
-      aliases.some((alias) => section.includes('[Input] `' + alias + '`')),
+    return aliases.some((alias) =>
+      sdkOnlyEvidence.includes('[Input] `' + alias + '`'),
     );
   });
 
@@ -438,7 +388,11 @@ function assertContract(
       responseFieldSection(fallbackDocs, contract.endpoint) || fallbackDocs;
     const missingResponseDocs = contract.response.fields.filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
-      return firstKnownStatus(responseSection, fallbackResponseSection, fallbackDocs, aliases) !== 'supported';
+      return firstKnownStatus(
+        responseSection,
+        fallbackResponseSection || fallbackDocs,
+        aliases,
+      ) !== 'supported';
     });
     if (missingResponseDocs.length > 0) {
       throw new Error(
@@ -446,16 +400,15 @@ function assertContract(
       );
     }
 
+    const unsupportedResponseEvidence =
+      unsupportedFieldSection(docs, contract.endpoint) ||
+      unsupportedFieldSection(fallbackDocs, contract.endpoint);
     const unsupportedResponseDocs = (contract.response.unsupportedFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
-      const liveStatus = docsFieldStatus(responseSection, aliases);
-      const fallbackStatus = docsFieldStatus(fallbackResponseSection, aliases);
-      return !(
-        liveStatus === 'unsupported' ||
-        fallbackStatus === 'unsupported' ||
-        explicitlyUnsupported(responseSection, aliases) ||
-        explicitlyUnsupported(fallbackResponseSection, aliases) ||
-        explicitlyUnsupported(docs, aliases)
+      return (
+        !docsMentionField(unsupportedResponseEvidence, aliases) &&
+        !explicitlyUnsupported(unsupportedResponseEvidence, aliases) &&
+        !explicitlyUnsupported(docs, aliases)
       );
     });
     if (unsupportedResponseDocs.length > 0) {
@@ -466,7 +419,11 @@ function assertContract(
 
     const sdkOnlyResponseDocs = (contract.response.sdkOnlyFields ?? []).filter((field) => {
       const aliases = contract.response?.docAliases?.[field] ?? [field];
-      return firstKnownStatus(responseSection, fallbackResponseSection, fallbackDocs, aliases) !== 'missing';
+      return firstKnownStatus(
+        responseSection,
+        fallbackResponseSection || fallbackDocs,
+        aliases,
+      ) !== 'missing';
     });
     if (sdkOnlyResponseDocs.length > 0) {
       throw new Error(
@@ -489,7 +446,11 @@ function assertContract(
       const fallbackEventDocs =
         streamEventSection(fallbackDocs, contract.endpoint) || fallbackDocs;
       const missingDocumentedEvents = contract.stream.eventTypes.filter((eventType) => {
-        return firstKnownStatus(eventDocs, fallbackEventDocs, fallbackDocs, [eventType]) !== 'supported';
+        return firstKnownStatus(
+          eventDocs,
+          fallbackEventDocs || fallbackDocs,
+          [eventType],
+        ) !== 'supported';
       });
       if (missingDocumentedEvents.length > 0) {
         throw new Error(
