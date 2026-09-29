@@ -119,6 +119,31 @@ export function explicitlyUnsupported(
   });
 }
 
+function normalizedHeadingText(line: string): string {
+  return line.trim().replace(/^#{1,6}\\s+/, '').replace(/\\s+/g, ' ').toLowerCase();
+}
+
+function isEndpointCandidate(line: string, endpoint: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.includes('http')) return false;
+  const escaped = escapeRegExp(endpoint);
+  if (new RegExp('^POST\\\\s+' + escaped + '(?:\\\\s|$)', 'i').test(trimmed)) return true;
+  if (!/^#{2,6}\\s+/.test(trimmed)) return false;
+  const heading = normalizedHeadingText(line);
+  return heading === endpoint.toLowerCase() || heading.endsWith(endpoint.toLowerCase());
+}
+
+/** Extract the real API endpoint section, ignoring example headings that merely mention the path. */
+export function endpointSection(docs: string, endpoint: string): string {
+  const lines = docs.split(/\\r?\\n/);
+  const candidates = lines
+    .map((line, index) => (isEndpointCandidate(line, endpoint) ? index : -1))
+    .filter((index) => index >= 0);
+  if (candidates.length === 0) return '';
+  const start = candidates[0] as number;
+  const end = candidates.find((index) => index > start);
+  return lines.slice(start, end ?? lines.length).join('\\n');
+}
 export function nestedFieldName(path: string): string {
   const segments = path.split('.');
   return segments[segments.length - 1] ?? path;
