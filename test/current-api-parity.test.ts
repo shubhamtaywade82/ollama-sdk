@@ -352,7 +352,32 @@ describe('strict Ollama Anthropic request types', () => {
     };
 
     expect(request.messages[0]?.content).toHaveLength(2);
+    expect(request.tools?.[0]?.name).toBe('get_weather');
     expect(request.thinking?.budget_tokens).toBe(128);
+
+    const invalidThinking: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'hello' }],
+      thinking: {
+        // @ts-expect-error adaptive thinking is not part of Ollama's current strict contract.
+        type: 'adaptive',
+      },
+    };
+    expect(invalidThinking.model).toBe('qwen3');
+
+    const invalidTool: OllamaAnthropicMessagesRequest = {
+      model: 'qwen3',
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'hello' }],
+      tools: [{
+        name: 'get_weather',
+        input_schema: { type: 'object' },
+        // @ts-expect-error eager_input_streaming is not part of Ollama's strict tool contract.
+        eager_input_streaming: true,
+      }],
+    };
+    expect(invalidTool.model).toBe('qwen3');
   });
 
   it('does not expose undocumented output_config or redacted-thinking input blocks', () => {

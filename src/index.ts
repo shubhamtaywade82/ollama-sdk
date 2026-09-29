@@ -227,6 +227,8 @@ export {
   type OllamaAnthropicSystemTextBlock,
   type OllamaAnthropicSystem,
   type OllamaAnthropicMessagesRequest,
+  type OllamaAnthropicTool,
+  type OllamaAnthropicThinkingConfig,
   type AnthropicMessagesRequest,
   type AnthropicMessagesResponse,
   type AnthropicMessageStreamEvent,
