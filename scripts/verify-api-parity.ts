@@ -278,11 +278,20 @@ function assertContract(
     requestFieldSection(fallbackDocs, contract.endpoint) || fallbackDocs;
   const missingDocs = contract.fields.filter((field) => {
     const aliases = contract.docAliases?.[field] ?? [field];
-    return firstKnownStatus(
+    const requestStatus = firstKnownStatus(
       requestFields,
       fallbackRequestFields || fallbackDocs,
       aliases,
-    ) !== 'supported';
+    );
+    if (requestStatus === 'supported') return false;
+
+    const featureAliases = contract.featureAliases?.[field] ?? [];
+    if (featureAliases.length === 0) return true;
+
+    return (
+      supportedFeatureStatus(docs, featureAliases) === 'supported' ||
+      supportedFeatureStatus(fallbackDocs, featureAliases) === 'supported'
+    ) === false;
   });
 
   if (missingDocs.length > 0) {
