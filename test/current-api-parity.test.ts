@@ -26,7 +26,7 @@ describe('API parity manifest contract', () => {
     expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(embeddings?.unsupportedFields).toEqual([]);
     expect(responses?.unsupportedFields).toEqual(['previous_response_id', 'conversation']);
-    expect(responses?.sdkOnlyFields).toEqual(['reasoning', 'think', 'parallel_tool_calls']);
+    expect(responses?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(responses?.stream?.interfaceNames).toHaveLength(22);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
     expect(anthropic?.response?.fields).toEqual([
@@ -242,12 +242,27 @@ describe('strict current OpenAI compatibility types', () => {
       model: 'qwen3',
       input: 'hello',
       truncation: 'auto',
+      reasoning: { effort: 'high' },
+      think: 'high',
     };
 
     expect(chat.messages[0]?.content).toHaveLength(2);
     expect(embeddings.encoding_format).toBe('float');
     expect(completion.logprobs).toBe(3);
     expect(responses.truncation).toBe('auto');
+    expect(responses.reasoning?.effort).toBe('high');
+    expect(responses.think).toBe('high');
+
+    const statefulResponses: OllamaOpenAIResponsesRequest = {
+      model: 'qwen3',
+      input: 'hello',
+      // @ts-expect-error Ollama Responses requests are stateless.
+      previous_response_id: 'resp-1',
+      // @ts-expect-error Ollama Responses requests are stateless.
+      conversation: 'conv-1',
+    };
+
+    expect(statefulResponses.model).toBe('qwen3');
   });
 });
 
