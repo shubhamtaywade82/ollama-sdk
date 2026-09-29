@@ -432,7 +432,7 @@ function assertContract(
 }
 
 async function main(): Promise<void> {
-  if (manifest.version !== 4) {
+  if (manifest.version !== 5) {
     throw new Error(`Unsupported parity manifest version: ${String(manifest.version)}`);
   }
 
