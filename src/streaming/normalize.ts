@@ -112,6 +112,10 @@ function aggregateGenerate(
         ? chunk.total_duration / NANOS_PER_MS
         : accumulated.totalDurationMs,
     usage: chunk.done ? extractUsage(chunk) : accumulated.usage,
+    thinking:
+      chunk.thinking !== undefined
+        ? (accumulated.thinking ?? '') + chunk.thinking
+        : accumulated.thinking,
     image: chunk.image ?? accumulated.image,
     completed: chunk.completed ?? accumulated.completed,
     total: chunk.total ?? accumulated.total,
