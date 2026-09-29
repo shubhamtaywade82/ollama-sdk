@@ -19,6 +19,12 @@ describe('MCP HTTP adapter', () => {
     );
   });
 
+  it('rejects non-http protocols before resolving the optional dependency', async () => {
+    await expect(
+      connectMcpHttpClient({ url: 'file:///tmp/server' }),
+    ).rejects.toThrow('MCP HTTP server URL must use http: or https:');
+  });
+
   it('accepts a URL instance and request initialization options', () => {
     const options: HttpMcpClientOptions = {
       url: new URL('https://example.com/mcp'),
