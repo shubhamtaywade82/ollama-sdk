@@ -62,10 +62,6 @@ const manifest = JSON.parse(
   readFileSync(resolve(ROOT, 'docs/api-parity.json'), 'utf8'),
 ) as ParityManifest;
 
-function supportedFeatureStatusFromModule(): (aliases: readonly string[], docs: string) => ReturnType<typeof supportedFeatureStatus> {
-  return supportedFeatureStatus;
-}
-
 function sourceProperties(sourceFile: string, interfaceName: string): Set<string> {
   const sourcePath = resolve(ROOT, sourceFile);
   const source = readFileSync(sourcePath, 'utf8');
@@ -438,7 +434,7 @@ function assertContract(
 }
 
 async function main(): Promise<void> {
-  if (manifest.version !== 5) {
+  if (manifest.version !== 6) {
     throw new Error(`Unsupported parity manifest version: ${String(manifest.version)}`);
   }
 
