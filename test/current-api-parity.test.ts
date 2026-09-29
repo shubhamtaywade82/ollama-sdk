@@ -21,7 +21,7 @@ describe('API parity manifest contract', () => {
     const responses = manifest.surfaces.find((surface) => surface.id === 'openai-responses');
     const anthropic = manifest.surfaces.find((surface) => surface.id === 'anthropic-messages');
 
-    expect(manifest.version).toBe(4);
+    expect(manifest.version).toBe(6);
     expect(chat?.unsupportedFields).toEqual([]);
     expect(chat?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(embeddings?.unsupportedFields).toEqual([]);
@@ -29,7 +29,7 @@ describe('API parity manifest contract', () => {
     expect(responses?.sdkOnlyFields).toEqual(['parallel_tool_calls']);
     expect(responses?.stream?.interfaceNames).toHaveLength(22);
     expect(anthropic?.unsupportedFields).toEqual(['tool_choice', 'metadata']);
-    expect(anthropic?.sdkOnlyFields).toEqual(['output_config']);
+    expect(anthropic?.sdkOnlyFields).toEqual([]);
     expect(anthropic?.response?.fields).toEqual([
       'id',
       'type',
