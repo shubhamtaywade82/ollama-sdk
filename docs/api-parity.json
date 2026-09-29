@@ -101,6 +101,8 @@
         "temperature",
         "top_p",
         "max_output_tokens",
+        "reasoning",
+        "think",
         "truncation"
       ],
       "unsupportedFields": [
@@ -108,8 +110,6 @@
         "conversation"
       ],
       "sdkOnlyFields": [
-        "reasoning",
-        "think",
         "parallel_tool_calls"
       ],
       "stream": {
