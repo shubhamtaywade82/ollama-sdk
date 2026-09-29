@@ -444,6 +444,27 @@ describe('current model-management response parity', () => {
   });
 });
 
+describe('strict Ollama Anthropic compatibility types', () => {
+  it('keeps unsupported Anthropic controls out of the strict request while preserving supported tool/thinking fields', () => {
+    const request: import('../src/integrations/anthropic.js').OllamaAnthropicMessagesRequest = {
+      model: 'qwen3-coder',
+      max_tokens: 128,
+      messages: [{ role: 'user', content: 'hello' }],
+      tools: [
+        {
+          name: 'get_weather',
+          input_schema: { type: 'object', properties: { city: { type: 'string' } } },
+        },
+      ],
+      thinking: { type: 'enabled', budget_tokens: 128 },
+    };
+
+    expect(request.tools?.[0]?.name).toBe('get_weather');
+    expect(request.thinking?.type).toBe('enabled');
+    expect(request.thinking?.budget_tokens).toBe(128);
+  });
+});
+
 describe('current OpenAI compatibility parity', () => {
   it('supports chat response format, seed, logit bias, n, vision, and model-defined reasoning', async () => {
     const fetchMock = jsonFetchMock({
