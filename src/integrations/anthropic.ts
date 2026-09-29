@@ -131,6 +131,14 @@ export type OllamaAnthropicTextContentBlock = Omit<
   'cache_control'
 >;
 
+export type OllamaAnthropicTool = Omit<AnthropicTool, 'eager_input_streaming'>;
+
+export type OllamaAnthropicThinkingConfig = {
+  readonly type: 'enabled' | 'disabled';
+  /** Accepted by Ollama for compatibility but currently not enforced by the server. */
+  readonly budget_tokens?: number | undefined;
+};
+
 export type OllamaAnthropicContentBlock =
   | OllamaAnthropicTextContentBlock
   | Exclude<AnthropicContentBlock, AnthropicTextContentBlock>;
@@ -151,10 +159,12 @@ export type OllamaAnthropicSystem =
 /** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
   AnthropicMessagesRequest,
-  'messages' | 'system' | 'tool_choice' | 'metadata'
+  'messages' | 'system' | 'tools' | 'thinking' | 'tool_choice' | 'metadata'
 > & {
   readonly messages: readonly OllamaAnthropicMessage[];
   readonly system?: OllamaAnthropicSystem | undefined;
+  readonly tools?: readonly OllamaAnthropicTool[] | undefined;
+  readonly thinking?: OllamaAnthropicThinkingConfig | undefined;
 };
 
 export interface AnthropicMessagesResponse {
