@@ -69,6 +69,16 @@
         "types": "./dist/mcp-stdio.d.cts",
         "default": "./dist/mcp-stdio.cjs"
       }
+    },
+    "./mcp/http": {
+      "import": {
+        "types": "./dist/mcp-http.d.ts",
+        "default": "./dist/mcp-http.js"
+      },
+      "require": {
+        "types": "./dist/mcp-http.d.cts",
+        "default": "./dist/mcp-http.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -78,6 +88,9 @@
       ],
       "mcp/stdio": [
         "dist/mcp-stdio.d.ts"
+      ],
+      "mcp/http": [
+        "dist/mcp-http.d.ts"
       ]
     }
   },
