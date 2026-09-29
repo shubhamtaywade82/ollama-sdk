@@ -3,6 +3,7 @@
 ## Unreleased
 
 - MCP tool arguments are now validated against advertised JSON Schema constraints before dispatch, while `resultMode: 'structured'` preserves raw MCP `CallToolResult` objects for programmatic consumers.
+- Strict Anthropic compatibility types now narrow tool definitions and thinking configuration to Ollama's documented subset while retaining broader Anthropic types for compatibility callers.
 
 
 
