@@ -84,6 +84,38 @@ const tools = await loadMcpTools(mcpClient, { resultMode: 'structured' });
 - `AbortSignal` propagates through discovery and tool execution.
 - The optional Node-only `@nemesis-oss/ollama-sdk/mcp/stdio` subpath uses the official MCP v2 stdio transport without importing Node-only code from the root package.
 
+For remote MCP servers, the optional `@nemesis-oss/ollama-sdk/mcp/http` subpath uses the official MCP client v2 transport. Streamable HTTP is the default; legacy SSE can be selected explicitly, or `transport: 'auto'` can try Streamable HTTP first and fall back to SSE only on a compatible non-authentication 4xx response.
+
+```typescript
+import { Agent, McpBridge, OllamaClient, ToolRegistry } from '@nemesis-oss/ollama-sdk';
+import { connectMcpHttpClient } from '@nemesis-oss/ollama-sdk/mcp/http';
+
+const connection = await connectMcpHttpClient({
+  url: 'https://example.com/mcp',
+  transport: 'auto',
+  requestInit: {
+    headers: { Authorization: `Bearer ${process.env.MCP_TOKEN}` },
+  },
+});
+
+const bridge = new McpBridge(connection.client, { namePrefix: 'mcp_' });
+const registry = new ToolRegistry();
+await bridge.register(registry);
+
+const agent = new Agent(new OllamaClient(), { tools: registry });
+const result = await agent.run({
+  model: 'qwen3',
+  messages: [{ role: 'user', content: 'Use the MCP tools to complete this task.' }],
+});
+
+await connection.close();
+console.log(result.finalMessage.content);
+```
+
+Use `connection.terminateSession()` when the remote Streamable HTTP server exposes a session you want to terminate explicitly. Legacy SSE connections do not expose that method.
+
+The MCP TypeScript SDK v2 treats Streamable HTTP as the preferred remote transport and keeps SSE as a legacy fallback during migration. citeturn514654search0turn514654search6
+
 The MCP TypeScript SDK v2 implements the 2026-07-28 protocol revision. Its `listTools()` client path aggregates pagination, and `CallToolResult` represents tool failures as ordinary results with `isError`, while `structuredContent` is available for machine-readable output. citeturn0search0turn1search4turn0search6
 
 ### MCP stdio example
