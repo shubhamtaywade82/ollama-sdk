@@ -231,6 +231,8 @@ export interface GenerateResponse {
   readonly total_duration?: number | undefined;
   readonly load_duration?: number | undefined;
   readonly prompt_eval_count?: number | undefined;
+  /** Number of prompt tokens read from the KV cache. */
+  readonly prompt_eval_cached_count?: number | undefined;
   readonly prompt_eval_duration?: number | undefined;
   readonly eval_count?: number | undefined;
   readonly eval_duration?: number | undefined;
