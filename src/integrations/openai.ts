@@ -378,7 +378,7 @@ export interface OpenAIResponsesRequest {
 /** Strict Ollama-documented Responses request; excludes stateful and SDK-only request fields. */
 export type OllamaOpenAIResponsesRequest = Omit<
   OpenAIResponsesRequest,
-  'previous_response_id' | 'conversation' | 'reasoning' | 'think'
+  'previous_response_id' | 'conversation'
 >;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';
