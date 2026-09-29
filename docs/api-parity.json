@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "source": "https://docs.ollama.com/api",
   "surfaces": [
     {
@@ -27,7 +27,8 @@
         "tool_choice",
         "logit_bias",
         "user",
-        "n"
+        "n",
+        "logprobs"
       ],
       "unsupportedFields": [],
       "sdkOnlyFields": [
@@ -59,7 +60,8 @@
         "echo",
         "logit_bias",
         "user",
-        "n"
+        "n",
+        "logprobs"
       ],
       "unsupportedFields": [],
       "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx"
@@ -159,15 +161,14 @@
         "top_k",
         "stop_sequences",
         "tools",
-        "thinking"
+        "thinking",
+        "output_config"
       ],
       "unsupportedFields": [
         "tool_choice",
         "metadata"
       ],
-      "sdkOnlyFields": [
-        "output_config"
-      ],
+      "sdkOnlyFields": [],
       "response": {
         "sourceFile": "src/integrations/anthropic.ts",
         "interfaceName": "AnthropicMessagesResponse",
@@ -246,6 +247,7 @@
           "total_duration",
           "load_duration",
           "prompt_eval_count",
+          "prompt_eval_cached_count",
           "prompt_eval_duration",
           "eval_count",
           "eval_duration",
@@ -289,6 +291,7 @@
           "total_duration",
           "load_duration",
           "prompt_eval_count",
+          "prompt_eval_cached_count",
           "prompt_eval_duration",
           "eval_count",
           "eval_duration",
@@ -342,7 +345,10 @@
         "parameters",
         "messages",
         "quantize",
-        "stream"
+        "stream",
+        "draft_files",
+        "draft_quantize",
+        "requires"
       ],
       "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
       "response": {
@@ -440,7 +446,8 @@
           "details",
           "template",
           "capabilities",
-          "model_info"
+          "model_info",
+          "thinking"
         ],
         "sdkOnlyFields": []
       }
