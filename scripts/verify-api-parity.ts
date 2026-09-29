@@ -234,13 +234,16 @@ function streamEventSection(docs: string, endpoint: string): string {
 }
 
 function unsupportedFieldSection(docs: string, endpoint: string): string {
-  const endpointDocs = endpointSection(docs, endpoint);
-  if (!endpointDocs) return '';
-  return labeledSection(endpointDocs, 'Not supported', [
+  const stopLabels = [
     'Partial support',
     'Models',
     'Notes',
-  ]);
+  ];
+  const endpointDocs = endpointSection(docs, endpoint);
+  return (
+    (endpointDocs ? labeledSection(endpointDocs, 'Not supported', stopLabels) : '') ||
+    labeledSection(docs, 'Not supported', stopLabels)
+  );
 }
 
 function assertContract(
