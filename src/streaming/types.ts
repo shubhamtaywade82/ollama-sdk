@@ -71,6 +71,7 @@ export interface GenerateStreamResult {
   readonly doneReason?: string | undefined;
   readonly totalDurationMs?: number | undefined;
   readonly usage?: TokenUsage | undefined;
+  readonly thinking?: string | undefined;
   readonly image?: string | undefined;
   readonly completed?: number | undefined;
   readonly total?: number | undefined;
