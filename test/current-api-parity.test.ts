@@ -153,6 +153,60 @@ describe('current native Ollama API parity', () => {
     }
   });
 
+  it('preserves cached prompt tokens on /api/generate', async () => {
+    const fetchMock = jsonFetchMock({
+      model: 'gemma4',
+      created_at: '2026-09-29T00:00:00Z',
+      response: 'ok',
+      done: true,
+      prompt_eval_count: 100,
+      prompt_eval_cached_count: 60,
+      eval_count: 5,
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const result = await client.generate({
+      model: 'gemma4',
+      prompt: 'hello',
+      stream: false,
+    });
+
+    expect(result.prompt_eval_cached_count).toBe(60);
+    expect(result.prompt_eval_count).toBe(100);
+  });
+
+  it('preserves thinking across generated stream chunks', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          const chunks = [
+            JSON.stringify({ model: 'qwen3', created_at: '2026-09-29T00:00:00Z', response: '', thinking: 'step ', done: false }),
+            JSON.stringify({ model: 'qwen3', created_at: '2026-09-29T00:00:00Z', response: 'answer', thinking: 'one', done: true, prompt_eval_count: 10, prompt_eval_cached_count: 4, eval_count: 2 }),
+          ];
+          for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk + '\n'));
+          controller.close();
+        },
+      }),
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+    const stream = await client.generate({
+      model: 'qwen3',
+      prompt: 'hello',
+      think: true,
+      stream: true,
+    });
+
+    for await (const _ of stream) {
+      // drain
+    }
+
+    const final = await stream.finalResult;
+    expect(final.thinking).toBe('step one');
+    expect(final.usage?.cachedPromptTokens).toBe(4);
+  });
+
   it('extracts cached prompt tokens without changing total token accounting', () => {
     const usage = extractUsage({
       prompt_eval_count: 120,
@@ -487,6 +541,29 @@ describe('expanded Anthropic compatibility typing', () => {
 });
 
 describe('current Anthropic compatibility parity', () => {
+  it('forwards supported Anthropic output_config effort', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'msg-output-config',
+      type: 'message',
+      role: 'assistant',
+      model: 'qwen3',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.anthropic.messages({
+      model: 'qwen3',
+      max_tokens: 32,
+      messages: [{ role: 'user', content: 'hello' }],
+      output_config: { effort: 'high' },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body).output_config).toEqual({ effort: 'high' });
+  });
+
   it('sends the documented Anthropic version header and accepts budget_tokens', async () => {
     const fetchMock = jsonFetchMock({
       id: 'msg-1',
@@ -614,6 +691,31 @@ describe('current OpenAI compatibility parity', () => {
     expect(body.messages[0].content[1].image_url).toBe('data:image/png;base64,abc');
     expect(body.reasoning_effort).toBe('ultra');
     expect(body.reasoning).toEqual({ effort: 'custom-level' });
+  });
+
+  it('forwards Responses reasoning and Ollama think controls', async () => {
+    const fetchMock = jsonFetchMock({
+      id: 'resp-1',
+      object: 'response',
+      created: 0,
+      model: 'qwen3',
+      output: [],
+      status: 'completed',
+    });
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    await client.openai.responses({
+      model: 'qwen3',
+      input: 'hello',
+      reasoning: { effort: 'high' },
+      think: 'medium',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body)).toMatchObject({
+      reasoning: { effort: 'high' },
+      think: 'medium',
+    });
   });
 
   it('supports non-streaming /v1/completions', async () => {
