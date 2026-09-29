@@ -101,15 +101,15 @@
         "temperature",
         "top_p",
         "max_output_tokens",
-        "truncation"
+        "truncation",
+        "reasoning",
+        "think"
       ],
       "unsupportedFields": [
         "previous_response_id",
         "conversation"
       ],
       "sdkOnlyFields": [
-        "reasoning",
-        "think",
         "parallel_tool_calls"
       ],
       "stream": {
