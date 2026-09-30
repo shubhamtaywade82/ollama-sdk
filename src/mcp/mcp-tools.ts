@@ -55,7 +55,33 @@ export async function listAllMcpTools(
     const requestOptions: McpRequestOptions | undefined =
       signal !== undefined ? { signal } : undefined;
     const page = await mcpClient.listTools(params, requestOptions);
+    const pageNames = new Set<string>();
+    for (const tool of page.tools) {
+      if (pageNames.has(tool.name)) {
+        throw new OllamaMcpError(
+          `MCP tools/list returned duplicate tool name "${tool.name}"`,
+          { mcpMethod: 'listTools', toolName: tool.name },
+        );
+      }
+      pageNames.add(tool.name);
+      if (tools.some((existing) => existing.name === tool.name)) {
+        throw new OllamaMcpError(
+          `MCP tools/list returned duplicate tool name "${tool.name}" across pages`,
+          { mcpMethod: 'listTools', toolName: tool.name },
+        );
+      }
+    }
     tools.push(...page.tools);
+
+    const duplicateNames = page.tools
+      .map((tool) => tool.name)
+      .filter((name, index, names) => names.indexOf(name) !== index);
+    if (duplicateNames.length > 0) {
+      throw new OllamaMcpError(
+        `MCP tools/list returned duplicate tool name(s): ${[...new Set(duplicateNames)].join(', ')}`,
+        { mcpMethod: 'listTools' },
+      );
+    }
 
     if (page.nextCursor === undefined) {
       return tools;
