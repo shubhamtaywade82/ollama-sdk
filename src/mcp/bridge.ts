@@ -52,4 +52,9 @@ export class McpBridge {
   async register(registry: ToolRegistry, signal?: AbortSignal): Promise<void> {
     await registry.registerMany(await this.loadTools(signal));
   }
+
+  /** Refreshes the current MCP tool catalog into an existing registry without clearing local tools. */
+  async refresh(registry: ToolRegistry, signal?: AbortSignal): Promise<void> {
+    await registry.registerMany(await this.loadTools(signal));
+  }
 }
