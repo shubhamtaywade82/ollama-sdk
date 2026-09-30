@@ -73,16 +73,6 @@ export async function listAllMcpTools(
     }
     tools.push(...page.tools);
 
-    const duplicateNames = page.tools
-      .map((tool) => tool.name)
-      .filter((name, index, names) => names.indexOf(name) !== index);
-    if (duplicateNames.length > 0) {
-      throw new OllamaMcpError(
-        `MCP tools/list returned duplicate tool name(s): ${[...new Set(duplicateNames)].join(', ')}`,
-        { mcpMethod: 'listTools' },
-      );
-    }
-
     if (page.nextCursor === undefined) {
       return tools;
     }
