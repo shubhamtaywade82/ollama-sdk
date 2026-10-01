@@ -194,7 +194,7 @@ async function main(): Promise<void> {
         client.listModels(),
         client.ps(),
       ]);
-      const installedModels = catalog.models ?? [];
+      const installedModels = catalog;
       const runningModels = running.models ?? [];
       const names = installedModels.map((model) => model.name);
       const selectedModel = chooseModel(names);
