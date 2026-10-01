@@ -171,6 +171,8 @@ export const systemOneOp = {
   operationId: 'systemOne',
   method: 'POST',
   path: '/v1/systemone',
+  request: { $ref: '#/schemas/SystemOneRequest' },
+  response: { $ref: '#/schemas/SystemOneResponse' },
   environment: { local: true, cloud: false },
   transport: { mode: 'json', streaming: false },
   capabilities: {

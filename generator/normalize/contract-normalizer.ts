@@ -132,10 +132,22 @@ function buildOperationContract(
   }
   const domain = overlay.domain ?? parentDomain;
 
-  const requestRef = match?.requestBodyRef
-    ? { $ref: `#/schemas/${match.requestBodyRef}` }
-    : undefined;
-  const responseRef = match?.responseRef ? { $ref: `#/schemas/${match.responseRef}` } : undefined;
+  // Wave 12 (P0 #4): overlay-declared schema names win over OpenAPI refs.
+  // This lets operations like /v1/systemone — which are absent from the
+  // pinned OpenAPI snapshot — point at schemas declared in the overlay's
+  // `schemas:` block. When neither overlay nor OpenAPI supplies a ref,
+  // the operation remains untyped (the generated API uses Record<string,
+  // unknown> as before).
+  const requestRef = overlay.requestSchema
+    ? { $ref: `#/schemas/${overlay.requestSchema}` }
+    : match?.requestBodyRef
+      ? { $ref: `#/schemas/${match.requestBodyRef}` }
+      : undefined;
+  const responseRef = overlay.responseSchema
+    ? { $ref: `#/schemas/${overlay.responseSchema}` }
+    : match?.responseRef
+      ? { $ref: `#/schemas/${match.responseRef}` }
+      : undefined;
 
   const env = overlay.environment;
   const local = boolFromSupport(env?.local ?? 'supported');
@@ -227,8 +239,13 @@ function normalizeFieldParity(
   };
 }
 
-function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaContract[] {
+function buildSchemas(
+  structural: readonly ParsedOpenApi[],
+  overlays: readonly OverlayFile[],
+): readonly SchemaContract[] {
   const byName = new Map<string, SchemaContract>();
+  // First: OpenAPI-sourced schemas (structural truth for everything the
+  // pinned snapshot actually models).
   for (const spec of structural) {
     for (const parsed of spec.schemas) {
       const existing = byName.get(parsed.name);
@@ -238,6 +255,22 @@ function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaCont
         source: { openapi: `#/components/schemas/${parsed.name}` },
         ...(parsed.schema.description ? { description: parsed.schema.description } : {}),
         definition: parsed.schema,
+      });
+    }
+  }
+  // Wave 12 (P0 #4): then merge in overlay-declared inline schemas. These
+  // cover operations the OpenAPI snapshot doesn't model (e.g. System One).
+  // Overlay schemas take precedence over OpenAPI when names collide — the
+  // overlay is the authoritative behavioral source when present.
+  for (const file of overlays) {
+    const inline = file.domain.schemas;
+    if (!inline) continue;
+    for (const [name, definition] of Object.entries(inline)) {
+      byName.set(name, {
+        name,
+        source: { overlay: file.name },
+        ...(definition.description ? { description: definition.description } : {}),
+        definition,
       });
     }
   }
@@ -328,7 +361,7 @@ export function normalizeContract(
     return a.id.localeCompare(b.id);
   });
 
-  const schemas = buildSchemas([parsed]);
+  const schemas = buildSchemas([parsed], overlays);
   const overlayBridges = overlays.map((file) => file.domain.parityBridge ?? {});
   const parityBridge = buildParityBridge(operations, legacy.byEndpoint, overlayBridges);
 

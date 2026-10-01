@@ -788,13 +788,81 @@
       "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- Hard 64 KiB request body limit enforced by the server.\n- No images, no tools, no generation controls (temperature, top_p, etc.).\n- Experimental: behavioral surface may change between Ollama releases.",
       "inputSchema": {
         "type": "object",
+        "description": "Request body for POST /v1/systemone.",
+        "additionalProperties": false,
+        "required": ["model", "state", "questions"],
         "properties": {
-          "prompt": {
+          "model": {
             "type": "string",
-            "description": "Input for systemOne"
+            "description": "Model name (e.g. \"systemone-v1\")."
+          },
+          "state": {
+            "description": "Opaque conversation state — any JSON value the caller round-trips."
+          },
+          "questions": {
+            "type": "object",
+            "description": "Map of question id → question descriptor.",
+            "additionalProperties": {
+              "description": "Discriminated union of the three documented question kinds.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "A multiple-choice question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt", "choices"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["choice"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "A yes/no question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["yes_no"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "A 0–10 score question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["score"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "keep_alive": {
+            "description": "How long to keep the model loaded after this call. String (\"5m\") or number (seconds)."
           }
-        },
-        "additionalProperties": true
+        }
       },
       "annotations": {
         "title": "systemOne (Ollama)",

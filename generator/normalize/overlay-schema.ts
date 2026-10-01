@@ -108,6 +108,16 @@ export interface OverlayOperation {
    * this block instead of the legacy manifest.
    */
   readonly parity?: OperationParity;
+  /**
+   * Wave 12 (P0 #4): inline request/response schema names. Used by
+   * operations whose schemas are declared via the parent overlay's
+   * `schemas:` block (rather than sourced from OpenAPI). When set, the
+   * normalizer attaches `{ $ref: '#/schemas/<name>' }` to the operation's
+   * `request`/`response` fields, which makes the generator emit typed
+   * request/response shapes for the operation.
+   */
+  readonly requestSchema?: string;
+  readonly responseSchema?: string;
 }
 
 /** Top-level overlay file. */
@@ -118,4 +128,16 @@ export interface OverlayDomain {
   readonly operations: Readonly<Record<string, OverlayOperation>>;
   /** Legacy surface id mapping (keeps the old api-parity.json bridge in sync). */
   readonly parityBridge?: Readonly<Record<string, string>>;
+  /**
+   * Wave 12 (P0 #4): overlay-declared inline schemas. Used for operations
+   * whose request/response shapes are documented by Ollama but absent
+   * from the pinned OpenAPI snapshot (e.g. System One). Each entry is a
+   * named JSON Schema definition that the normalizer merges into the IR's
+   * `schemas` array alongside the OpenAPI-sourced schemas.
+   *
+   * The overlay is the authoritative source for these schemas — they
+   * reflect what the docs say, not what the (incomplete) OpenAPI snapshot
+   * happens to contain.
+   */
+  readonly schemas?: Readonly<Record<string, import('../types.js').JsonSchemaNode>>;
 }
