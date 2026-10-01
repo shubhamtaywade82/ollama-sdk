@@ -4,5 +4,6 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 /** Controls a model's thinking output. Use `/api/show` to discover the supported values and default for the selected model. `true` requests thinking, `false` requests no thinking output, and `null` uses the model default. String values are model-defined; supported names must match `/api/show` exactly. Numbers are not supported. */
 export type ThinkValue = boolean | string | null;

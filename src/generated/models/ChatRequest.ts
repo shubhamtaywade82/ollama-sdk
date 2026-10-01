@@ -6,6 +6,7 @@
 
 import type { ChatMessage, ModelOptions, ThinkValue, ToolDefinition } from './index.js';
 
+
 export interface ChatRequest {
   /** Model name */
   readonly model: string;

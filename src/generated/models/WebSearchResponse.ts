@@ -6,6 +6,7 @@
 
 import type { WebSearchResult } from './index.js';
 
+
 export interface WebSearchResponse {
   /** Array of matching search results */
   readonly results?: readonly WebSearchResult[] | undefined;

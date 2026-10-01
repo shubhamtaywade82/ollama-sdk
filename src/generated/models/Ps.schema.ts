@@ -5,12 +5,13 @@
 import { z } from 'zod';
 
 export const PsSchema = z.object({
-  name: z.string().optional(),
-  model: z.string().optional(),
-  size: z.number().optional(),
-  digest: z.string().optional(),
-  details: z.object({}).optional(),
-  expires_at: z.string().optional(),
-  size_vram: z.number().optional(),
-  context_length: z.number().optional(),
+  "name": z.string().optional(),
+  "model": z.string().optional(),
+  "size": z.number().optional(),
+  "digest": z.string().optional(),
+  "details": z.object({
+}).optional(),
+  "expires_at": z.string().optional(),
+  "size_vram": z.number().optional(),
+  "context_length": z.number().optional(),
 });

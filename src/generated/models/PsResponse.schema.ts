@@ -6,5 +6,5 @@ import { z } from 'zod';
 import { PsSchema } from './Ps.schema.js';
 
 export const PsResponseSchema = z.object({
-  models: z.array(PsSchema).optional(),
+  "models": z.array(PsSchema).optional(),
 });

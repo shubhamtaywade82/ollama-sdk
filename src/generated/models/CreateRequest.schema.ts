@@ -6,19 +6,24 @@ import { z } from 'zod';
 import { ChatMessageSchema } from './ChatMessage.schema.js';
 
 export const CreateRequestSchema = z.object({
-  model: z.string(),
-  from: z.string().optional(),
-  template: z.string().optional(),
-  renderer: z.string().optional(),
-  parser: z.string().optional(),
-  files: z.object({}).catchall(z.string()).optional(),
-  draft_files: z.object({}).catchall(z.string()).optional(),
-  license: z.union([z.string(), z.array(z.string())]).optional(),
-  system: z.string().optional(),
-  parameters: z.object({}).optional(),
-  messages: z.array(ChatMessageSchema).optional(),
-  quantize: z.string().optional(),
-  draft_quantize: z.string().optional(),
-  requires: z.string().optional(),
-  stream: z.boolean().optional(),
+  "model": z.string(),
+  "from": z.string().optional(),
+  "template": z.string().optional(),
+  "renderer": z.string().optional(),
+  "parser": z.string().optional(),
+  "files": z.object({
+})
+.catchall(z.string()).optional(),
+  "draft_files": z.object({
+})
+.catchall(z.string()).optional(),
+  "license": z.union([z.string(), z.array(z.string())]).optional(),
+  "system": z.string().optional(),
+  "parameters": z.object({
+}).optional(),
+  "messages": z.array(ChatMessageSchema).optional(),
+  "quantize": z.string().optional(),
+  "draft_quantize": z.string().optional(),
+  "requires": z.string().optional(),
+  "stream": z.boolean().optional(),
 });

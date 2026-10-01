@@ -6,5 +6,5 @@ import { z } from 'zod';
 import { WebSearchResultSchema } from './WebSearchResult.schema.js';
 
 export const WebSearchResponseSchema = z.object({
-  results: z.array(WebSearchResultSchema).optional(),
+  "results": z.array(WebSearchResultSchema).optional(),
 });

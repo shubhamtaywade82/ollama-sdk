@@ -28,7 +28,10 @@
       "description": "Ollama POST /api/chat (native domain)\n\n- Use /api/show to discover model-specific thinking values and defaults.\n- Structured output (format field) is rejected by Ollama Cloud.",
       "inputSchema": {
         "type": "object",
-        "required": ["model", "messages"],
+        "required": [
+          "model",
+          "messages"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -39,11 +42,19 @@
             "description": "Chat history as an array of message objects (each with a role and content)",
             "items": {
               "type": "object",
-              "required": ["role", "content"],
+              "required": [
+                "role",
+                "content"
+              ],
               "properties": {
                 "role": {
                   "type": "string",
-                  "enum": ["system", "user", "assistant", "tool"],
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
                   "description": "Author of the message."
                 },
                 "content": {
@@ -65,7 +76,9 @@
                     "properties": {
                       "function": {
                         "type": "object",
-                        "required": ["name"],
+                        "required": [
+                          "name"
+                        ],
                         "properties": {
                           "name": {
                             "type": "string",
@@ -93,16 +106,24 @@
             "description": "Optional list of function tools the model may call during the chat",
             "items": {
               "type": "object",
-              "required": ["type", "function"],
+              "required": [
+                "type",
+                "function"
+              ],
               "properties": {
                 "type": {
                   "type": "string",
-                  "enum": ["function"],
+                  "enum": [
+                    "function"
+                  ],
                   "description": "Type of tool (always `function`)"
                 },
                 "function": {
                   "type": "object",
-                  "required": ["name", "parameters"],
+                  "required": [
+                    "name",
+                    "parameters"
+                  ],
                   "properties": {
                     "name": {
                       "type": "string",
@@ -125,7 +146,9 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": ["json"]
+                "enum": [
+                  "json"
+                ]
               },
               {
                 "type": "object"
@@ -238,7 +261,10 @@
       "description": "Ollama POST /api/copy (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["source", "destination"],
+        "required": [
+          "source",
+          "destination"
+        ],
         "properties": {
           "source": {
             "type": "string",
@@ -264,7 +290,9 @@
       "description": "Ollama POST /api/create (native domain)\n\n- Model creation is local-only; Ollama Cloud does not support it.",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -327,11 +355,19 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["role", "content"],
+              "required": [
+                "role",
+                "content"
+              ],
               "properties": {
                 "role": {
                   "type": "string",
-                  "enum": ["system", "user", "assistant", "tool"],
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
                   "description": "Author of the message."
                 },
                 "content": {
@@ -353,7 +389,9 @@
                     "properties": {
                       "function": {
                         "type": "object",
-                        "required": ["name"],
+                        "required": [
+                          "name"
+                        ],
                         "properties": {
                           "name": {
                             "type": "string",
@@ -409,7 +447,9 @@
       "description": "Ollama DELETE /api/delete (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -431,7 +471,10 @@
       "description": "Ollama POST /api/embed (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["model", "input"],
+        "required": [
+          "model",
+          "input"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -532,7 +575,9 @@
       "description": "Ollama POST /api/generate (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -700,7 +745,9 @@
       "description": "Ollama POST /api/pull (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -731,7 +778,9 @@
       "description": "Ollama POST /api/push (native domain)",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -762,7 +811,9 @@
       "description": "Ollama POST /api/show (native domain)\n\n- Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings).",
       "inputSchema": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",

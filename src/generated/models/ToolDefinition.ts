@@ -4,15 +4,16 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 export interface ToolDefinition {
   /** Type of tool (always `function`) */
   readonly type: 'function';
   readonly function: {
-    /** Function name exposed to the model */
-    readonly name: string;
-    /** Human-readable description of the function */
-    readonly description?: string | undefined;
-    /** JSON Schema for the function parameters */
-    readonly parameters: Record<string, unknown>;
-  };
+  /** Function name exposed to the model */
+  readonly name: string;
+  /** Human-readable description of the function */
+  readonly description?: string | undefined;
+  /** JSON Schema for the function parameters */
+  readonly parameters: Record<string, unknown>;
+};
 }

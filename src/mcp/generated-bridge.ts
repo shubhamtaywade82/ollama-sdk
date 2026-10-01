@@ -36,9 +36,41 @@ interface GeneratedToolsFile {
   readonly tools: readonly GeneratedToolEntry[];
 }
 
-// Path to the generated tools.json emitted by `npm run contract:generate`.
+/**
+ * Resolve the path to `tools.json` across runtime environments:
+ *
+ *   - **In source (development):** `src/generated/mcp/tools.json`
+ *   - **In the published tarball:** `dist/mcp/tools.json` (copied by tsup's
+ *     `onSuccess` hook; see tsup.config.ts)
+ *
+ * The dist bundle is at `dist/mcp-generated.js`, so the JSON sits two
+ * directories up + into `mcp/`. The source file is at
+ * `src/mcp/generated-bridge.ts`, so the JSON sits one directory up +
+ * into `generated/mcp/`.
+ */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TOOLS_JSON_PATH = resolve(HERE, '../generated/mcp/tools.json');
+const TOOLS_JSON_PATH = (() => {
+  // Try the source layout first (development), then fall back to the dist
+  // layout (published). The order matters because in a tsx-run dev env
+  // we may be executing from `src/mcp/generated-bridge.ts`, but in a
+  // consumer install we're at `dist/mcp-generated.js`.
+  const candidates = [
+    resolve(HERE, '../generated/mcp/tools.json'), // source layout
+    resolve(HERE, 'mcp/tools.json'), // dist layout (next to mcp-generated.js)
+    resolve(HERE, '../mcp/tools.json'), // alt dist layout (sibling of bundled dir)
+  ];
+  for (const candidate of candidates) {
+    try {
+      readFileSync(candidate, 'utf8');
+      return candidate;
+    } catch {
+      // try next candidate
+    }
+  }
+  // Fall back to the source-layout path; the error will surface with a
+  // clearer message when the loader is actually invoked.
+  return candidates[0] ?? resolve(HERE, '../generated/mcp/tools.json');
+})();
 
 let cachedTools: readonly GeneratedToolEntry[] | undefined;
 

@@ -5,6 +5,6 @@
 import { z } from 'zod';
 
 export const ShowRequestSchema = z.object({
-  model: z.string(),
-  verbose: z.boolean().optional(),
+  "model": z.string(),
+  "verbose": z.boolean().optional(),
 });

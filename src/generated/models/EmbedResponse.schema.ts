@@ -5,9 +5,9 @@
 import { z } from 'zod';
 
 export const EmbedResponseSchema = z.object({
-  model: z.string().optional(),
-  embeddings: z.array(z.array(z.number())).optional(),
-  total_duration: z.number().optional(),
-  load_duration: z.number().optional(),
-  prompt_eval_count: z.number().optional(),
+  "model": z.string().optional(),
+  "embeddings": z.array(z.array(z.number())).optional(),
+  "total_duration": z.number().optional(),
+  "load_duration": z.number().optional(),
+  "prompt_eval_count": z.number().optional(),
 });

@@ -6,12 +6,14 @@ import { z } from 'zod';
 import { ThinkingSchema } from './Thinking.schema.js';
 
 export const ShowResponseSchema = z.object({
-  thinking: ThinkingSchema.optional(),
-  parameters: z.string().optional(),
-  license: z.string().optional(),
-  modified_at: z.string().optional(),
-  details: z.object({}).optional(),
-  template: z.string().optional(),
-  capabilities: z.array(z.string()).optional(),
-  model_info: z.object({}).optional(),
+  "thinking": ThinkingSchema.optional(),
+  "parameters": z.string().optional(),
+  "license": z.string().optional(),
+  "modified_at": z.string().optional(),
+  "details": z.object({
+}).optional(),
+  "template": z.string().optional(),
+  "capabilities": z.array(z.string()).optional(),
+  "model_info": z.object({
+}).optional(),
 });

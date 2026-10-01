@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 export interface CopyRequest {
   /** Existing model name to copy from */
   readonly source: string;

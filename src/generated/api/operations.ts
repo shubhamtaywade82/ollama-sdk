@@ -13,12 +13,10 @@ export const blobsOp = {
   path: '/api/blobs/{digest}',
   environment: { local: true, cloud: false },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
-  notes: [
-    'HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest.',
-  ],
+  notes: ['HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest.'],
 } as const satisfies OperationDefinition;
 
 export const chatOp = {
@@ -29,19 +27,10 @@ export const chatOp = {
   response: { $ref: '#/schemas/ChatResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'ndjson', streaming: true, streamingDefault: true },
-  capabilities: {
-    thinking: 'model-dependent',
-    tools: 'model-dependent',
-    vision: 'model-dependent',
-    structuredOutput: 'supported',
-    logprobs: 'supported',
-  },
-  status: { documented: true },
+  capabilities: { thinking: 'model-dependent', tools: 'model-dependent', vision: 'model-dependent', structuredOutput: 'supported', logprobs: 'supported' },
+  status: { documented: true},
   domain: 'native',
-  notes: [
-    'Use /api/show to discover model-specific thinking values and defaults.',
-    'Structured output (format field) is rejected by Ollama Cloud.',
-  ],
+  notes: ['Use /api/show to discover model-specific thinking values and defaults.', 'Structured output (format field) is rejected by Ollama Cloud.'],
 } as const satisfies OperationDefinition;
 
 export const copyOp = {
@@ -51,8 +40,8 @@ export const copyOp = {
   request: { $ref: '#/schemas/CopyRequest' },
   environment: { local: true, cloud: false },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -65,7 +54,7 @@ export const createOp = {
   environment: { local: true, cloud: false },
   transport: { mode: 'ndjson', streaming: true, streamingDefault: true },
   capabilities: { thinking: 'unsupported', tools: 'unsupported' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'native',
   notes: ['Model creation is local-only; Ollama Cloud does not support it.'],
 } as const satisfies OperationDefinition;
@@ -77,8 +66,8 @@ export const deleteOp = {
   request: { $ref: '#/schemas/DeleteRequest' },
   environment: { local: true, cloud: false },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -91,7 +80,7 @@ export const embedOp = {
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
   capabilities: { embeddings: 'supported' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -103,13 +92,8 @@ export const generateOp = {
   response: { $ref: '#/schemas/GenerateResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'ndjson', streaming: true, streamingDefault: true },
-  capabilities: {
-    thinking: 'model-dependent',
-    vision: 'supported',
-    structuredOutput: 'supported',
-    logprobs: 'supported',
-  },
-  status: { documented: true },
+  capabilities: { thinking: 'model-dependent', vision: 'supported', structuredOutput: 'supported', logprobs: 'supported' },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -120,8 +104,8 @@ export const psOp = {
   response: { $ref: '#/schemas/PsResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -133,8 +117,8 @@ export const pullOp = {
   response: { $ref: '#/schemas/StatusResponse' },
   environment: { local: true, cloud: false },
   transport: { mode: 'ndjson', streaming: true, streamingDefault: true },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -146,8 +130,8 @@ export const pushOp = {
   response: { $ref: '#/schemas/StatusResponse' },
   environment: { local: true, cloud: false },
   transport: { mode: 'ndjson', streaming: true, streamingDefault: true },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -159,12 +143,10 @@ export const showOp = {
   response: { $ref: '#/schemas/ShowResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
-  notes: [
-    'Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings).',
-  ],
+  notes: ['Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings).'],
 } as const satisfies OperationDefinition;
 
 export const systemOneOp = {
@@ -173,23 +155,11 @@ export const systemOneOp = {
   path: '/v1/systemone',
   environment: { local: true, cloud: false },
   transport: { mode: 'json', streaming: false },
-  capabilities: {
-    thinking: 'unsupported',
-    tools: 'unsupported',
-    vision: 'unsupported',
-    structuredOutput: 'unsupported',
-    logprobs: 'unsupported',
-    embeddings: 'unsupported',
-  },
+  capabilities: { thinking: 'unsupported', tools: 'unsupported', vision: 'unsupported', structuredOutput: 'unsupported', logprobs: 'unsupported', embeddings: 'unsupported' },
   constraints: { minOllamaVersion: '0.35.0', maxRequestBytes: 65536 },
-  status: { documented: true, experimental: true },
+  status: { documented: true, experimental: true},
   domain: 'native',
-  notes: [
-    'Local-only; Ollama Cloud rejects /v1/systemone.',
-    'Hard 64 KiB request body limit enforced by the server.',
-    'No images, no tools, no generation controls (temperature, top_p, etc.).',
-    'Experimental: behavioral surface may change between Ollama releases.',
-  ],
+  notes: ['Local-only; Ollama Cloud rejects /v1/systemone.', 'Hard 64 KiB request body limit enforced by the server.', 'No images, no tools, no generation controls (temperature, top_p, etc.).', 'Experimental: behavioral surface may change between Ollama releases.'],
 } as const satisfies OperationDefinition;
 
 export const tagsOp = {
@@ -199,8 +169,8 @@ export const tagsOp = {
   response: { $ref: '#/schemas/ListResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -211,8 +181,8 @@ export const versionOp = {
   response: { $ref: '#/schemas/VersionResponse' },
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'native',
 } as const satisfies OperationDefinition;
 
@@ -222,18 +192,10 @@ export const openaiChatCompletionsOp = {
   path: '/v1/chat/completions',
   environment: { local: true, cloud: true },
   transport: { mode: 'sse', streaming: true, streamingDefault: false },
-  capabilities: {
-    thinking: 'model-dependent',
-    tools: 'model-dependent',
-    vision: 'model-dependent',
-    structuredOutput: 'supported',
-    logprobs: 'supported',
-  },
-  status: { documented: true },
+  capabilities: { thinking: 'model-dependent', tools: 'model-dependent', vision: 'model-dependent', structuredOutput: 'supported', logprobs: 'supported' },
+  status: { documented: true},
   domain: 'openai',
-  notes: [
-    'Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.',
-  ],
+  notes: ['Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.'],
 } as const satisfies OperationDefinition;
 
 export const openaiCompletionsOp = {
@@ -243,7 +205,7 @@ export const openaiCompletionsOp = {
   environment: { local: true, cloud: true },
   transport: { mode: 'sse', streaming: true, streamingDefault: false },
   capabilities: { logprobs: 'supported' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'openai',
 } as const satisfies OperationDefinition;
 
@@ -254,7 +216,7 @@ export const openaiEmbeddingsOp = {
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
   capabilities: { embeddings: 'supported' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'openai',
 } as const satisfies OperationDefinition;
 
@@ -264,8 +226,8 @@ export const openaiModelsOp = {
   path: '/v1/models',
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'openai',
 } as const satisfies OperationDefinition;
 
@@ -275,8 +237,8 @@ export const openaiModelsGetOneOp = {
   path: '/v1/models/{model}',
   environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
-  capabilities: {},
-  status: { documented: true },
+  capabilities: {  },
+  status: { documented: true},
   domain: 'openai',
   notes: ['Returns metadata for a single OpenAI-compat model by id.'],
 } as const satisfies OperationDefinition;
@@ -288,11 +250,9 @@ export const openaiResponsesOp = {
   environment: { local: true, cloud: true },
   transport: { mode: 'sse', streaming: true, streamingDefault: false },
   capabilities: { thinking: 'model-dependent', tools: 'model-dependent' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'openai',
-  notes: [
-    'Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.',
-  ],
+  notes: ['Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.'],
 } as const satisfies OperationDefinition;
 
 export const anthropicMessagesOp = {
@@ -302,12 +262,9 @@ export const anthropicMessagesOp = {
   environment: { local: true, cloud: true },
   transport: { mode: 'sse', streaming: true, streamingDefault: false },
   capabilities: { thinking: 'model-dependent', tools: 'model-dependent' },
-  status: { documented: true },
+  status: { documented: true},
   domain: 'anthropic',
-  notes: [
-    "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.",
-    'Nested cache_control fields under messages[].content[].cache_control are unsupported.',
-  ],
+  notes: ['tool_choice and metadata are explicitly unsupported by Ollama\'s Anthropic compat layer.', 'Nested cache_control fields under messages[].content[].cache_control are unsupported.'],
 } as const satisfies OperationDefinition;
 
 export const allOperations = [

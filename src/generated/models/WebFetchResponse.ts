@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 export interface WebFetchResponse {
   /** Title of the fetched page */
   readonly title?: string | undefined;

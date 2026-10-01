@@ -7,8 +7,8 @@ import { TokenLogprobSchema } from './TokenLogprob.schema.js';
 
 /** Log probability information for a generated token */
 export const LogprobSchema = z.object({
-  token: z.string().optional(),
-  logprob: z.number().optional(),
-  bytes: z.array(z.number()).optional(),
-  top_logprobs: z.array(TokenLogprobSchema).optional(),
+  "token": z.string().optional(),
+  "logprob": z.number().optional(),
+  "bytes": z.array(z.number()).optional(),
+  "top_logprobs": z.array(TokenLogprobSchema).optional(),
 });

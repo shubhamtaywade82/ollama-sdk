@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 /** Thinking controls advertised by a model. Models without thinking metadata omit this field. */
 export interface Thinking {
   /** Values explicitly supported by the model's `think` request field. Booleans represent on/off controls and strings represent model-defined levels. An array containing only `false` identifies a model without thinking support. */

@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { ToolCallSchema } from './ToolCall.schema.js';
 
 export const ChatMessageSchema = z.object({
-  role: z.enum(['system', 'user', 'assistant', 'tool']),
-  content: z.string(),
-  images: z.array(z.string()).optional(),
-  tool_calls: z.array(ToolCallSchema).optional(),
+  "role": z.enum(["system", "user", "assistant", "tool"]),
+  "content": z.string(),
+  "images": z.array(z.string()).optional(),
+  "tool_calls": z.array(ToolCallSchema).optional(),
 });

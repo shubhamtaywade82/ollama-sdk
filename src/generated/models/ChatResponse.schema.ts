@@ -7,25 +7,23 @@ import { LogprobSchema } from './Logprob.schema.js';
 import { ToolCallSchema } from './ToolCall.schema.js';
 
 export const ChatResponseSchema = z.object({
-  model: z.string().optional(),
-  created_at: z.string().optional(),
-  message: z
-    .object({
-      role: z.enum(['assistant']).optional(),
-      content: z.string().optional(),
-      thinking: z.string().optional(),
-      tool_calls: z.array(ToolCallSchema).optional(),
-      images: z.array(z.string()).optional(),
-    })
-    .optional(),
-  done: z.boolean().optional(),
-  done_reason: z.string().optional(),
-  total_duration: z.number().optional(),
-  load_duration: z.number().optional(),
-  prompt_eval_count: z.number().optional(),
-  prompt_eval_cached_count: z.number().optional(),
-  prompt_eval_duration: z.number().optional(),
-  eval_count: z.number().optional(),
-  eval_duration: z.number().optional(),
-  logprobs: z.array(LogprobSchema).optional(),
+  "model": z.string().optional(),
+  "created_at": z.string().optional(),
+  "message": z.object({
+  "role": z.enum(["assistant"]).optional(),
+  "content": z.string().optional(),
+  "thinking": z.string().optional(),
+  "tool_calls": z.array(ToolCallSchema).optional(),
+  "images": z.array(z.string()).optional(),
+}).optional(),
+  "done": z.boolean().optional(),
+  "done_reason": z.string().optional(),
+  "total_duration": z.number().optional(),
+  "load_duration": z.number().optional(),
+  "prompt_eval_count": z.number().optional(),
+  "prompt_eval_cached_count": z.number().optional(),
+  "prompt_eval_duration": z.number().optional(),
+  "eval_count": z.number().optional(),
+  "eval_duration": z.number().optional(),
+  "logprobs": z.array(LogprobSchema).optional(),
 });

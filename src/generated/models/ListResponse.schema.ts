@@ -6,5 +6,5 @@ import { z } from 'zod';
 import { ModelSummarySchema } from './ModelSummary.schema.js';
 
 export const ListResponseSchema = z.object({
-  models: z.array(ModelSummarySchema).optional(),
+  "models": z.array(ModelSummarySchema).optional(),
 });

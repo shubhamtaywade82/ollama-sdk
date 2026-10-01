@@ -5,5 +5,5 @@
 import { z } from 'zod';
 
 export const DeleteRequestSchema = z.object({
-  model: z.string(),
+  "model": z.string(),
 });

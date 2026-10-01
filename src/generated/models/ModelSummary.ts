@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 /** Summary information for a locally available model */
 export interface ModelSummary {
   /** Model name */
@@ -21,18 +22,16 @@ export interface ModelSummary {
   /** SHA256 digest identifier of the model contents */
   readonly digest?: string | undefined;
   /** Additional information about the model's format and family */
-  readonly details?:
-    | {
-        /** Model file format (for example `gguf`) */
-        readonly format?: string | undefined;
-        /** Primary model family (for example `llama`) */
-        readonly family?: string | undefined;
-        /** All families the model belongs to, when applicable */
-        readonly families?: readonly string[] | undefined;
-        /** Approximate parameter count label (for example `7B`, `13B`) */
-        readonly parameter_size?: string | undefined;
-        /** Quantization level used (for example `Q4_0`) */
-        readonly quantization_level?: string | undefined;
-      }
-    | undefined;
+  readonly details?: {
+  /** Model file format (for example `gguf`) */
+  readonly format?: string | undefined;
+  /** Primary model family (for example `llama`) */
+  readonly family?: string | undefined;
+  /** All families the model belongs to, when applicable */
+  readonly families?: readonly string[] | undefined;
+  /** Approximate parameter count label (for example `7B`, `13B`) */
+  readonly parameter_size?: string | undefined;
+  /** Quantization level used (for example `Q4_0`) */
+  readonly quantization_level?: string | undefined;
+} | undefined;
 }

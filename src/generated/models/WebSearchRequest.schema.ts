@@ -5,6 +5,6 @@
 import { z } from 'zod';
 
 export const WebSearchRequestSchema = z.object({
-  query: z.string(),
-  max_results: z.number().optional(),
+  "query": z.string(),
+  "max_results": z.number().optional(),
 });

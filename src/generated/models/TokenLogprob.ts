@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+
 /** Log probability information for a single token alternative */
 export interface TokenLogprob {
   /** The text representation of the token */

@@ -6,20 +6,18 @@ import { z } from 'zod';
 
 /** Summary information for a locally available model */
 export const ModelSummarySchema = z.object({
-  name: z.string().optional(),
-  model: z.string().optional(),
-  remote_model: z.string().optional(),
-  remote_host: z.string().optional(),
-  modified_at: z.string().optional(),
-  size: z.number().optional(),
-  digest: z.string().optional(),
-  details: z
-    .object({
-      format: z.string().optional(),
-      family: z.string().optional(),
-      families: z.array(z.string()).optional(),
-      parameter_size: z.string().optional(),
-      quantization_level: z.string().optional(),
-    })
-    .optional(),
+  "name": z.string().optional(),
+  "model": z.string().optional(),
+  "remote_model": z.string().optional(),
+  "remote_host": z.string().optional(),
+  "modified_at": z.string().optional(),
+  "size": z.number().optional(),
+  "digest": z.string().optional(),
+  "details": z.object({
+  "format": z.string().optional(),
+  "family": z.string().optional(),
+  "families": z.array(z.string()).optional(),
+  "parameter_size": z.string().optional(),
+  "quantization_level": z.string().optional(),
+}).optional(),
 });

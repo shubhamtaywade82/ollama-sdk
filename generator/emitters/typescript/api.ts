@@ -37,6 +37,12 @@ const HEADER =
   ' */\n';
 
 function pascal(name: string): string {
+  // Capitalize the first letter; preserve the rest. For acronyms (openai,
+  // anthropic) we want `OpenAI` and `Anthropic` (not `Openai` or `Anthropic`
+  // with mixed casing). The mapping below handles the three known domains.
+  if (name === 'openai') return 'OpenAI';
+  if (name === 'anthropic') return 'Anthropic';
+  if (name === 'native') return 'Native';
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
@@ -166,12 +172,30 @@ export function emitApi(
       exported.push(`${pascal(domain)}Api`);
     }
   }
+  // Build an index that re-exports BOTH the API classes AND every operation
+  // constant. The two were previously emitted to the same `index.ts` path
+  // with one overwriting the other; combining them here ensures consumers
+  // importing from `@nemesis-oss/ollama-sdk/generated/api` get the full
+  // public surface in one import.
+  const apiClassExports = exported
+    .map((cls) => {
+      // File names are `<domain>-api.ts` — derive the domain from the class
+      // name (e.g. `NativeApi` -> `native`).
+      const domainKey = cls.slice(0, -3).toLowerCase();
+      return `export { ${cls} } from './${domainKey}-api.js';`;
+    })
+    .join('\n');
+  const opExports = operations
+    .map((op) => `export { ${op.id}Op as ${op.id} } from './operations.js';`)
+    .join('\n');
   const indexContent =
     `${HEADER}\n` +
-    exported
-      .map((cls) => `export { ${cls} } from './${cls.toLowerCase().slice(0, -2)}-api.js';`)
-      .join('\n') +
-    '\n';
+    `// Generated API classes (Wave 3):\n` +
+    `${apiClassExports}\n\n` +
+    `// Operation constants (Wave 3):\n` +
+    `${opExports}\n` +
+    `export { allOperations } from './operations.js';\n` +
+    `export { type OperationDefinition } from '../runtime/operation-definition.js';\n`;
   files.push({ path: `${outputDir}/index.ts`, content: indexContent });
   return files;
 }

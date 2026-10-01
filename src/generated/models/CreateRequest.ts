@@ -6,6 +6,7 @@
 
 import type { ChatMessage } from './index.js';
 
+
 export interface CreateRequest {
   /** Name for the model to create */
   readonly model: string;
@@ -18,17 +19,13 @@ export interface CreateRequest {
   /** Name of the parser for the model */
   readonly parser?: string | undefined;
   /** Source file names mapped to their SHA-256 digests. Split GGUF models must include each shard under its original split filename. */
-  readonly files?:
-    | {
-        [key: string]: string;
-      }
-    | undefined;
+  readonly files?: {
+  [key: string]: string;
+} | undefined;
   /** Draft source file names mapped to their SHA-256 digests */
-  readonly draft_files?:
-    | {
-        [key: string]: string;
-      }
-    | undefined;
+  readonly draft_files?: {
+  [key: string]: string;
+} | undefined;
   /** License string or list of licenses for the model */
   readonly license?: string | string[] | undefined;
   /** System prompt to embed in the model */

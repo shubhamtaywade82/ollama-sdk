@@ -6,6 +6,7 @@
 
 import type { ModelOptions } from './index.js';
 
+
 export interface EmbedRequest {
   /** Model name */
   readonly model: string;

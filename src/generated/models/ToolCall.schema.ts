@@ -5,11 +5,10 @@
 import { z } from 'zod';
 
 export const ToolCallSchema = z.object({
-  function: z
-    .object({
-      name: z.string(),
-      description: z.string().optional(),
-      arguments: z.object({}).optional(),
-    })
-    .optional(),
+  "function": z.object({
+  "name": z.string(),
+  "description": z.string().optional(),
+  "arguments": z.object({
+}).optional(),
+}).optional(),
 });

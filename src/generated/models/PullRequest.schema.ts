@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 export const PullRequestSchema = z.object({
-  model: z.string(),
-  insecure: z.boolean().optional(),
-  stream: z.boolean().optional(),
+  "model": z.string(),
+  "insecure": z.boolean().optional(),
+  "stream": z.boolean().optional(),
 });
