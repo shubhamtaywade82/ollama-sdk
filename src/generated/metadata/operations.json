@@ -319,6 +319,54 @@
       }
     },
     {
+      "operationId": "webFetch",
+      "method": "POST",
+      "path": "/api/web_fetch",
+      "domain": "native",
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {},
+      "status": {
+        "documented": true
+      },
+      "notes": [
+        "Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation."
+      ]
+    },
+    {
+      "operationId": "webSearch",
+      "method": "POST",
+      "path": "/api/web_search",
+      "domain": "native",
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {},
+      "status": {
+        "documented": true
+      },
+      "notes": [
+        "Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation."
+      ]
+    },
+    {
       "operationId": "openaiChatCompletions",
       "method": "POST",
       "path": "/v1/chat/completions",

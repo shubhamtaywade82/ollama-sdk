@@ -908,6 +908,58 @@
       "_operationId": "version"
     },
     {
+      "name": "ollama_webFetch",
+      "description": "Ollama POST /api/web_fetch (native domain)\n\n- Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.\n- Requires an Ollama Cloud API key (set via OllamaClient credentials).\n- Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to fetch"
+          }
+        }
+      },
+      "annotations": {
+        "title": "webFetch (Ollama)",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_operationId": "webFetch"
+    },
+    {
+      "name": "ollama_webSearch",
+      "description": "Ollama POST /api/web_search (native domain)\n\n- Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.\n- Requires an Ollama Cloud API key (set via OllamaClient credentials).\n- Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query string"
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5,
+            "description": "Maximum number of results to return"
+          }
+        }
+      },
+      "annotations": {
+        "title": "webSearch (Ollama)",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_operationId": "webSearch"
+    },
+    {
       "name": "ollama_openaiChatCompletions",
       "description": "Ollama POST /v1/chat/completions (openai domain)\n\n- Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.",
       "inputSchema": {

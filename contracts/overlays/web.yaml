@@ -1,0 +1,66 @@
+# Web capabilities overlay.
+#
+# Ollama documents two cloud-hosted capability endpoints that live at
+# https://ollama.com/api/... rather than the local Ollama server:
+#
+#   POST https://ollama.com/api/web_search
+#   POST https://ollama.com/api/web_fetch
+#
+# Before Wave 12 these were absent from the canonical IR — the SDK
+# supported them via hand-written OllamaClient.webSearch / webFetch
+# methods, but the contract layer had no idea they existed. That meant
+# the bidirectional endpoint discovery validator couldn't see them,
+# the MCP generator couldn't expose them, and the project had two SDK
+# worlds (contract-driven vs hand-written-only) running in parallel.
+#
+# This overlay brings them into the contract. The `host:` field tells
+# the runtime these operations target a different base URL than the
+# local Ollama server; the API emitter skips them when generating
+# NativeApi (callers must use OllamaClient.webSearch / webFetch, which
+# spin up a dedicated cloud HttpClient). The MCP emitter, the
+# endpoint discovery validator, and the IR inspector all see them now.
+
+version: 1
+service: ollama
+domain: native
+
+operations:
+  webSearch:
+    path: /api/web_search
+    method: POST
+    host: https://ollama.com
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: unsupported
+      cloud: supported
+    capabilities: {}
+    status:
+      documented: true
+    requestSchema: WebSearchRequest
+    responseSchema: WebSearchResponse
+    notes:
+      - 'Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.'
+      - 'Requires an Ollama Cloud API key (set via OllamaClient credentials).'
+      - 'Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation.'
+
+  webFetch:
+    path: /api/web_fetch
+    method: POST
+    host: https://ollama.com
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: unsupported
+      cloud: supported
+    capabilities: {}
+    status:
+      documented: true
+    requestSchema: WebFetchRequest
+    responseSchema: WebFetchResponse
+    notes:
+      - 'Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.'
+      - 'Requires an Ollama Cloud API key (set via OllamaClient credentials).'
+      - 'Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation.'

@@ -17,6 +17,8 @@ import { PullRequestSchema } from '../models/PullRequest.schema.js';
 import { PushRequestSchema } from '../models/PushRequest.schema.js';
 import { ShowRequestSchema } from '../models/ShowRequest.schema.js';
 import { SystemOneRequestSchema } from '../models/SystemOneRequest.schema.js';
+import { WebFetchRequestSchema } from '../models/WebFetchRequest.schema.js';
+import { WebSearchRequestSchema } from '../models/WebSearchRequest.schema.js';
 
 /**
  * Map from operationId → request schema. The runtime consults this
@@ -42,6 +44,8 @@ export const requestSchemas: Readonly<Record<string, z.ZodType>> = {
   push: PushRequestSchema,
   show: ShowRequestSchema,
   systemOne: SystemOneRequestSchema,
+  webFetch: WebFetchRequestSchema,
+  webSearch: WebSearchRequestSchema,
 };
 
 /** Look up a request schema by operationId. Returns `undefined` if no schema exists. */

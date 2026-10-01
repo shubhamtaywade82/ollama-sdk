@@ -191,7 +191,15 @@ export function emitDomainApi(
   domain: 'native' | 'openai' | 'anthropic',
   operations: readonly OperationContract[],
 ): EmittedFile | undefined {
-  const domainOps = operations.filter((op) => op.domain === domain);
+  // Wave 12 (P1 #7): skip operations that target a different host (web
+  // search, web fetch — they live at https://ollama.com, not the local
+  // Ollama server). These operations are declared in the IR for
+  // visibility and MCP generation, but they cannot be invoked through
+  // the generated NativeApi class because that class delegates to a
+  // runtime bound to the local Ollama server. Callers must use
+  // OllamaClient.webSearch / OllamaClient.webFetch instead, which spin
+  // up a dedicated cloud HttpClient pointed at the right host.
+  const domainOps = operations.filter((op) => op.domain === domain && !op.host);
   if (domainOps.length === 0) return undefined;
 
   const className = `${pascal(domain)}Api`;

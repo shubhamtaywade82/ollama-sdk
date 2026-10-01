@@ -8,6 +8,18 @@
       "upstream": "https://docs.ollama.com/api",
       "introducedIn": "0.35.0",
       "rationale": "Documented on the rendered native API index page; not yet present in the pinned OpenAPI snapshot (86fc5e9) or any compat MDX."
+    },
+    {
+      "path": "/api/web_search",
+      "method": "POST",
+      "upstream": "https://docs.ollama.com/api#web-search",
+      "rationale": "Cloud-hosted capability endpoint documented by Ollama; not present in the pinned OpenAPI snapshot because it targets https://ollama.com rather than the local Ollama server."
+    },
+    {
+      "path": "/api/web_fetch",
+      "method": "POST",
+      "upstream": "https://docs.ollama.com/api#web-fetch",
+      "rationale": "Cloud-hosted capability endpoint documented by Ollama; not present in the pinned OpenAPI snapshot because it targets https://ollama.com rather than the local Ollama server."
     }
   ]
 }

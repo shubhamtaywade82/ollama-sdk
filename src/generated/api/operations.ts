@@ -218,6 +218,44 @@ export const versionOp = {
   domain: 'native',
 } as const satisfies OperationDefinition;
 
+export const webFetchOp = {
+  operationId: 'webFetch',
+  method: 'POST',
+  path: '/api/web_fetch',
+  request: { $ref: '#/schemas/WebFetchRequest' },
+  response: { $ref: '#/schemas/WebFetchResponse' },
+  environment: { local: false, cloud: true },
+  host: 'https://ollama.com',
+  transport: { mode: 'json', streaming: false },
+  capabilities: {},
+  status: { documented: true },
+  domain: 'native',
+  notes: [
+    'Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.',
+    'Requires an Ollama Cloud API key (set via OllamaClient credentials).',
+    'Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation.',
+  ],
+} as const satisfies OperationDefinition;
+
+export const webSearchOp = {
+  operationId: 'webSearch',
+  method: 'POST',
+  path: '/api/web_search',
+  request: { $ref: '#/schemas/WebSearchRequest' },
+  response: { $ref: '#/schemas/WebSearchResponse' },
+  environment: { local: false, cloud: true },
+  host: 'https://ollama.com',
+  transport: { mode: 'json', streaming: false },
+  capabilities: {},
+  status: { documented: true },
+  domain: 'native',
+  notes: [
+    'Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.',
+    'Requires an Ollama Cloud API key (set via OllamaClient credentials).',
+    'Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation.',
+  ],
+} as const satisfies OperationDefinition;
+
 export const openaiChatCompletionsOp = {
   operationId: 'openaiChatCompletions',
   method: 'POST',
@@ -327,6 +365,8 @@ export const allOperations = [
   systemOneOp,
   tagsOp,
   versionOp,
+  webFetchOp,
+  webSearchOp,
   openaiChatCompletionsOp,
   openaiCompletionsOp,
   openaiEmbeddingsOp,

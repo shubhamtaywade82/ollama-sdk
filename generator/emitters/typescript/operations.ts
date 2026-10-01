@@ -82,6 +82,7 @@ function emitOperation(op: OperationContract): string {
     ...(op.request ? [`  request: ${request},`] : []),
     ...(op.response ? [`  response: ${response},`] : []),
     `  environment: ${env},`,
+    ...(op.host ? [`  host: ${literal(op.host)},`] : []),
     `  transport: ${transport},`,
     `  capabilities: { ${caps} },`,
     ...(op.constraints ? [`  constraints: ${constraints},`] : []),

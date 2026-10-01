@@ -205,6 +205,7 @@ function buildOperationContract(
     ...(constraints ? { constraints } : {}),
     status,
     domain,
+    ...(overlay.host ? { host: overlay.host } : {}),
     ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
     ...(overlay.parity ? { parity: normalizeParity(overlay.parity) } : {}),
   };

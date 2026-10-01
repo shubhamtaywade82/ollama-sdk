@@ -72,6 +72,15 @@ export interface OverlayOperation {
   /** Override or declare the path (used by operations absent from OpenAPI). */
   readonly path?: string;
   readonly domain?: 'native' | 'openai' | 'anthropic';
+  /**
+   * Wave 12 (P1 #7): host this operation targets, when different from the
+   * default Ollama server. Used by cloud-hosted capability endpoints
+   * (web search, web fetch) that live at `https://ollama.com/api/...`
+   * rather than the local Ollama server. The generated runtime and the
+   * hand-written OllamaClient route these through a separate HttpClient
+   * pointed at this host.
+   */
+  readonly host?: string;
   readonly runtime?: {
     readonly streaming?: 'supported' | 'unsupported';
     readonly streamingDefault?: boolean;
