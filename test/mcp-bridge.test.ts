@@ -196,7 +196,7 @@ describe('MCP bridge parity', () => {
     };
 
     const tools = await loadMcpTools(client);
-    await expect(tools[0]!.execute({}, {})).resolves.toEqual('ok');
+    await expect(tools[0]!.execute({}, {})).resolves.toEqual('ok\n{"count":2}');
 
     await expect(tools[0]!.execute({}, {})).rejects.toMatchObject({
       code: 'mcp_error',
