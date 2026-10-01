@@ -400,7 +400,13 @@ export function normalizeContract(
 
   const contract: OllamaContract = {
     contractVersion: 1,
-    ...(parsed.info.version ? { observedOllamaVersion: parsed.info.version } : {}),
+    // Wave 12 (P1): renamed from observedOllamaVersion. The OpenAPI
+    // info.version is a source-tracking artifact, NOT the Ollama server
+    // version. We emit both fields during the migration window so older
+    // readers don't break; new readers should prefer sourceVersion.
+    ...(parsed.info.version
+      ? { sourceVersion: parsed.info.version, observedOllamaVersion: parsed.info.version }
+      : {}),
     generatedAt: new Date().toISOString(),
     sourceHash: sourceHash([readFileSync(openapiPath, 'utf8'), ...overlayContents]),
     operations,

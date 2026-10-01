@@ -199,8 +199,11 @@ function cmdInfo(): void {
     return acc;
   }, {});
   console.log(`Ollama contract IR v${contract.contractVersion}`);
-  if (contract.observedOllamaVersion) {
-    console.log(`  observed ollama version: ${contract.observedOllamaVersion}`);
+  // Wave 12 (P1): prefer sourceVersion; fall back to the deprecated
+  // observedOllamaVersion for IRs produced by older normalizers.
+  const sourceVersion = contract.sourceVersion ?? contract.observedOllamaVersion;
+  if (sourceVersion) {
+    console.log(`  source version (OpenAPI info.version): ${sourceVersion}`);
   }
   console.log(`  source hash: ${contract.sourceHash}`);
   console.log(`  generated at: ${contract.generatedAt}`);

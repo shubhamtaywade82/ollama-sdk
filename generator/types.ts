@@ -230,6 +230,21 @@ export interface ParitySurfaceMapping {
 /** Top-level canonical IR. */
 export interface OllamaContract {
   readonly contractVersion: number;
+  /**
+   * Wave 12 (P1): renamed from `observedOllamaVersion`. The previous name
+   * was misleading — this field carries the OpenAPI source document's
+   * `info.version` (currently "0.1.0"), NOT the Ollama server version.
+   * The two concepts are unrelated: the OpenAPI doc version is a
+   * source-tracking artifact; the Ollama server version is what
+   * `constraints.minOllamaVersion` is checked against (obtained at
+   * runtime via `GET /api/version`, cached on `OllamaRuntime`).
+   *
+   * Kept as `sourceVersion` for backwards-compat readers; aliased to
+   * `openApiVersion` semantically. The `observedOllamaVersion` field
+   * name is gone.
+   */
+  readonly sourceVersion?: string;
+  /** @deprecated Use {@link sourceVersion} instead. Kept for compat. */
   readonly observedOllamaVersion?: string;
   readonly generatedAt: string;
   readonly sourceHash: string;

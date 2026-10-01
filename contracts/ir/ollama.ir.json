@@ -1,7 +1,8 @@
 {
   "contractVersion": 1,
+  "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "generatedAt": "2026-10-01T16:47:14.943Z",
+  "generatedAt": "2026-10-01T16:50:14.210Z",
   "sourceHash": "143d6fec9698d9d2",
   "operations": [
     {
