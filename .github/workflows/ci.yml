@@ -23,6 +23,17 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
+      - name: Verify IR is not stale (overlay edited but IR not re-committed)
+        run: npm run contract:diff
+
+      - name: Verify generated code is not stale (IR re-committed but generated files not re-committed)
+        run: |
+          npm run contract:generate
+          git diff --exit-code --stat src/generated/
+
+      - name: Verify no unexpected type drift
+        run: npm run contract:drift -- --strict
+
       - run: npm run typecheck
 
       - run: npm run lint
@@ -67,6 +78,10 @@ jobs:
           node --input-type=module -e "import { OllamaClient } from '@nemesis-oss/ollama-sdk'; if (typeof OllamaClient !== 'function') throw new Error('ESM entry broken');"
           node --input-type=module -e "import { connectStdioMcpClient } from '@nemesis-oss/ollama-sdk/mcp/stdio'; if (typeof connectStdioMcpClient !== 'function') throw new Error('MCP stdio entry broken');"
           node --input-type=module -e "import { connectMcpHttpClient, connectStreamableHttpMcpClient } from '@nemesis-oss/ollama-sdk/mcp/http'; if (typeof connectMcpHttpClient !== 'function' || typeof connectStreamableHttpMcpClient !== 'function') throw new Error('MCP HTTP entry broken');"
+          node --input-type=module -e "import { OllamaRuntime } from '@nemesis-oss/ollama-sdk/generated/runtime'; if (typeof OllamaRuntime !== 'function') throw new Error('generated/runtime entry broken');"
+          node --input-type=module -e "import { NativeApi } from '@nemesis-oss/ollama-sdk/generated/api'; if (typeof NativeApi !== 'function') throw new Error('generated/api entry broken');"
+          node --input-type=module -e "import { ChatRequestSchema } from '@nemesis-oss/ollama-sdk/generated/models/schemas'; if (typeof ChatRequestSchema !== 'object') throw new Error('generated/models/schemas entry broken');"
+          node --input-type=module -e "import { listGeneratedOllamaTools } from '@nemesis-oss/ollama-sdk/mcp/generated'; if (typeof listGeneratedOllamaTools !== 'function') throw new Error('mcp/generated entry broken');"
 
   contract-parity:
     runs-on: ubuntu-latest
