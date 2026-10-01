@@ -26,6 +26,7 @@ import * as yaml from 'js-yaml';
 import type {
   HttpMethod,
   OperationContract,
+  OperationParameter,
   OllamaContract,
   SchemaContract,
   TransportMode,
@@ -114,6 +115,31 @@ function lookupOpenApiOperation(
   const target = overlay.openapi;
   if (!target) return undefined;
   return structural.find((op) => op.path === target);
+}
+
+/**
+ * Wave 12 (P1 #8): auto-derive path parameters from a path template.
+ *
+ * Every `{name}` segment becomes a path parameter with type `string` and
+ * `required: true`. This is the minimum structural information the IR
+ * needs for path-templated operations like `/v1/models/{model}` and
+ * `/api/blobs/{digest}` — previously the IR said "GET /v1/models/{model}"
+ * but didn't expose the `model` parameter structurally, so generated
+ * code couldn't tell what to substitute.
+ */
+function derivePathParameters(path: string): readonly OperationParameter[] {
+  const matches = path.matchAll(/\{([^}]+)\}/g);
+  const out: OperationParameter[] = [];
+  for (const m of matches) {
+    if (!m[1]) continue;
+    out.push({
+      name: m[1],
+      in: 'path',
+      required: true,
+      schema: { type: 'string' },
+    });
+  }
+  return out;
 }
 
 function buildOperationContract(
@@ -206,6 +232,12 @@ function buildOperationContract(
     status,
     domain,
     ...(overlay.host ? { host: overlay.host } : {}),
+    // Wave 12 (P1 #8): always derive path parameters from the path
+    // template. Operations without `{...}` segments get an empty array
+    // (omitted from the IR for compactness).
+    ...(derivePathParameters(path).length > 0
+      ? { parameters: derivePathParameters(path) }
+      : {}),
     ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
     ...(overlay.parity ? { parity: normalizeParity(overlay.parity) } : {}),
   };

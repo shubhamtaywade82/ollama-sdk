@@ -9,12 +9,12 @@
         "properties": {
           "digest": {
             "type": "string",
-            "description": "Path parameter: digest"
+            "description": "path parameter: digest"
           }
         },
         "required": ["digest"],
         "additionalProperties": false,
-        "description": "HEAD /api/blobs/{digest} — path parameters."
+        "description": "HEAD /api/blobs/{digest} — 1 parameter."
       },
       "annotations": {
         "title": "blobs (Ollama)",
@@ -1039,12 +1039,12 @@
         "properties": {
           "model": {
             "type": "string",
-            "description": "Path parameter: model"
+            "description": "path parameter: model"
           }
         },
         "required": ["model"],
         "additionalProperties": false,
-        "description": "GET /v1/models/{model} — path parameters."
+        "description": "GET /v1/models/{model} — 1 parameter."
       },
       "annotations": {
         "title": "openaiModelsGetOne (Ollama)",

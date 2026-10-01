@@ -63,7 +63,7 @@ describe('Wave 12: MCP input schemas are structurally derived (no prompt fallbac
     expect(props).toHaveProperty('model');
     const modelProp = props.model as { type: string; description: string };
     expect(modelProp.type).toBe('string');
-    expect(modelProp.description).toMatch(/Path parameter/);
+    expect(modelProp.description).toMatch(/path parameter/i);
     expect(tool?.inputSchema.required).toEqual(['model']);
     expect(tool?.inputSchema.additionalProperties).toBe(false);
   });

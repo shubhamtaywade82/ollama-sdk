@@ -141,6 +141,20 @@ export interface OperationContract {
    */
   readonly host?: string;
 
+  /**
+   * Wave 12 (P1 #8): structural parameters derived from the path template
+   * (and, when the OpenAPI snapshot declares them, query/header parameters
+   * too). The MCP emitter, the API emitter, and any future runtime
+   * path-substitution logic consume this list so generated code can tell
+   * what to substitute for `{model}` in `/v1/models/{model}`, etc.
+   *
+   * Auto-derivation: any `{name}` segment in {@link path} becomes a
+   * `path` parameter with type `string` and `required: true`. The
+   * OpenAPI parser can layer in richer declarations (query/header
+   * params, integer types) when present in the source spec.
+   */
+  readonly parameters?: readonly OperationParameter[];
+
   readonly transport: {
     readonly mode: TransportMode;
     readonly streaming: boolean;
@@ -184,6 +198,22 @@ export interface OperationContract {
    * `scripts/verify-contract-parity.ts`.
    */
   readonly parity?: OperationParityContract;
+}
+
+/**
+ * Wave 12 (P1 #8): a single structural parameter on an operation.
+ *
+ * Auto-derived from the path template (`{name}` segments) for `in: 'path'`,
+ * and extensible to query/header parameters when the OpenAPI snapshot
+ * declares them.
+ */
+export interface OperationParameter {
+  readonly name: string;
+  readonly in: 'path' | 'query' | 'header';
+  readonly required: boolean;
+  /** JSON Schema for the parameter value (defaults to `{ type: 'string' }`). */
+  readonly schema?: JsonSchemaNode;
+  readonly description?: string;
 }
 
 /**

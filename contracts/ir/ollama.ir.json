@@ -1,7 +1,7 @@
 {
   "contractVersion": 1,
   "observedOllamaVersion": "0.1.0",
-  "generatedAt": "2026-10-01T16:44:16.202Z",
+  "generatedAt": "2026-10-01T16:47:14.943Z",
   "sourceHash": "143d6fec9698d9d2",
   "operations": [
     {
@@ -21,6 +21,16 @@
         "documented": true
       },
       "domain": "native",
+      "parameters": [
+        {
+          "name": "digest",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "notes": [
         "HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest."
       ]
@@ -1059,6 +1069,16 @@
         "documented": true
       },
       "domain": "openai",
+      "parameters": [
+        {
+          "name": "model",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "notes": [
         "Returns metadata for a single OpenAI-compat model by id."
       ]
