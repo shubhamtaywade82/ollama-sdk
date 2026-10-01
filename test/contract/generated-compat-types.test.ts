@@ -35,10 +35,12 @@ import type {
 describe('Wave 12: generated compat APIs are fully typed', () => {
   // Construct instances against a typed-but-undefined runtime reference.
   // We never invoke any method — the assertions below are pure type-level
-  // checks against the method signatures themselves.
+  // checks against the method signatures themselves. The instance vars
+  // are prefixed with _ because lint would otherwise flag them as unused
+  // (we only use them for typeof extraction).
   const runtime = undefined as unknown as OllamaRuntime;
-  const openai = new OpenAIApi(runtime);
-  const anthropic = new AnthropicApi(runtime);
+  const _openai = new OpenAIApi(runtime);
+  const _anthropic = new AnthropicApi(runtime);
 
   /** Type-level helper: asserts that `A` is assignable to `B` (and returns `true`). */
   function isAssignable<A, B>(_: A extends B ? true : false): boolean {
@@ -47,7 +49,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
 
   it('openaiChatCompletions signature uses OpenAIChatCompletionRequest', () => {
     // Pull the non-streaming overload's parameter type out of the method.
-    type Method = typeof openai.openaiChatCompletions;
+    type Method = typeof _openai.openaiChatCompletions;
     type NonStreamingParams = Method extends {
       (request: infer R & { stream?: false }): Promise<unknown>;
     }
@@ -59,7 +61,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiChatCompletions non-streaming returns Promise<OpenAIChatCompletionResponse>', () => {
-    type Method = typeof openai.openaiChatCompletions;
+    type Method = typeof _openai.openaiChatCompletions;
     type Return = Method extends {
       (request: { stream?: false }): Promise<infer R>;
     }
@@ -70,7 +72,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiChatCompletions streaming returns AsyncGenerator<OpenAIChatCompletionChunk>', () => {
-    type Method = typeof openai.openaiChatCompletions;
+    type Method = typeof _openai.openaiChatCompletions;
     type Return = Method extends {
       (request: { stream: true }): Promise<AsyncGenerator<infer E, void, undefined>>;
     }
@@ -80,7 +82,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiResponses signature uses OpenAIResponsesRequest and OpenAIResponsesResponse', () => {
-    type Method = typeof openai.openaiResponses;
+    type Method = typeof _openai.openaiResponses;
     type Params = Method extends {
       (request: infer R & { stream?: false }): Promise<unknown>;
     }
@@ -96,7 +98,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiResponses streaming returns AsyncGenerator<OpenAIResponsesStreamEvent>', () => {
-    type Method = typeof openai.openaiResponses;
+    type Method = typeof _openai.openaiResponses;
     type Return = Method extends {
       (request: { stream: true }): Promise<AsyncGenerator<infer E, void, undefined>>;
     }
@@ -106,7 +108,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiEmbeddings uses OpenAIEmbeddingRequest and OpenAIEmbeddingResponse', () => {
-    type Method = typeof openai.openaiEmbeddings;
+    type Method = typeof _openai.openaiEmbeddings;
     type Params = Method extends (request: infer R) => Promise<unknown> ? R : never;
     type Return = Method extends (request: unknown) => Promise<infer R> ? R : never;
     expect(isAssignable<OpenAIEmbeddingRequest, Params>(true)).toBe(true);
@@ -114,19 +116,19 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('openaiModels returns OpenAIListModelsResponse', () => {
-    type Method = typeof openai.openaiModels;
+    type Method = typeof _openai.openaiModels;
     type Return = Method extends (options?: unknown) => Promise<infer R> ? R : never;
     expect(isAssignable<OpenAIListModelsResponse, Return>(true)).toBe(true);
   });
 
   it('openaiModelsGetOne returns OpenAIModelItem', () => {
-    type Method = typeof openai.openaiModelsGetOne;
+    type Method = typeof _openai.openaiModelsGetOne;
     type Return = Method extends (options?: unknown) => Promise<infer R> ? R : never;
     expect(isAssignable<OpenAIModelItem, Return>(true)).toBe(true);
   });
 
   it('anthropicMessages signature uses AnthropicMessagesRequest', () => {
-    type Method = typeof anthropic.anthropicMessages;
+    type Method = typeof _anthropic.anthropicMessages;
     type Params = Method extends {
       (request: infer R & { stream?: false }): Promise<unknown>;
     }
@@ -136,7 +138,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('anthropicMessages non-streaming returns Promise<AnthropicMessagesResponse>', () => {
-    type Method = typeof anthropic.anthropicMessages;
+    type Method = typeof _anthropic.anthropicMessages;
     type Return = Method extends {
       (request: { stream?: false }): Promise<infer R>;
     }
@@ -146,7 +148,7 @@ describe('Wave 12: generated compat APIs are fully typed', () => {
   });
 
   it('anthropicMessages streaming returns AsyncGenerator<AnthropicMessageStreamEvent>', () => {
-    type Method = typeof anthropic.anthropicMessages;
+    type Method = typeof _anthropic.anthropicMessages;
     type Return = Method extends {
       (request: { stream: true }): Promise<AsyncGenerator<infer E, void, undefined>>;
     }

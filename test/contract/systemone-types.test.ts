@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
  */
 describe('Wave 12: System One is fully generated', () => {
   const runtime = undefined as unknown as OllamaRuntime;
-  const api = new NativeApi(runtime);
+  const _api = new NativeApi(runtime);
 
   function isAssignable<A, B>(_: A extends B ? true : false): boolean {
     return true;
@@ -33,7 +33,7 @@ describe('Wave 12: System One is fully generated', () => {
   });
 
   it('NativeApi.systemOne accepts SystemOneRequest (not Record<string, unknown>)', () => {
-    type Method = typeof api.systemOne;
+    type Method = typeof _api.systemOne;
     type Params = Method extends (request: infer R) => Promise<unknown> ? R : never;
     // SystemOneRequest must be assignable to the inferred param type. If
     // the generator regressed to Record<string, unknown>, the assignment
@@ -50,7 +50,7 @@ describe('Wave 12: System One is fully generated', () => {
   });
 
   it('NativeApi.systemOne returns Promise<SystemOneResponse> (not Promise<unknown>)', () => {
-    type Method = typeof api.systemOne;
+    type Method = typeof _api.systemOne;
     type Return = Method extends (request: unknown) => Promise<infer R> ? R : never;
     expect(isAssignable<SystemOneResponse, Return>(true)).toBe(true);
     // The return type must carry the typed shape (model: string).
