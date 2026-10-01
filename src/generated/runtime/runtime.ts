@@ -23,8 +23,10 @@
  */
 import { HttpClient, type HttpRequestOptions } from '../../transport/http.js';
 import { parseNdjsonStream } from '../../streaming/ndjson.js';
+import { parseSseStream } from '../../streaming/sse.js';
 import { OllamaGenericClientError, OllamaRequestValidationError } from '../../errors.js';
 import type { OperationDefinition, InvokeRequest } from './operation-definition.js';
+import type { TransportMode } from './operation-definition.js';
 import { getRequestSchema } from './schema-registry.js';
 
 /** Constructor options for {@link OllamaRuntime}. */
@@ -193,10 +195,10 @@ export class OllamaRuntime {
       ...(body !== undefined ? { body } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
       // For streaming calls, request the raw Response so we can pipe it
-      // through parseNdjsonStream directly. This inherits middleware,
-      // retry, telemetry, and error-mapping from HttpClient — the
-      // previous Wave 3 implementation bypassed them with a direct
-      // `fetch()` call.
+      // through the parser the contract specifies for this operation.
+      // This inherits middleware, retry, telemetry, and error-mapping
+      // from HttpClient — the previous Wave 3 implementation bypassed
+      // them with a direct `fetch()` call.
       ...(streaming ? { raw: true } : {}),
     };
 
@@ -205,13 +207,84 @@ export class OllamaRuntime {
     }
 
     // Streaming: HttpClient returns the raw Response (via the `raw: true`
-    // option) so we can read its body as an NDJSON stream.
+    // option) so we can read its body through the parser the contract
+    // specifies for this operation.
+    //
+    // Wave 12 (P0 #2): the runtime now honors `operation.transport.mode`
+    // instead of unconditionally parsing every stream as NDJSON. Native
+    // Ollama operations (chat/generate/create/pull/push) declare
+    // `transport.mode === 'ndjson'` and continue to use parseNdjsonStream;
+    // OpenAI/Anthropic compatibility operations declare `transport.mode ===
+    // 'sse'` and now correctly use the SSE parser, then JSON-decode each
+    // event's `data` field. This closes the contract/runtime violation
+    // where generated compat streaming was being parsed as NDJSON.
     const response = await this.options.http.request<Response>(httpReq);
     if (!response.body) {
       throw new OllamaGenericClientError(
         `Operation ${req.operation.operationId}: streaming response had no body.`,
       );
     }
-    return parseNdjsonStream<T>(response.body) as unknown as T;
+    return parseStreamByMode<T>(req.operation.transport.mode, response.body) as unknown as T;
+  }
+}
+
+/**
+ * Pick the stream parser that matches the operation's declared transport
+ * mode, returning a uniform `AsyncGenerator<T>`.
+ *
+ * - `ndjson` → one JSON object per line (native Ollama streaming).
+ * - `sse`    → Server-Sent Events; each event's `data` field is parsed as
+ *             JSON. Heartbeat/comment-only events and events whose `data`
+ *             is the literal `[DONE]` sentinel are skipped (the OpenAI
+ *             compatibility layer uses that sentinel to terminate streams).
+ * - `json`   → not a streaming mode; callers should never reach this branch
+ *             for a non-streaming operation. We throw defensively so a
+ *             future operation that mis-declares its transport surfaces
+ *             loudly instead of silently degrading.
+ */
+function parseStreamByMode<T>(
+  mode: TransportMode,
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<T, void, undefined> {
+  if (mode === 'ndjson') {
+    return parseNdjsonStream<T>(body);
+  }
+  if (mode === 'sse') {
+    return parseSseStreamAsJson<T>(body);
+  }
+  throw new OllamaGenericClientError(
+    `Transport mode "${mode}" is not a streaming mode; cannot parse a stream for it.`,
+  );
+}
+
+/**
+ * Adapter that yields the JSON-decoded payload of each SSE `data` field.
+ *
+ * The hand-written OpenAI/Anthropic compatibility clients
+ * (`src/integrations/{openai,anthropic}.ts`) consume raw `SseEvent`s and
+ * apply provider-specific event-shape logic (tool-call accumulation,
+ * reasoning deltas, etc.). The generated compatibility API surface is
+ * intentionally shape-agnostic: it yields the raw JSON payload of each
+ * event, leaving provider-specific interpretation to the caller. Consumers
+ * who want the richer aggregated streaming experience should use
+ * `client.openai` / `client.anthropic` instead of the generated API class.
+ */
+async function* parseSseStreamAsJson<T>(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<T, void, undefined> {
+  for await (const event of parseSseStream(body)) {
+    const data = event.data;
+    if (!data) continue;
+    // OpenAI's stream terminator sentinel — yield nothing; the generator
+    // simply completes on the next iteration.
+    if (data === '[DONE]') return;
+    try {
+      yield JSON.parse(data) as T;
+    } catch (err) {
+      throw new OllamaGenericClientError(
+        `Failed to parse SSE event data as JSON: ${data}`,
+        { cause: err },
+      );
+    }
   }
 }
