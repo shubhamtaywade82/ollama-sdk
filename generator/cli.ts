@@ -26,6 +26,7 @@ import { emitModels } from './emitters/typescript/models.js';
 import { emitZodSchemas } from './emitters/typescript/zod.js';
 import { emitApi } from './emitters/typescript/api.js';
 import { emitOperations } from './emitters/typescript/operations.js';
+import { emitSchemaRegistry } from './emitters/typescript/schema-registry.js';
 import { emitMetadata } from './emitters/metadata/metadata.js';
 import { emitMcpTools } from './emitters/mcp/tools.js';
 import { detectTypeDrift, formatDriftReport } from './emitters/typescript/drift-detector.js';
@@ -142,6 +143,11 @@ function cmdGenerate(): void {
   const opsFiles = [
     emitOperations('src/generated/api', contract.operations),
   ];
+  // Wave 12 (P1 #6): generate the runtime schema-registry from the IR
+  // rather than hand-maintaining it. Every operation whose IR entry
+  // carries a request.$ref gets an entry; the runtime consults this
+  // map when `validateRequests: true` is set.
+  const schemaRegistryFile = emitSchemaRegistry('src/generated/runtime', contract.operations);
   const metadataFile = emitMetadata('src/generated/metadata', contract.operations);
   const mcpToolsFile = emitMcpTools('src/generated/mcp', contract.operations, contract.schemas);
 
@@ -150,6 +156,7 @@ function cmdGenerate(): void {
     ...zodSchemaFiles,
     ...apiFiles,
     ...opsFiles,
+    schemaRegistryFile,
     metadataFile,
     mcpToolsFile,
   ];
