@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Interactive MCP elicitation and task handling.** The stdio and HTTP connectors now support host-managed form/URL elicitation and configurable manual or automatic `input_required` handling. The bridge preserves task responses and exposes explicit task status, result, and cancellation methods without starting background polling.
+- **Consolidated live Ollama tour.** Added `npm run lab:live` to exercise the built public SDK against a local Ollama server, with real-time request/stream logs, JSONL results, and opt-in cloud/vision checks.
 - **Runtime Zod validation (Wave 10).** `OllamaRuntime` now accepts a `validateRequests: true` option. When enabled, every request body is validated against the operation's generated Zod schema BEFORE any HTTP request is made. Malformed requests throw `OllamaRequestValidationError` (a new `OllamaClientError` subclass) with the Zod issues attached. Unknown fields are stripped (Zod's default behavior), so callers can't accidentally send extra fields the contract doesn't allow. Opt-in — zero overhead when disabled (the default). See [ADR 0020](./docs/adr/0020-runtime-zod-validation.md).
 
 ## [1.4.1] - 2026-10-01
