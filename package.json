@@ -187,6 +187,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
+    "lab:live": "npm run build && tsx lab/live-tour.ts",
     "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity"
   },
   "peerDependencies": {

@@ -3,7 +3,8 @@ import { McpBridge } from '../src/mcp/bridge.js';
 import { loadMcpTools } from '../src/mcp/mcp-tools.js';
 import { ToolRegistry } from '../src/tools/registry.js';
 import { OllamaToolValidationError } from '../src/errors.js';
-import type { McpClientLike } from '../src/mcp/types.js';
+import { z } from 'zod';
+import type { McpClientLike, McpRequestOptions, McpTaskRequest } from '../src/mcp/types.js';
 
 describe('MCP bridge parity', () => {
   it('discovers all paginated tools and preserves MCP JSON Schema', async () => {
@@ -224,6 +225,155 @@ describe('MCP bridge parity', () => {
     await expect(tools[0]!.execute({}, {})).resolves.toContain('legacy');
   });
 
+  it('returns manual input_required responses without treating them as tool output', async () => {
+    const response = {
+      resultType: 'input_required' as const,
+      inputRequests: {
+        details: {
+          method: 'elicitation/create',
+          params: { mode: 'form', message: 'Provide a label', requestedSchema: { type: 'object' } },
+        },
+      },
+      requestState: 'opaque-state',
+    };
+    const callTool = vi.fn().mockResolvedValue(response);
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{
+          name: 'lookup',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: { type: 'object', required: ['result'] },
+        }],
+      }),
+      callTool,
+    };
+
+    const tools = await loadMcpTools(client, { resultMode: 'structured' });
+    await expect(tools[0]!.execute({}, {})).resolves.toEqual(response);
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'lookup', arguments: {} },
+      { allowInputRequired: true },
+    );
+  });
+
+  it('invokes required task-capable tools as tasks and returns task status', async () => {
+    const taskResponse = {
+      task: {
+        taskId: 'task-1',
+        status: 'input_required' as const,
+        createdAt: '2026-10-01T00:00:00Z',
+        lastUpdatedAt: '2026-10-01T00:00:00Z',
+      },
+    };
+    const callTool = vi.fn().mockResolvedValue(taskResponse);
+    const client: McpClientLike = {
+      getServerCapabilities: () => ({ tasks: { requests: { tools: { call: {} } } } }),
+      listTools: async () => ({
+        tools: [{
+          name: 'long_operation',
+          inputSchema: { type: 'object', properties: {} },
+          execution: { taskSupport: 'required' },
+        }],
+      }),
+      callTool,
+    };
+
+    const tools = await loadMcpTools(client, { resultMode: 'structured', taskTtlMs: 30_000 });
+    await expect(tools[0]!.execute({}, {})).resolves.toEqual(taskResponse);
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'long_operation', arguments: {}, task: { ttl: 30_000 } },
+      { allowInputRequired: true },
+    );
+  });
+
+  it('rejects required task tools when the server has not advertised task calls', async () => {
+    const client: McpClientLike = {
+      getServerCapabilities: () => ({}),
+      listTools: async () => ({
+        tools: [{
+          name: 'long_operation',
+          execution: { taskSupport: 'required' },
+        }],
+      }),
+      callTool: vi.fn(),
+    };
+
+    await expect(loadMcpTools(client)).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'callTool',
+      toolName: 'long_operation',
+    });
+    expect(client.callTool).not.toHaveBeenCalled();
+  });
+
+  it('uses task execution for optional task-capable tools only when opted in', async () => {
+    const callTool = vi.fn().mockResolvedValue({
+      task: {
+        taskId: 'task-optional',
+        status: 'working',
+        createdAt: '2026-10-01T00:00:00Z',
+        lastUpdatedAt: '2026-10-01T00:00:00Z',
+      },
+    });
+    const client: McpClientLike = {
+      getServerCapabilities: () => ({ tasks: { requests: { tools: { call: {} } } } }),
+      listTools: async () => ({
+        tools: [{
+          name: 'long_operation',
+          execution: { taskSupport: 'optional' },
+        }],
+      }),
+      callTool,
+    };
+
+    const tools = await loadMcpTools(client, { taskMode: 'all-supported' });
+    await tools[0]!.execute({}, {});
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'long_operation', arguments: {}, task: {} },
+      { allowInputRequired: true },
+    );
+  });
+
+  it('exposes explicit task status, result, and cancellation operations', async () => {
+    const request = vi.fn(async <T>(
+      taskRequest: McpTaskRequest,
+      resultSchema: z.ZodType<T>,
+      _options?: McpRequestOptions,
+    ) => {
+      const response = taskRequest.method === 'tasks/result'
+        ? { content: [{ type: 'text', text: 'done' }] }
+        : {
+            taskId: taskRequest.params.taskId,
+            status: taskRequest.method === 'tasks/cancel' ? 'cancelled' : 'completed',
+            createdAt: '2026-10-01T00:00:00Z',
+            lastUpdatedAt: '2026-10-01T00:01:00Z',
+          };
+      return resultSchema.parse(response);
+    });
+    const bridge = new McpBridge({
+      listTools: async () => ({ tools: [] }),
+      callTool: vi.fn(),
+      request,
+    });
+
+    await expect(bridge.getTaskStatus('task-1')).resolves.toMatchObject({
+      taskId: 'task-1',
+      status: 'completed',
+    });
+    await expect(bridge.getTaskResult('task-1')).resolves.toMatchObject({
+      content: [{ text: 'done' }],
+    });
+    await expect(bridge.cancelTask('task-1')).resolves.toMatchObject({
+      taskId: 'task-1',
+      status: 'cancelled',
+    });
+    expect(request.mock.calls.map(([taskRequest]) => taskRequest.method)).toEqual([
+      'tasks/get',
+      'tasks/result',
+      'tasks/cancel',
+    ]);
+  });
+
   it('refreshes MCP tools into an existing registry', async () => {
     const client: McpClientLike = {
       listTools: vi.fn()
@@ -307,7 +457,7 @@ describe('MCP bridge safety and cancellation', () => {
     expect(listTools).toHaveBeenCalledWith(undefined, { signal: controller.signal });
     expect(callTool).toHaveBeenCalledWith(
       { name: 'echo', arguments: {} },
-      { signal: controller.signal },
+      { signal: controller.signal, allowInputRequired: true },
     );
   });
 

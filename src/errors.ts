@@ -287,13 +287,25 @@ export class OllamaAgentMaxIterationsError extends OllamaClientError {
 }
 
 export class OllamaMcpError extends OllamaClientError {
-  readonly mcpMethod: 'listTools' | 'callTool' | 'tools/call';
+  readonly mcpMethod:
+    | 'listTools'
+    | 'callTool'
+    | 'tools/call'
+    | 'tasks/get'
+    | 'tasks/result'
+    | 'tasks/cancel';
   readonly toolName?: string | undefined;
   readonly issues?: unknown;
   constructor(
     message: string,
     options: Omit<OllamaClientErrorOptions, 'code'> & {
-      mcpMethod: 'listTools' | 'callTool' | 'tools/call';
+      mcpMethod:
+        | 'listTools'
+        | 'callTool'
+        | 'tools/call'
+        | 'tasks/get'
+        | 'tasks/result'
+        | 'tasks/cancel';
       toolName?: string | undefined;
       issues?: unknown;
     },

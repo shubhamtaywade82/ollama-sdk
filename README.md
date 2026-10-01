@@ -73,6 +73,8 @@ The SDK exposes a transport-neutral `McpBridge` that converts MCP `tools/list` d
 - MCP JSON Schema is preserved in the generated Ollama tool definition.
 - `structuredContent` and non-text MCP content blocks are retained in the model-visible tool result.
 - MCP `isError: true` results remain model-readable; they are not treated as transport failures.
+- Manual `input_required` responses and legacy task creation/status results are preserved without silently polling.
+- Tools declaring `execution.taskSupport: "required"` are invoked as tasks only when the server advertises task calls; optional task use is opt-in.
 
 `loadMcpTools()` keeps the historical model-oriented string result by default. Set `resultMode: 'structured'` when application code needs the raw MCP `CallToolResult`, including `structuredContent`, content blocks, `isError`, and `_meta`:
 
@@ -112,6 +114,35 @@ const result = await agent.run({
 await connection.close();
 console.log(result.finalMessage.content);
 ```
+
+The stdio and HTTP connectors accept host-provided elicitation handlers. The requested modes are declared as client capabilities before connection, and the host retains control over user interaction. Form handlers should display and validate the requested fields; URL handlers should show the destination and obtain consent before accepting or opening it. No URL is opened automatically:
+
+```typescript
+const connection = await connectStdioMcpClient(
+  { command: 'npx', args: ['-y', '@modelcontextprotocol/server-example'] },
+  {
+    elicitation: {
+      form: async (request) => collectAndValidateForm(request),
+      url: async (request) => {
+        const approved = await askUserToOpen(request.url, request.message);
+        return { action: approved ? 'accept' : 'decline' };
+      },
+    },
+    inputRequiredMode: 'manual',
+  },
+);
+```
+
+`inputRequiredMode` defaults to `manual` on these connectors. The bridge forwards `input_required` results unchanged (use `resultMode: 'structured'` for raw values), including their opaque `requestState` and keyed `inputRequests`; it does not solicit data or retry the tool call itself. Set `inputRequiredMode: 'automatic'` to let the MCP client use the registered elicitation handlers and retry internally. In manual mode, the host can gather responses and retry with the same `requestState`:
+
+```typescript
+await connection.client.callTool(
+  { name, arguments: args, inputResponses, requestState },
+  { allowInputRequired: true },
+);
+```
+
+For legacy task-capable servers, required task tools are invoked using task augmentation. Optional task-capable tools remain synchronous unless `taskMode: 'all-supported'` is set. Set `taskTtlMs` to request a task lifetime. Task creation and `input_required` task statuses are preserved (serialized as JSON in text mode); no polling starts automatically. The host controls progress with `bridge.getTaskStatus(taskId)`, retrieves a completed payload with `bridge.getTaskResult(taskId)`, and can stop work with `bridge.cancelTask(taskId)`.
 
 Use `connection.terminateSession()` when the remote Streamable HTTP server exposes a session you want to terminate explicitly. Legacy SSE connections do not expose that method.
 

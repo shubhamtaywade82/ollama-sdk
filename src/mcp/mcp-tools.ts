@@ -8,10 +8,10 @@ import { OllamaMcpError } from '../errors.js';
 import type { AnyTool } from '../tools/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type {
-  McpCallToolResult,
   McpClientLike,
   McpListToolsParams,
   McpRequestOptions,
+  McpToolCallResult,
   McpToolDescriptor,
 } from './types.js';
 import type { ToolDefinition, ToolProperty } from '../types.js';
@@ -29,6 +29,10 @@ export interface LoadMcpToolsOptions {
   readonly resultMode?: McpToolResultMode | undefined;
   /** Validate structuredContent against a tool's MCP outputSchema. Defaults to true. */
   readonly validateOutputSchema?: boolean | undefined;
+  /** Invoke optional task-capable tools as legacy MCP tasks when supported. */
+  readonly taskMode?: 'required-only' | 'all-supported' | undefined;
+  /** Requested lifetime for legacy task-augmented tool calls, in milliseconds. */
+  readonly taskTtlMs?: number | undefined;
 }
 
 function resolveMaxPages(options: LoadMcpToolsOptions): number {
@@ -86,7 +90,11 @@ export async function listAllMcpTools(
   throw new Error('MCP tools/list exceeded maxPages (' + maxPages + ')');
 }
 
-function formatMcpToolResult(result: McpCallToolResult): string {
+function formatMcpToolResult(result: McpToolCallResult): string {
+  if ('resultType' in result || 'task' in result) {
+    return JSON.stringify(result) ?? String(result);
+  }
+
   const parts = result.content.map((block) => {
     if (block.type === 'text' && typeof block.text === 'string') {
       return block.text;
@@ -113,6 +121,26 @@ function formatMcpToolResult(result: McpCallToolResult): string {
   return parts.join('\n');
 }
 
+function supportsTaskCalls(mcpClient: McpClientLike): boolean {
+  return mcpClient.getServerCapabilities?.()?.tasks?.requests?.tools?.call !== undefined;
+}
+
+function shouldCallAsTask(
+  descriptor: McpToolDescriptor,
+  options: LoadMcpToolsOptions,
+  serverSupportsTasks: boolean,
+): boolean {
+  const support = descriptor.execution?.taskSupport;
+  if (support === 'required' && !serverSupportsTasks) {
+    throw new OllamaMcpError(
+      `MCP tool "${descriptor.name}" requires task execution, but the server does not advertise tasks.requests.tools.call`,
+      { mcpMethod: 'callTool', toolName: descriptor.name },
+    );
+  }
+  if (!serverSupportsTasks || support === undefined || support === 'forbidden') return false;
+  return support === 'required' || options.taskMode === 'all-supported';
+}
+
 function createInputValidator(inputSchema: Record<string, unknown>): z.ZodType<Record<string, unknown>> {
   return z.custom<Record<string, unknown>>().superRefine((value, ctx) => {
     const issues = validateJsonSchema(value, inputSchema);
@@ -132,6 +160,8 @@ function convertMcpDescriptorToTool(
   namePrefix = '',
   resultMode: McpToolResultMode = 'text',
   validateOutputSchema = true,
+  executeAsTask = false,
+  taskTtlMs?: number,
 ): AnyTool {
   const toolName = `${namePrefix}${descriptor.name}`;
   const inputSchema = descriptor.inputSchema ?? { type: 'object', properties: {} };
@@ -154,11 +184,19 @@ function convertMcpDescriptorToTool(
           {
             name: descriptor.name,
             arguments: args,
+            ...(executeAsTask
+              ? { task: taskTtlMs !== undefined ? { ttl: taskTtlMs } : {} }
+              : {}),
           },
-          context.signal !== undefined ? { signal: context.signal } : undefined,
+          {
+            ...(context.signal !== undefined ? { signal: context.signal } : {}),
+            allowInputRequired: true,
+          },
         );
 
         if (
+          !('resultType' in result) &&
+          !('task' in result) &&
           validateOutputSchema &&
           descriptor.outputSchema !== undefined &&
           result.structuredContent !== undefined
@@ -205,15 +243,32 @@ export async function loadMcpTools(
   signal?: AbortSignal,
 ): Promise<AnyTool[]> {
   try {
+    if (
+      options.taskTtlMs !== undefined &&
+      (!Number.isFinite(options.taskTtlMs) || options.taskTtlMs <= 0)
+    ) {
+      throw new RangeError('MCP taskTtlMs must be a positive finite number');
+    }
     const tools = await listAllMcpTools(mcpClient, options, signal);
-    return tools.map((t) => convertMcpDescriptorToTool(
-      t,
-      mcpClient,
-      options.namePrefix,
-      options.resultMode,
-      options.validateOutputSchema ?? true,
-    ));
+    const serverSupportsTasks = supportsTaskCalls(mcpClient);
+    return tools.map((tool) => {
+      const taskCall = shouldCallAsTask(
+        tool,
+        options,
+        serverSupportsTasks,
+      );
+      return convertMcpDescriptorToTool(
+        tool,
+        mcpClient,
+        options.namePrefix,
+        options.resultMode,
+        options.validateOutputSchema ?? true,
+        taskCall,
+        options.taskTtlMs,
+      );
+    });
   } catch (err) {
+    if (err instanceof OllamaMcpError) throw err;
     throw new OllamaMcpError('Failed listing MCP tools from client', {
       mcpMethod: 'listTools',
       cause: err,

@@ -7,7 +7,8 @@
  * Install @modelcontextprotocol/client separately when using this adapter.
  */
 
-import type { McpClientLike } from './types.js';
+import { registerElicitationHandlers, type McpClientRequestHandler } from './client-options.js';
+import type { McpClientLike, McpElicitationHandlers } from './types.js';
 
 const MCP_CLIENT_PACKAGE = '@modelcontextprotocol/client';
 const MCP_STDIO_PACKAGE = '@modelcontextprotocol/client/stdio';
@@ -24,6 +25,9 @@ export interface StdioMcpServerParameters {
 export interface StdioMcpClientOptions {
   readonly name?: string | undefined;
   readonly version?: string | undefined;
+  readonly elicitation?: McpElicitationHandlers | undefined;
+  /** Defaults to manual so input_required responses are returned to the caller. */
+  readonly inputRequiredMode?: 'manual' | 'automatic' | undefined;
 }
 
 export interface StdioMcpConnection {
@@ -32,12 +36,15 @@ export interface StdioMcpConnection {
 }
 
 interface DynamicMcpClientModule {
-  readonly Client: new (metadata: { name: string; version: string }) => {
+  readonly Client: new (
+    metadata: { name: string; version: string },
+    options?: { readonly inputRequired?: { readonly autoFulfill: boolean } },
+  ) => {
     connect: (transport: unknown) => Promise<void>;
     close: () => Promise<void>;
     listTools: McpClientLike['listTools'];
     callTool: McpClientLike['callTool'];
-  };
+  } & McpClientRequestHandler;
 }
 
 interface DynamicMcpStdioModule {
@@ -79,10 +86,14 @@ export async function connectStdioMcpClient(
   }
 
   const { clientModule, stdioModule } = await loadStdioModules();
-  const client = new clientModule.Client({
-    name: options.name ?? '@nemesis-oss/ollama-sdk',
-    version: options.version ?? '1.0.0',
-  });
+  const client = new clientModule.Client(
+    {
+      name: options.name ?? '@nemesis-oss/ollama-sdk',
+      version: options.version ?? '1.0.0',
+    },
+    { inputRequired: { autoFulfill: options.inputRequiredMode === 'automatic' } },
+  );
+  registerElicitationHandlers(client, options.elicitation);
   const transport = new stdioModule.StdioClientTransport({
     command: server.command,
     ...(server.args !== undefined ? { args: [...server.args] } : {}),
