@@ -392,10 +392,9 @@ async function* parseSseStreamAsJson<T>(
     try {
       yield JSON.parse(data) as T;
     } catch (err) {
-      throw new OllamaGenericClientError(
-        `Failed to parse SSE event data as JSON: ${data}`,
-        { cause: err },
-      );
+      throw new OllamaGenericClientError(`Failed to parse SSE event data as JSON: ${data}`, {
+        cause: err,
+      });
     }
   }
 }

@@ -7,6 +7,11 @@
 
 import type { OllamaRuntime } from '../runtime/runtime.js';
 // No model types referenced.
+import type {
+  AnthropicMessageStreamEvent,
+  AnthropicMessagesRequest,
+  AnthropicMessagesResponse,
+} from '../../integrations/index.js';
 import { anthropicMessagesOp } from './operations.js';
 
 /**
@@ -16,13 +21,17 @@ import { anthropicMessagesOp } from './operations.js';
 export class AnthropicApi {
   constructor(private readonly runtime: OllamaRuntime) {}
 
-  anthropicMessages(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
   anthropicMessages(
-    request: Record<string, unknown> & { stream: true },
-  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+    request: AnthropicMessagesRequest & { stream?: false },
+  ): Promise<AnthropicMessagesResponse>;
   anthropicMessages(
-    request: Record<string, unknown>,
-  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+    request: AnthropicMessagesRequest & { stream: true },
+  ): Promise<AsyncGenerator<AnthropicMessageStreamEvent, void, undefined>>;
+  anthropicMessages(
+    request: AnthropicMessagesRequest,
+  ): Promise<
+    AnthropicMessagesResponse | AsyncGenerator<AnthropicMessageStreamEvent, void, undefined>
+  > {
     return this.runtime.invoke({
       operation: anthropicMessagesOp,
       body: request,
