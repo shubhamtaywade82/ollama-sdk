@@ -7,12 +7,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "prompt": {
+          "digest": {
             "type": "string",
-            "description": "Input for blobs"
+            "description": "Path parameter: digest"
           }
         },
-        "additionalProperties": true
+        "required": ["digest"],
+        "additionalProperties": false,
+        "description": "HEAD /api/blobs/{digest} — path parameters."
       },
       "annotations": {
         "title": "blobs (Ollama)",
@@ -678,13 +680,9 @@
       "description": "Ollama GET /api/ps (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for ps"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/ps takes no request body."
       },
       "annotations": {
         "title": "ps (Ollama)",
@@ -878,13 +876,9 @@
       "description": "Ollama GET /api/tags (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for tags"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/tags takes no request body."
       },
       "annotations": {
         "title": "tags (Ollama)",
@@ -900,13 +894,9 @@
       "description": "Ollama GET /api/version (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for version"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/version takes no request body."
       },
       "annotations": {
         "title": "version (Ollama)",
@@ -922,13 +912,9 @@
       "description": "Ollama POST /v1/chat/completions (openai domain)\n\n- Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiChatCompletions"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/chat/completions takes no request body."
       },
       "annotations": {
         "title": "openaiChatCompletions (Ollama)",
@@ -944,13 +930,9 @@
       "description": "Ollama POST /v1/completions (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiCompletions"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/completions takes no request body."
       },
       "annotations": {
         "title": "openaiCompletions (Ollama)",
@@ -966,13 +948,9 @@
       "description": "Ollama POST /v1/embeddings (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiEmbeddings"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/embeddings takes no request body."
       },
       "annotations": {
         "title": "openaiEmbeddings (Ollama)",
@@ -988,13 +966,9 @@
       "description": "Ollama GET /v1/models (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiModels"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /v1/models takes no request body."
       },
       "annotations": {
         "title": "openaiModels (Ollama)",
@@ -1011,12 +985,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "prompt": {
+          "model": {
             "type": "string",
-            "description": "Input for openaiModelsGetOne"
+            "description": "Path parameter: model"
           }
         },
-        "additionalProperties": true
+        "required": ["model"],
+        "additionalProperties": false,
+        "description": "GET /v1/models/{model} — path parameters."
       },
       "annotations": {
         "title": "openaiModelsGetOne (Ollama)",
@@ -1032,13 +1008,9 @@
       "description": "Ollama POST /v1/responses (openai domain)\n\n- Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiResponses"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/responses takes no request body."
       },
       "annotations": {
         "title": "openaiResponses (Ollama)",
@@ -1054,13 +1026,9 @@
       "description": "Ollama POST /v1/messages (anthropic domain)\n\n- tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.\n- Nested cache_control fields under messages[].content[].cache_control are unsupported.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for anthropicMessages"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/messages takes no request body."
       },
       "annotations": {
         "title": "anthropicMessages (Ollama)",
