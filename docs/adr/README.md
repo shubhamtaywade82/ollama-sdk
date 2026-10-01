@@ -29,11 +29,13 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0018](./0018-runtime-unification.md)                       | Runtime Unification — OllamaClient → OllamaRuntime Bridge (Wave 8) |
 | [0019](./0019-zod-schema-generation.md)                     | Zod Schema Generation (Wave 9)                                     |
 | [0020](./0020-runtime-zod-validation.md)                    | Runtime Zod Validation Wiring (Wave 10)                            |
+| [0021](./0021-conformance-testing.md)                       | Conformance Testing Against a Real Ollama Server (Wave 11)         |
 
-ADRs 0013-0020 form a connected series documenting the contract-first hybrid
+ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives
 TypeScript types, generated API classes, MCP tool descriptors, operation
-metadata, field-level parity, Zod schemas, and runtime validation. ADR 0010 (the legacy
+metadata, field-level parity, Zod schemas, runtime validation, and
+conformance testing against a real Ollama server. ADR 0010 (the legacy
 compatibility contract) was retired by ADR 0017 but is preserved for
 historical context.
 
