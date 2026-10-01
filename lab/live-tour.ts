@@ -370,8 +370,8 @@ async function main(): Promise<void> {
   });
 
   const StructuredReply = z.object({
-    summary: z.string(),
-    points: z.array(z.string()).min(2).max(3),
+    summary: z.string().max(120),
+    points: z.array(z.string().max(100)).length(2),
   });
   await runStep('Zod-validated structured chat output', 'POST /api/chat (format=JSON Schema)', () =>
     client.chatWithSchema(
@@ -380,10 +380,11 @@ async function main(): Promise<void> {
         messages: [
           {
             role: 'user',
-            content: 'Return a short summary and exactly two points about local language models.',
+            content:
+              'Return JSON with a summary under 12 words and exactly two brief points, each under 10 words, about local language models.',
           },
         ],
-        options: { temperature: 0, num_predict: 100 },
+        options: { temperature: 0, num_predict: 256 },
       },
       StructuredReply,
     ),
@@ -396,8 +397,9 @@ async function main(): Promise<void> {
       client.generateWithSchema(
         {
           model: activeModel,
-          prompt: 'Return a short summary and exactly two points about streaming APIs.',
-          options: { temperature: 0, num_predict: 100 },
+          prompt:
+            'Return JSON with a summary under 12 words and exactly two brief points, each under 10 words, about streaming APIs.',
+          options: { temperature: 0, num_predict: 256 },
         },
         StructuredReply,
       ),
