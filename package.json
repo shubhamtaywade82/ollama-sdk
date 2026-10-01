@@ -172,6 +172,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:conformance": "vitest run test/conformance/",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
     "verify:contract-parity": "tsx scripts/verify-contract-parity.ts",
     "contract:fetch": "tsx scripts/fetch-contract.ts",
