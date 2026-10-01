@@ -5,5 +5,5 @@
 import { z } from 'zod';
 
 export const StatusResponseSchema = z.object({
-  "status": z.string().optional(),
+  status: z.string().optional(),
 });

@@ -9,15 +9,14 @@ import { ThinkValueSchema } from './ThinkValue.schema.js';
 import { ToolDefinitionSchema } from './ToolDefinition.schema.js';
 
 export const ChatRequestSchema = z.object({
-  "model": z.string(),
-  "messages": z.array(ChatMessageSchema),
-  "tools": z.array(ToolDefinitionSchema).optional(),
-  "format": z.union([z.enum(["json"]), z.object({
-})]).optional(),
-  "options": ModelOptionsSchema.optional(),
-  "stream": z.boolean().optional(),
-  "think": ThinkValueSchema.optional(),
-  "keep_alive": z.union([z.string(), z.number()]).optional(),
-  "logprobs": z.boolean().optional(),
-  "top_logprobs": z.number().optional(),
+  model: z.string(),
+  messages: z.array(ChatMessageSchema),
+  tools: z.array(ToolDefinitionSchema).optional(),
+  format: z.union([z.enum(['json']), z.object({})]).optional(),
+  options: ModelOptionsSchema.optional(),
+  stream: z.boolean().optional(),
+  think: ThinkValueSchema.optional(),
+  keep_alive: z.union([z.string(), z.number()]).optional(),
+  logprobs: z.boolean().optional(),
+  top_logprobs: z.number().optional(),
 });

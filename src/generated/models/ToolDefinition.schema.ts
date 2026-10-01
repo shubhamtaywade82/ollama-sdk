@@ -5,11 +5,10 @@
 import { z } from 'zod';
 
 export const ToolDefinitionSchema = z.object({
-  "type": z.enum(["function"]),
-  "function": z.object({
-  "name": z.string(),
-  "description": z.string().optional(),
-  "parameters": z.object({
-}),
-}),
+  type: z.enum(['function']),
+  function: z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    parameters: z.object({}),
+  }),
 });

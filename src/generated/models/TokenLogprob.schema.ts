@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 /** Log probability information for a single token alternative */
 export const TokenLogprobSchema = z.object({
-  "token": z.string().optional(),
-  "logprob": z.number().optional(),
-  "bytes": z.array(z.number()).optional(),
+  token: z.string().optional(),
+  logprob: z.number().optional(),
+  bytes: z.array(z.number()).optional(),
 });

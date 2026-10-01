@@ -6,14 +6,16 @@ import { z } from 'zod';
 import { ToolCallSchema } from './ToolCall.schema.js';
 
 export const ChatStreamEventSchema = z.object({
-  "model": z.string().optional(),
-  "created_at": z.string().optional(),
-  "message": z.object({
-  "role": z.string().optional(),
-  "content": z.string().optional(),
-  "thinking": z.string().optional(),
-  "tool_calls": z.array(ToolCallSchema).optional(),
-  "images": z.array(z.string()).optional(),
-}).optional(),
-  "done": z.boolean().optional(),
+  model: z.string().optional(),
+  created_at: z.string().optional(),
+  message: z
+    .object({
+      role: z.string().optional(),
+      content: z.string().optional(),
+      thinking: z.string().optional(),
+      tool_calls: z.array(ToolCallSchema).optional(),
+      images: z.array(z.string()).optional(),
+    })
+    .optional(),
+  done: z.boolean().optional(),
 });

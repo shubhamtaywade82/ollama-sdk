@@ -6,6 +6,6 @@ import { z } from 'zod';
 
 /** Thinking controls advertised by a model. Models without thinking metadata omit this field. */
 export const ThinkingSchema = z.object({
-  "values": z.array(z.union([z.boolean(), z.string()])),
-  "default": z.union([z.boolean(), z.string()]),
+  values: z.array(z.union([z.boolean(), z.string()])),
+  default: z.union([z.boolean(), z.string()]),
 });

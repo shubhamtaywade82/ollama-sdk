@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 export const WebSearchResultSchema = z.object({
-  "title": z.string().optional(),
-  "url": z.string().optional(),
-  "content": z.string().optional(),
+  title: z.string().optional(),
+  url: z.string().optional(),
+  content: z.string().optional(),
 });

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 
 export const WebFetchResponseSchema = z.object({
-  "title": z.string().optional(),
-  "content": z.string().optional(),
-  "links": z.array(z.string()).optional(),
+  title: z.string().optional(),
+  content: z.string().optional(),
+  links: z.array(z.string()).optional(),
 });

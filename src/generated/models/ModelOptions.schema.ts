@@ -5,14 +5,15 @@
 import { z } from 'zod';
 
 /** Runtime options that control text generation */
-export const ModelOptionsSchema = z.object({
-  "seed": z.number().optional(),
-  "temperature": z.number().optional(),
-  "top_k": z.number().optional(),
-  "top_p": z.number().optional(),
-  "min_p": z.number().optional(),
-  "stop": z.union([z.string(), z.array(z.string())]).optional(),
-  "num_ctx": z.number().optional(),
-  "num_predict": z.number().optional(),
-})
-.catchall(z.unknown());
+export const ModelOptionsSchema = z
+  .object({
+    seed: z.number().optional(),
+    temperature: z.number().optional(),
+    top_k: z.number().optional(),
+    top_p: z.number().optional(),
+    min_p: z.number().optional(),
+    stop: z.union([z.string(), z.array(z.string())]).optional(),
+    num_ctx: z.number().optional(),
+    num_predict: z.number().optional(),
+  })
+  .catchall(z.unknown());
