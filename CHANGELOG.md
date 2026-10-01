@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Runtime Zod validation (Wave 10).** `OllamaRuntime` now accepts a `validateRequests: true` option. When enabled, every request body is validated against the operation's generated Zod schema BEFORE any HTTP request is made. Malformed requests throw `OllamaRequestValidationError` (a new `OllamaClientError` subclass) with the Zod issues attached. Unknown fields are stripped (Zod's default behavior), so callers can't accidentally send extra fields the contract doesn't allow. Opt-in — zero overhead when disabled (the default). See [ADR 0020](./docs/adr/0020-runtime-zod-validation.md).
+
+## [1.4.1] - 2026-10-01
+
+- **`noImplicitOverride` + exhaustive switch defaults.** Enabled `noImplicitOverride: true` in `tsconfig.json` so any future class method override must be explicitly marked with `override`. Added exhaustive `never` defaults to the 2 emitter switches over `JsonSchemaNode.type` — if the OpenAPI spec adds a new schema type, the build fails until the emitter is updated. See [ADR 0014](./docs/adr/0014-generated-surface-and-runtime-seam.md).
+- **`using` declarations for resource cleanup (TS 5.2+).** Replaced 6 `try/finally` cleanup blocks (timers, stream readers, OpenTelemetry spans, timeout signals) with `using` / `await using` declarations via 3 new `Disposable` helpers in `src/utils.ts` (`disposableTimer`, `disposableReader`, `disposableSpan`). Eliminates the "forgot to clean up in the finally block" bug class — cleanup is now structurally guaranteed by the scope. 8 stateful `try/finally` blocks are intentionally NOT converted (correctly stateful). See [ADR 0014](./docs/adr/0014-generated-surface-and-runtime-seam.md).
+
+## [1.4.0] - 2026-10-01
+
 - **Contract-first hybrid architecture (Waves 1-9).** The SDK now ships a single canonical IR at `contracts/ir/ollama.ir.json` (compiled from `contracts/sources/` + `contracts/overlays/`) that drives seven consumers: TypeScript interfaces, generated API classes, MCP tool descriptors, operation metadata, field-level parity, Zod schemas, and bidirectional endpoint discovery. Adding a new Ollama operation now requires writing one overlay block; everything else is generated. See [ADRs 0013-0019](./docs/adr/README.md) for the full design.
   - **Wave 1** — Contract foundation: sources, overlays, canonical IR, bidirectional endpoint discovery (catches new endpoints like `/v1/systemone` that the OpenAPI spec doesn't yet cover).
   - **Wave 2** — Generated TypeScript interfaces in `src/generated/models/` (36 schemas), with a drift detector comparing against `src/types.ts`.

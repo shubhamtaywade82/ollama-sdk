@@ -23,8 +23,9 @@
  */
 import { HttpClient, type HttpRequestOptions } from '../../transport/http.js';
 import { parseNdjsonStream } from '../../streaming/ndjson.js';
-import { OllamaGenericClientError } from '../../errors.js';
+import { OllamaGenericClientError, OllamaRequestValidationError } from '../../errors.js';
 import type { OperationDefinition, InvokeRequest } from './operation-definition.js';
+import { getRequestSchema } from './schema-registry.js';
 
 /** Constructor options for {@link OllamaRuntime}. */
 export interface OllamaRuntimeOptions {
@@ -41,6 +42,26 @@ export interface OllamaRuntimeOptions {
    * against this value at request time.
    */
   readonly serverVersion?: string;
+  /**
+   * When `true`, the runtime validates every request body against the
+   * generated Zod schema before sending it. Defaults to `false` — opt-in.
+   *
+   * Validation behavior:
+   *   - If the operation has a registered request schema (see
+   *     {@link schema-registry.ts}), the body is parsed via `safeParse`.
+   *   - On parse failure, throws `OllamaRequestValidationError` with the
+   *     Zod issues attached. No HTTP request is made.
+   *   - On parse success, the parsed (and stripped of unknown fields) body
+   *     is sent — this means callers can't accidentally send extra fields
+   *     that the contract doesn't allow.
+   *   - If the operation has NO registered schema (e.g. GET endpoints,
+   *     `/v1/systemone`, OpenAI/Anthropic compat surfaces), validation is
+   *     skipped silently.
+   *
+   * Response validation is intentionally NOT enabled — see ADR 0020 for
+   * the rationale (forward-compat with wire-format extensions).
+   */
+  readonly validateRequests?: boolean;
 }
 
 function compareVersions(a: string, b: string): number {
@@ -132,7 +153,35 @@ export class OllamaRuntime {
    */
   async invoke<T = unknown>(req: InvokeRequest): Promise<T> {
     assertOperationAllowed(req.operation, this.options);
-    const body = buildBody(req);
+    let body = buildBody(req);
+
+    // Wave 10 (ADR 0020): runtime Zod validation. Opt-in via
+    // `validateRequests: true` on the runtime constructor. Throws
+    // `OllamaRequestValidationError` BEFORE any HTTP request is made
+    // when the body fails validation. The validated (and stripped)
+    // body replaces the original so unknown fields can't leak through.
+    if (this.options.validateRequests === true && body !== undefined) {
+      const schema = getRequestSchema(req.operation.operationId);
+      if (schema) {
+        const result = schema.safeParse(body);
+        if (!result.success) {
+          throw new OllamaRequestValidationError(
+            `Request validation failed for operation "${req.operation.operationId}" ` +
+              `(${req.operation.method} ${req.operation.path}): ` +
+              result.error.issues
+                .map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`)
+                .join('; '),
+            {
+              operationId: req.operation.operationId,
+              issues: result.error.issues,
+              request: { method: req.operation.method, url: req.operation.path },
+            },
+          );
+        }
+        body = result.data;
+      }
+    }
+
     const streaming = shouldStream(req);
 
     // The HttpClient expects the narrow method union 'GET' | 'POST' |

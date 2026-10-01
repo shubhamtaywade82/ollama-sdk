@@ -12,3 +12,4 @@ export {
   type InvokeRequest,
   type SchemaRef,
 } from './operation-definition.js';
+export { getRequestSchema, requestSchemas } from './schema-registry.js';

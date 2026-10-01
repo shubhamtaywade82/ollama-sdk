@@ -2,6 +2,8 @@
  * Structured, typed error hierarchy for OllamaClient.
  */
 
+import type { z } from 'zod';
+
 export interface OllamaErrorRequestContext {
   readonly method?: string | undefined;
   readonly url?: string | undefined;
@@ -146,6 +148,30 @@ export class OllamaToolValidationError extends OllamaClientError {
   ) {
     super(message, { ...options, code: 'tool_validation_error', retryable: false });
     this.toolName = options.toolName;
+    this.issues = options.issues;
+  }
+}
+
+/**
+ * Thrown by `OllamaRuntime.invoke` when `validateRequests: true` is set and
+ * the request body fails Zod validation against the operation's registered
+ * schema. See ADR 0020 (runtime Zod validation).
+ *
+ * The error carries the original Zod issues so callers can inspect which
+ * fields failed. No HTTP request is made when this error is thrown.
+ */
+export class OllamaRequestValidationError extends OllamaClientError {
+  readonly operationId: string;
+  readonly issues: readonly z.ZodIssue[];
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code'> & {
+      operationId: string;
+      issues: readonly z.ZodIssue[];
+    },
+  ) {
+    super(message, { ...options, code: 'request_validation_error', retryable: false });
+    this.operationId = options.operationId;
     this.issues = options.issues;
   }
 }

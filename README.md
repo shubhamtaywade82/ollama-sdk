@@ -948,8 +948,9 @@ no method signatures have changed — existing callers continue to work.
 ### Runtime validation with generated Zod schemas
 
 Every TypeScript interface in `src/generated/models/<name>.ts` has a paired Zod schema
-in `src/generated/models/<name>.schema.ts`. Use them for runtime validation of user
-input, server responses, or anywhere you need to confirm a value matches the IR shape:
+in `src/generated/models/<name>.schema.ts`. Two ways to use them:
+
+**Per-call validation** — for one-off checks, import the schema directly:
 
 ```typescript
 import { ChatRequestSchema } from '@nemesis-oss/ollama-sdk/generated/models/schemas';
@@ -961,6 +962,26 @@ if (!result.success) {
   // result.data is typed as ChatRequest
 }
 ```
+
+**Runtime-wide validation** (Wave 10) — opt in once on the runtime constructor
+and every request body is validated automatically before the HTTP call:
+
+```typescript
+import { OllamaRuntime } from '@nemesis-oss/ollama-sdk/generated/runtime';
+
+const runtime = new OllamaRuntime({ http, validateRequests: true });
+// Every chat/generate/embed/create/copy/delete/pull/push/show request
+// is now validated against the IR-derived Zod schema. Malformed requests
+// throw OllamaRequestValidationError BEFORE any network call is made.
+// Unknown fields are stripped (Zod default), so callers can't accidentally
+// send extra fields the contract doesn't allow.
+```
+
+When validation fails, the runtime throws `OllamaRequestValidationError`
+(an `OllamaClientError` subclass with `code: 'request_validation_error'`,
+`retryable: false`) carrying the operation ID and the Zod issues array.
+Zero overhead when `validateRequests` is not set — the default behavior
+is unchanged. See [ADR 0020](./docs/adr/0020-runtime-zod-validation.md).
 
 ### Generated MCP tools
 

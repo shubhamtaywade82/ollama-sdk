@@ -74,6 +74,7 @@ export {
   OllamaServerError,
   OllamaAbortError,
   OllamaToolValidationError,
+  OllamaRequestValidationError,
   OllamaToolTimeoutError,
   OllamaUnsupportedCapabilityError,
   OllamaAgentMaxIterationsError,
