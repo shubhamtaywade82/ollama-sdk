@@ -28,14 +28,16 @@
 
 ---
 
-### API parity verification
+### Contract parity verification
 
-The repository keeps the Ollama compatibility contract in `docs/api-parity.json` and
-checks it against the current official documentation with `npm run verify:api-parity`.
-The manifest distinguishes **supported**, **explicitly unsupported**, and **SDK-only**
-fields, and can also verify documented response fields plus the public streaming-event
-union for compatibility adapters. This prevents a field merely being mentioned in
-upstream documentation from being mistaken for a supported Ollama feature.
+The repository keeps the Ollama compatibility contract in the canonical IR at
+`contracts/ir/ollama.ir.json` (compiled from `contracts/sources/` + `contracts/overlays/`)
+and checks it against the current official documentation with
+`npm run verify:contract-parity`. Each operation's `parity:` block distinguishes
+**supported**, **explicitly unsupported**, and **SDK-only** fields, and also tracks
+documented response fields plus the public streaming-event union for compatibility
+adapters. This prevents a field merely being mentioned in upstream documentation
+from being mistaken for a supported Ollama feature.
 
 For callers who want compile-time enforcement of the documented Ollama subset, the package
 also exports strict request types such as `OllamaOpenAIChatCompletionRequest`,
@@ -910,19 +912,27 @@ observe per-endpoint circuit state directly.
 The repository maintains implementation-facing documentation alongside the package README:
 
 - [Architecture Decision Records](./docs/adr/README.md) — rationale for durable API and architecture choices.
-- [API parity contract](./docs/api-parity.json) — machine-readable Ollama compatibility surface checked by CI.
+- [Canonical Ollama IR](./contracts/ir/ollama.ir.json) — machine-readable Ollama contract compiled from sources + overlays, checked by CI.
 - [Multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md) — running agent roles across multiple Ollama endpoints.
 - [Upstream compatibility notes](./docs/upstream/) — pinned OpenAI/Anthropic compatibility references and the upstream OpenAPI snapshot.
 - [Manual laboratory](./LAB_README.md) — runnable experiments for protocol, tool, streaming, and agent behavior.
 
-## API parity verification
+## Contract parity verification
 
-`npm run verify:api-parity` fetches the official Ollama API Markdown references during CI and
-checks that documented endpoint/request fields remain present in the SDK's TypeScript
-interfaces. The gate covers every currently indexed native REST endpoint (`chat`, `generate`,
-`embed`, `tags`, `ps`, `show`, `create`, `copy`, `pull`, `push`, `delete`, and `version`) plus
-OpenAI and Anthropic compatibility request surfaces. OpenAI Responses vendor extensions that are
-not currently documented by Ollama are deliberately kept outside the documented-field contract.
+`npm run verify:contract-parity` checks the canonical IR against the official Ollama
+documentation. The structural half verifies that every `parity.request.fields` /
+`parity.response.fields` entry exists on the hand-written TypeScript interfaces
+in `src/types.ts` and `src/integrations/*`. The live-docs half (when run without
+`--skip-live-docs`) fetches the rendered docs at `docs.ollama.com` and asserts each
+supported field is documented as supported, each unsupported field is explicitly
+marked as such, and each streaming event type is present.
+
+The gate covers every documented native REST endpoint (`chat`, `generate`, `embed`,
+`tags`, `ps`, `show`, `create`, `copy`, `pull`, `push`, `delete`, and `version`)
+plus the OpenAI and Anthropic compatibility request surfaces. SDK-only fields
+that exist in `src/types.ts` but are absent from the OpenAPI snapshot are declared
+as `sdkOnlyFields` in the overlay parity blocks and treated as expected drift,
+not findings.
 
 ## Middleware and request lifecycle
 
