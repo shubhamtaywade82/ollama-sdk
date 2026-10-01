@@ -135,20 +135,34 @@ describe('contract IR: cross-overlay compatibility', () => {
   });
 });
 
-describe('contract IR: parity bridge to legacy manifest', () => {
-  it('maps every legacy surface id to a contract operation', () => {
+describe('contract IR: parity bridge integrity', () => {
+  it('every parity-bridge entry points at an existing operation', () => {
     const ir = loadCommittedIR();
-    // Sanity check: every legacy surface in docs/api-parity.json must
-    // resolve to a contract operation by its endpoint.
-    const legacy = JSON.parse(
-      readFileSync(resolve(PROJECT_ROOT, 'docs/api-parity.json'), 'utf8'),
-    ) as { surfaces: readonly { id: string; endpoint: string }[] };
-    for (const surface of legacy.surfaces) {
-      const bridge = ir.parityBridge.find((b) => b.legacySurfaceId === surface.id);
-      expect(bridge, `legacy surface ${surface.id} has no bridge entry`).toBeDefined();
-      expect(bridge?.legacyEndpoint).toBe(surface.endpoint);
-      const opExists = ir.operations.some((op) => op.id === bridge?.operationId);
-      expect(opExists, `bridge target operation ${bridge?.operationId} does not exist`).toBe(true);
+    // Wave 7: the legacy docs/api-parity.json manifest has been retired.
+    // The bridge is now an internal-only mapping between legacy surface
+    // ids (carried in the overlays' `parityBridge` blocks) and the new
+    // IR operation ids. We just assert every bridge entry has a valid
+    // target — that's what the old test was really checking.
+    for (const bridge of ir.parityBridge) {
+      const opExists = ir.operations.some((op) => op.id === bridge.operationId);
+      expect(
+        opExists,
+        `bridge entry ${bridge.legacySurfaceId} -> ${bridge.operationId} has no target`,
+      ).toBe(true);
+    }
+  });
+
+  it('every operation with a parity block references a valid legacy surface id', () => {
+    const ir = loadCommittedIR();
+    const bridgeByOp = new Map(ir.parityBridge.map((b) => [b.operationId, b]));
+    for (const op of ir.operations) {
+      if (!op.parity?.legacySurfaceId) continue;
+      const bridge = bridgeByOp.get(op.id);
+      expect(
+        bridge,
+        `operation ${op.id} declares legacySurfaceId but no bridge entry exists`,
+      ).toBeDefined();
+      expect(bridge?.legacySurfaceId).toBe(op.parity.legacySurfaceId);
     }
   });
 });

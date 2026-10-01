@@ -19,7 +19,7 @@
  * `contracts/ir/ollama.ir.json` (committed artifact).
  */
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, basename, join } from 'node:path';
 import * as yaml from 'js-yaml';
 
@@ -62,7 +62,15 @@ function readOverlays(projectRoot: string): readonly OverlayFile[] {
 function readLegacyParity(projectRoot: string): {
   readonly byEndpoint: Readonly<Record<string, string>>;
 } {
+  // Wave 7: the legacy docs/api-parity.json manifest has been retired.
+  // The parity bridge is now derived entirely from the overlays' own
+  // `parityBridge` blocks — this function is kept only for backwards
+  // compatibility with any external consumer that still maintained a
+  // legacy manifest; when no manifest exists, return an empty map.
   const path = resolve(projectRoot, LEGACY_PARITY);
+  if (!existsSync(path)) {
+    return { byEndpoint: {} };
+  }
   const raw = readFileSync(path, 'utf8');
   const parsed = JSON.parse(raw) as {
     surfaces: readonly { endpoint: string; id: string }[];
@@ -239,13 +247,36 @@ function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaCont
 function buildParityBridge(
   operations: readonly OperationContract[],
   legacyByEndpoint: Readonly<Record<string, string>>,
+  overlayBridges: ReadonlyArray<Readonly<Record<string, string>>>,
 ): {
   readonly legacySurfaceId: string;
   readonly operationId: string;
   readonly legacyEndpoint: string;
 }[] {
+  // Build a map of operationId -> legacySurfaceId from overlay parityBridge
+  // blocks. Each overlay file declares `parityBridge: { <legacyId>: <opId> }`.
+  const opIdToLegacy = new Map<string, string>();
+  for (const bridge of overlayBridges) {
+    for (const [legacyId, opId] of Object.entries(bridge)) {
+      opIdToLegacy.set(opId, legacyId);
+    }
+  }
+  const opIdToEndpoint = new Map(operations.map((op) => [op.id, op.path]));
+
   const bridge: { legacySurfaceId: string; operationId: string; legacyEndpoint: string }[] = [];
+  // First: overlay-declared bridges (the canonical Wave 7+ source).
+  for (const [opId, legacyId] of opIdToLegacy) {
+    const endpoint = opIdToEndpoint.get(opId);
+    if (endpoint) {
+      bridge.push({ operationId: opId, legacySurfaceId: legacyId, legacyEndpoint: endpoint });
+    }
+  }
+  // Then: any remaining operations whose endpoint matches a legacy
+  // manifest entry (kept for backwards compatibility with consumers that
+  // still maintain a legacy manifest; usually a no-op now).
+  const seenOp = new Set(bridge.map((b) => b.operationId));
   for (const op of operations) {
+    if (seenOp.has(op.id)) continue;
     const legacySurfaceId = legacyByEndpoint[op.path];
     if (legacySurfaceId) {
       bridge.push({ operationId: op.id, legacySurfaceId, legacyEndpoint: op.path });
@@ -298,7 +329,8 @@ export function normalizeContract(
   });
 
   const schemas = buildSchemas([parsed]);
-  const parityBridge = buildParityBridge(operations, legacy.byEndpoint);
+  const overlayBridges = overlays.map((file) => file.domain.parityBridge ?? {});
+  const parityBridge = buildParityBridge(operations, legacy.byEndpoint, overlayBridges);
 
   const contract: OllamaContract = {
     contractVersion: 1,

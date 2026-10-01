@@ -6,7 +6,7 @@ import {
   nestedFieldName,
   endpointSection,
   supportedFeatureStatus,
-} from '../scripts/parity-status.js';
+} from '../generator/parser/docs-fetcher.js';
 
 describe('API parity documentation evidence', () => {
   it('does not let a stale fallback promote a missing live field', () => {

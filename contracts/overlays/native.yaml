@@ -51,6 +51,10 @@ operations:
           - 'keep_alive'
           - 'logprobs'
           - 'top_logprobs'
+        sdkOnlyFields:
+          - 'width'
+          - 'height'
+          - 'steps'
       response:
         interfaceName: 'ChatResponse'
         sourceFile: 'src/types.ts'
@@ -104,6 +108,12 @@ operations:
           - 'options'
           - 'logprobs'
           - 'top_logprobs'
+        sdkOnlyFields:
+          - 'context'
+          - 'width'
+          - 'height'
+          - 'steps'
+          - 'template'
       response:
         interfaceName: 'GenerateResponse'
         sourceFile: 'src/types.ts'
@@ -122,6 +132,11 @@ operations:
           - 'eval_count'
           - 'eval_duration'
           - 'logprobs'
+        sdkOnlyFields:
+          - 'completed'
+          - 'context'
+          - 'image'
+          - 'total'
   embed:
     openapi: /api/embed
     runtime:
@@ -193,6 +208,9 @@ operations:
           - 'draft_files'
           - 'draft_quantize'
           - 'requires'
+        sdkOnlyFields:
+          - 'adapters'
+          - 'modelfile'
       response:
         interfaceName: 'ProgressResponse'
         sourceFile: 'src/types.ts'
@@ -308,6 +326,9 @@ operations:
         fields:
           - 'model'
           - 'verbose'
+        sdkOnlyFields:
+          - 'system'
+          - 'template'
       response:
         interfaceName: 'ShowResponse'
         sourceFile: 'src/types.ts'
@@ -320,6 +341,10 @@ operations:
           - 'capabilities'
           - 'model_info'
           - 'thinking'
+        sdkOnlyFields:
+          - 'messages'
+          - 'modelfile'
+          - 'system'
   tags:
     openapi: /api/tags
     method: GET

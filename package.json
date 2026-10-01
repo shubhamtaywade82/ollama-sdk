@@ -121,7 +121,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
-    "verify:api-parity": "tsx scripts/verify-api-parity.ts",
     "verify:contract-parity": "tsx scripts/verify-contract-parity.ts",
     "contract:fetch": "tsx scripts/fetch-contract.ts",
     "contract:normalize": "tsx scripts/build-contract.ts",
@@ -132,10 +131,10 @@
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity"
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity"
   },
   "peerDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",

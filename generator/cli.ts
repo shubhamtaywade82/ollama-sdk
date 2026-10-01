@@ -23,6 +23,7 @@ import {
 } from './validators/endpoint-validator.js';
 import { readOverlaysForValidation } from './normalize/overlay-loader.js';
 import { emitModels } from './emitters/typescript/models.js';
+import { emitZodSchemas } from './emitters/typescript/zod.js';
 import { emitApi } from './emitters/typescript/api.js';
 import { emitOperations, emitOperationsIndex } from './emitters/typescript/operations.js';
 import { emitMetadata } from './emitters/metadata/metadata.js';
@@ -136,6 +137,7 @@ function cmdGenerate(): void {
   const writtenFiles: string[] = [];
 
   const modelFiles = emitModels('src/generated/models', contract.schemas);
+  const zodSchemaFiles = emitZodSchemas(contract.schemas);
   const apiFiles = emitApi('src/generated/api', contract.operations);
   const opsFiles = [
     emitOperations('src/generated/api', contract.operations),
@@ -144,7 +146,14 @@ function cmdGenerate(): void {
   const metadataFile = emitMetadata('src/generated/metadata', contract.operations);
   const mcpToolsFile = emitMcpTools('src/generated/mcp', contract.operations, contract.schemas);
 
-  const allFiles = [...modelFiles, ...apiFiles, ...opsFiles, metadataFile, mcpToolsFile];
+  const allFiles = [
+    ...modelFiles,
+    ...zodSchemaFiles,
+    ...apiFiles,
+    ...opsFiles,
+    metadataFile,
+    mcpToolsFile,
+  ];
   for (const file of allFiles) {
     const absolute = resolve(PROJECT_ROOT, file.path);
     mkdirSync(resolve(absolute, '..'), { recursive: true });
@@ -158,16 +167,21 @@ function cmdGenerate(): void {
   // Drift report — informational, not a gate. Surfacing drift early is the
   // whole point of Wave 2; making it a CI gate would be premature until
   // the migration is complete (Wave 3+).
-  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas);
+  //
+  // Wave 7+: passes `operations` so the detector can consult the IR's
+  // `parity.sdkOnlyFields` declarations and treat them as expected drift
+  // rather than findings.
+  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas, contract.operations);
   console.log('\n' + formatDriftReport(drift));
 }
 
 function cmdDrift(): void {
   const contract = normalizeContract(PROJECT_ROOT, { write: false });
-  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas);
+  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas, contract.operations);
   console.log(formatDriftReport(drift));
-  // Exit non-zero only when there's drift AND the user passed --strict.
-  if (process.argv.includes('--strict') && (drift.totalAdded > 0 || drift.totalRemoved > 0)) {
+  // Exit non-zero only when there's UNEXPECTED drift AND the user passed --strict.
+  // Expected drift (declared via parity.sdkOnlyFields) does not fail strict mode.
+  if (process.argv.includes('--strict') && drift.totalUnexpectedRemoved > 0) {
     process.exitCode = 1;
   }
 }
