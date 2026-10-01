@@ -176,6 +176,59 @@ export class OllamaRequestValidationError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown by `OllamaRuntime.invoke` BEFORE any HTTP request is made when the
+ * serialized request body exceeds the operation's declared
+ * `constraints.maxRequestBytes`. The Ollama server returns 413 for such
+ * payloads; this client-side check fails fast so the round-trip is avoided.
+ *
+ * Wave 12 (P0 #5): the IR has carried `maxRequestBytes` for System One
+ * (64 KiB) since v1.7.0, but the runtime never enforced it. This closes
+ * that contract/runtime gap.
+ */
+export class OllamaRequestTooLargeError extends OllamaClientError {
+  readonly operationId: string;
+  readonly actualBytes: number;
+  readonly maxBytes: number;
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable' | 'status'> & {
+      operationId: string;
+      actualBytes: number;
+      maxBytes: number;
+    },
+  ) {
+    super(message, { ...options, code: 'request_too_large', retryable: false, status: 413 });
+    this.operationId = options.operationId;
+    this.actualBytes = options.actualBytes;
+    this.maxBytes = options.maxBytes;
+  }
+}
+
+/**
+ * Thrown by `OllamaRuntime.invoke` BEFORE any HTTP request is made when the
+ * operation declares `constraints.minOllamaVersion` and the runtime could
+ * not obtain a server version to compare against (e.g. `enforceVersion:
+ * 'strict'` was set and `/api/version` was unreachable). Distinct from
+ * {@link OllamaGenericClientError} so callers can branch on the failure
+ * mode rather than parsing the message.
+ */
+export class OllamaServerVersionUnknownError extends OllamaClientError {
+  readonly operationId: string;
+  readonly minRequiredVersion: string;
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      operationId: string;
+      minRequiredVersion: string;
+    },
+  ) {
+    super(message, { ...options, code: 'server_version_unknown', retryable: false });
+    this.operationId = options.operationId;
+    this.minRequiredVersion = options.minRequiredVersion;
+  }
+}
+
 export class OllamaToolTimeoutError extends OllamaClientError {
   readonly toolName: string;
   readonly timeoutMs: number;

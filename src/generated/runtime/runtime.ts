@@ -24,7 +24,12 @@
 import { HttpClient, type HttpRequestOptions } from '../../transport/http.js';
 import { parseNdjsonStream } from '../../streaming/ndjson.js';
 import { parseSseStream } from '../../streaming/sse.js';
-import { OllamaGenericClientError, OllamaRequestValidationError } from '../../errors.js';
+import {
+  OllamaGenericClientError,
+  OllamaRequestTooLargeError,
+  OllamaRequestValidationError,
+  OllamaServerVersionUnknownError,
+} from '../../errors.js';
 import type { OperationDefinition, InvokeRequest } from './operation-definition.js';
 import type { TransportMode } from './operation-definition.js';
 import { getRequestSchema } from './schema-registry.js';
@@ -42,6 +47,10 @@ export interface OllamaRuntimeOptions {
    * Server version, if known (typically from a prior `/api/version` call).
    * When set, operations with `constraints.minOllamaVersion` are checked
    * against this value at request time.
+   *
+   * Wave 12 (P0 #5): when unset, the runtime will lazily fetch and cache
+   * the server version the first time a version-gated operation is
+   * invoked. The fetch policy is controlled by {@link enforceVersion}.
    */
   readonly serverVersion?: string;
   /**
@@ -64,6 +73,26 @@ export interface OllamaRuntimeOptions {
    * the rationale (forward-compat with wire-format extensions).
    */
   readonly validateRequests?: boolean;
+  /**
+   * Policy for enforcing `constraints.minOllamaVersion` when
+   * {@link serverVersion} is not explicitly supplied.
+   *
+   *   - `'auto'` (default): lazily fetch `/api/version` once and cache the
+   *     result; subsequent version-gated invocations reuse the cached
+   *     value. If the fetch fails, the operation is allowed through
+   *     (fail-open) — the server will reject it if it truly doesn't
+   *     support it.
+   *   - `'strict'`: same as `'auto'`, but if the version fetch fails the
+   *     invocation throws {@link OllamaServerVersionUnknownError} rather
+   *     than fail-open. Use this when the caller wants hard guarantees
+   *     that a version-gated operation will not be sent to a server that
+   *     can't handle it.
+   *   - `'off'`: never fetch `/api/version` automatically. The runtime
+   *     only enforces the version constraint when {@link serverVersion}
+   *     was explicitly supplied. Useful in tests that mock fetch and want
+   *     to avoid spurious version probes.
+   */
+  readonly enforceVersion?: 'auto' | 'strict' | 'off';
 }
 
 function compareVersions(a: string, b: string): number {
@@ -78,34 +107,23 @@ function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Apply environment + version guards before delegating to HttpClient.
+ * Best-effort one-shot fetch of the Ollama server version.
  *
- * Throws {@link OllamaGenericClientError} when:
- *   - The operation is local-only and the runtime is in cloud mode.
- *   - The operation has `constraints.minOllamaVersion` and the server is older.
+ * Resolves to `undefined` if the server's response shape doesn't include a
+ * `version` field. Network/parse errors propagate to the caller, where the
+ * `enforceVersion` policy decides whether they become hard failures
+ * ('strict') or silent fallthrough ('auto').
+ *
+ * The result is cached per-runtime in {@link OllamaRuntime}'s private
+ * state — we don't re-probe `/api/version` for every version-gated call.
  */
-function assertOperationAllowed(
-  operation: OperationDefinition,
-  options: OllamaRuntimeOptions,
-): void {
-  const localMode = options.localMode ?? true;
-  if (!localMode && !operation.environment.cloud) {
-    throw new OllamaGenericClientError(
-      `Operation ${operation.operationId} (${operation.method} ${operation.path}) ` +
-        `is local-only and not supported in cloud mode.`,
-    );
-  }
-  if (
-    operation.constraints?.minOllamaVersion &&
-    options.serverVersion &&
-    compareVersions(options.serverVersion, operation.constraints.minOllamaVersion) < 0
-  ) {
-    throw new OllamaGenericClientError(
-      `Operation ${operation.operationId} (${operation.method} ${operation.path}) ` +
-        `requires Ollama >= ${operation.constraints.minOllamaVersion} ` +
-        `(server reports ${options.serverVersion}).`,
-    );
-  }
+async function fetchServerVersion(http: HttpClient): Promise<string | undefined> {
+  const result = await http.request<{ version?: unknown }>({
+    path: '/api/version',
+    method: 'GET',
+  });
+  if (result && typeof result.version === 'string') return result.version;
+  return undefined;
 }
 
 /**
@@ -144,6 +162,14 @@ function buildBody(req: InvokeRequest): unknown {
 
 /** The runtime seam. */
 export class OllamaRuntime {
+  /**
+   * Cached promise of the Ollama server version, populated lazily the first
+   * time a version-gated operation is invoked. `undefined` until then.
+   *
+   * Wave 12 (P0 #5): see {@link OllamaRuntimeOptions.enforceVersion}.
+   */
+  private serverVersionCache: Promise<string | undefined> | undefined;
+
   constructor(private readonly options: OllamaRuntimeOptions) {}
 
   /**
@@ -154,7 +180,7 @@ export class OllamaRuntime {
    * class's overloads pick the right return type at compile time.
    */
   async invoke<T = unknown>(req: InvokeRequest): Promise<T> {
-    assertOperationAllowed(req.operation, this.options);
+    await this.assertOperationAllowed(req.operation);
     let body = buildBody(req);
 
     // Wave 10 (ADR 0020): runtime Zod validation. Opt-in via
@@ -181,6 +207,31 @@ export class OllamaRuntime {
           );
         }
         body = result.data;
+      }
+    }
+
+    // Wave 12 (P0 #5): enforce `constraints.maxRequestBytes` BEFORE the
+    // request is sent. The Ollama server returns 413 for oversized bodies;
+    // failing fast client-side avoids the round-trip and gives the caller a
+    // structured error rather than a generic 413 from the server. The
+    // check is unconditional (not opt-in) because the contract explicitly
+    // declares the limit — there's no reason to ever send a body the
+    // contract says is too large.
+    const maxBytes = req.operation.constraints?.maxRequestBytes;
+    if (maxBytes !== undefined && body !== undefined) {
+      const serialized = serializeForByteCount(body);
+      if (serialized.byteLength > maxBytes) {
+        throw new OllamaRequestTooLargeError(
+          `Operation ${req.operation.operationId} (${req.operation.method} ` +
+            `${req.operation.path}) request body is ${serialized.byteLength} bytes, ` +
+            `exceeding the contract limit of ${maxBytes} bytes.`,
+          {
+            operationId: req.operation.operationId,
+            actualBytes: serialized.byteLength,
+            maxBytes,
+            request: { method: req.operation.method, url: req.operation.path },
+          },
+        );
       }
     }
 
@@ -225,6 +276,66 @@ export class OllamaRuntime {
       );
     }
     return parseStreamByMode<T>(req.operation.transport.mode, response.body) as unknown as T;
+  }
+
+  /**
+   * Apply environment + version guards before delegating to HttpClient.
+   *
+   * Throws {@link OllamaGenericClientError} when:
+   *   - The operation is local-only and the runtime is in cloud mode.
+   *   - The operation has `constraints.minOllamaVersion` and the server is older.
+   *
+   * Wave 12 (P0 #5): when `minOllamaVersion` is declared but the runtime's
+   * `serverVersion` is unknown AND `enforceVersion` is `'auto'` or
+   * `'strict'`, the runtime lazily fetches `/api/version` (cached on the
+   * runtime instance) so the constraint is actually enforced even when the
+   * caller didn't supply it. Previously the constraint was only enforced
+   * when `serverVersion` was manually supplied — meaning in practice it was
+   * almost never enforced.
+   */
+  private async assertOperationAllowed(operation: OperationDefinition): Promise<void> {
+    const localMode = this.options.localMode ?? true;
+    if (!localMode && !operation.environment.cloud) {
+      throw new OllamaGenericClientError(
+        `Operation ${operation.operationId} (${operation.method} ${operation.path}) ` +
+          `is local-only and not supported in cloud mode.`,
+      );
+    }
+    const minVersion = operation.constraints?.minOllamaVersion;
+    if (!minVersion) return;
+
+    let serverVersion = this.options.serverVersion;
+    const policy = this.options.enforceVersion ?? 'auto';
+    if (!serverVersion && policy !== 'off') {
+      if (!this.serverVersionCache) {
+        const p = fetchServerVersion(this.options.http).catch((err) => {
+          if (policy === 'strict') {
+            throw new OllamaServerVersionUnknownError(
+              `Operation ${operation.operationId} requires Ollama >= ${minVersion} ` +
+                `but the runtime could not determine the server version ` +
+                `(enforceVersion: 'strict').`,
+              {
+                operationId: operation.operationId,
+                minRequiredVersion: minVersion,
+                cause: err,
+              },
+            );
+          }
+          // 'auto' — fail-open: surface nothing, the server will reject if
+          // it can't handle it.
+          return undefined;
+        });
+        this.serverVersionCache = p;
+      }
+      serverVersion = (await this.serverVersionCache) ?? undefined;
+    }
+
+    if (serverVersion && compareVersions(serverVersion, minVersion) < 0) {
+      throw new OllamaGenericClientError(
+        `Operation ${operation.operationId} (${operation.method} ${operation.path}) ` +
+          `requires Ollama >= ${minVersion} (server reports ${serverVersion}).`,
+      );
+    }
   }
 }
 
@@ -287,4 +398,24 @@ async function* parseSseStreamAsJson<T>(
       );
     }
   }
+}
+
+/**
+ * Serialize a request body for byte counting (used by the
+ * `maxRequestBytes` guard). The byte count mirrors what the HttpClient
+ * would actually send on the wire: UTF-8 encoded JSON. Buffer (Node) and
+ * Uint8Array inputs are passed through directly since their byte length
+ * is already known.
+ *
+ * This intentionally mirrors HttpClient's serialization (`JSON.stringify`
+ * with no whitespace) so the byte count is accurate against the actual
+ * request payload — using a different serializer would let oversized
+ * bodies through.
+ */
+function serializeForByteCount(body: unknown): Uint8Array {
+  if (body instanceof Uint8Array) return body;
+  if (typeof body === 'string') return new TextEncoder().encode(body);
+  // HttpClient calls JSON.stringify on the body before sending — match that.
+  const json = JSON.stringify(body);
+  return new TextEncoder().encode(json);
 }
