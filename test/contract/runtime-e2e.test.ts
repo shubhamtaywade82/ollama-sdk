@@ -137,3 +137,50 @@ describe('generated NativeApi: contract guards', () => {
     );
   });
 });
+
+describe('generated NativeApi: streaming goes through HttpClient middleware', () => {
+  // Wave 4 regression test: the runtime previously used a direct fetch()
+  // for streaming calls, bypassing middleware/retry/telemetry. Wave 4
+  // added `raw: true` to HttpClient so the runtime can request the raw
+  // Response without giving up the transport layer. This test asserts
+  // the middleware was actually invoked.
+  it('invokes middleware for streaming chat() calls', async () => {
+    let middlewareCalled = 0;
+    const middleware = (ctx: {
+      readonly request: { readonly url: string; readonly method: string };
+      readonly next: () => Promise<unknown>;
+    }) => {
+      middlewareCalled += 1;
+      return ctx.next();
+    };
+    // Streaming NDJSON body: two chunks separated by newlines.
+    const ndjsonBody = [
+      JSON.stringify({ model: 'gpt-4', response: 'hel', done: false }),
+      JSON.stringify({ model: 'gpt-4', response: 'lo', done: true }),
+    ].join('\n');
+    const fetchImpl = (async () =>
+      new Response(ndjsonBody, {
+        status: 200,
+        headers: { 'content-type': 'application/x-ndjson' },
+      })) as unknown as typeof globalThis.fetch;
+    const http = new HttpClient({
+      baseUrl: 'http://localhost:11434',
+      fetch: fetchImpl,
+      middleware: [middleware as never],
+    });
+    const runtime = new OllamaRuntime({ http });
+    const api = new NativeApi(runtime);
+
+    const stream = (await api.chat({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+    })) as AsyncGenerator<unknown, void, undefined>;
+
+    const chunks: unknown[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+
+    expect(middlewareCalled).toBe(1);
+    expect(chunks.length).toBe(2);
+  });
+});

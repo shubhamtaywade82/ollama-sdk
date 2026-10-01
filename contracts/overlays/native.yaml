@@ -33,6 +33,41 @@ operations:
       - 'Use /api/show to discover model-specific thinking values and defaults.'
       - 'Structured output (format field) is rejected by Ollama Cloud.'
 
+    parity:
+      legacySurfaceId: 'native-chat'
+      docsUrl: 'https://docs.ollama.com/api/chat'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'ChatRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'messages'
+          - 'tools'
+          - 'format'
+          - 'options'
+          - 'stream'
+          - 'think'
+          - 'keep_alive'
+          - 'logprobs'
+          - 'top_logprobs'
+      response:
+        interfaceName: 'ChatResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'created_at'
+          - 'message'
+          - 'done'
+          - 'done_reason'
+          - 'total_duration'
+          - 'load_duration'
+          - 'prompt_eval_count'
+          - 'prompt_eval_cached_count'
+          - 'prompt_eval_duration'
+          - 'eval_count'
+          - 'eval_duration'
+          - 'logprobs'
   generate:
     openapi: /api/generate
     runtime:
@@ -48,6 +83,45 @@ operations:
       structuredOutput: supported
       logprobs: supported
 
+    parity:
+      legacySurfaceId: 'native-generate'
+      docsUrl: 'https://docs.ollama.com/api/generate'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'GenerateRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'prompt'
+          - 'suffix'
+          - 'images'
+          - 'format'
+          - 'system'
+          - 'stream'
+          - 'think'
+          - 'raw'
+          - 'keep_alive'
+          - 'options'
+          - 'logprobs'
+          - 'top_logprobs'
+      response:
+        interfaceName: 'GenerateResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'created_at'
+          - 'response'
+          - 'thinking'
+          - 'done'
+          - 'done_reason'
+          - 'total_duration'
+          - 'load_duration'
+          - 'prompt_eval_count'
+          - 'prompt_eval_cached_count'
+          - 'prompt_eval_duration'
+          - 'eval_count'
+          - 'eval_duration'
+          - 'logprobs'
   embed:
     openapi: /api/embed
     runtime:
@@ -59,6 +133,29 @@ operations:
     capabilities:
       embeddings: supported
 
+    parity:
+      legacySurfaceId: 'native-embed'
+      docsUrl: 'https://docs.ollama.com/api/embed'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'EmbedRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'input'
+          - 'truncate'
+          - 'dimensions'
+          - 'keep_alive'
+          - 'options'
+      response:
+        interfaceName: 'EmbedResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'embeddings'
+          - 'total_duration'
+          - 'load_duration'
+          - 'prompt_eval_count'
   create:
     openapi: /api/create
     runtime:
@@ -74,6 +171,33 @@ operations:
     notes:
       - 'Model creation is local-only; Ollama Cloud does not support it.'
 
+    parity:
+      legacySurfaceId: 'native-create'
+      docsUrl: 'https://docs.ollama.com/api/create'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'CreateRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'from'
+          - 'template'
+          - 'renderer'
+          - 'parser'
+          - 'license'
+          - 'system'
+          - 'parameters'
+          - 'messages'
+          - 'quantize'
+          - 'stream'
+          - 'draft_files'
+          - 'draft_quantize'
+          - 'requires'
+      response:
+        interfaceName: 'ProgressResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'status'
   delete:
     openapi: /api/delete
     runtime:
@@ -83,6 +207,15 @@ operations:
       local: supported
       cloud: unsupported
 
+    parity:
+      legacySurfaceId: 'native-delete'
+      docsUrl: 'https://docs.ollama.com/api/delete'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'DeleteRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
   push:
     openapi: /api/push
     runtime:
@@ -93,6 +226,22 @@ operations:
       local: supported
       cloud: unsupported
 
+    parity:
+      legacySurfaceId: 'native-push'
+      docsUrl: 'https://docs.ollama.com/api/push'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'PushRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'insecure'
+          - 'stream'
+      response:
+        interfaceName: 'ProgressResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'status'
   pull:
     openapi: /api/pull
     runtime:
@@ -103,6 +252,22 @@ operations:
       local: supported
       cloud: unsupported
 
+    parity:
+      legacySurfaceId: 'native-pull'
+      docsUrl: 'https://docs.ollama.com/api/pull'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'PullRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'insecure'
+          - 'stream'
+      response:
+        interfaceName: 'ProgressResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'status'
   copy:
     openapi: /api/copy
     runtime:
@@ -112,6 +277,16 @@ operations:
       local: supported
       cloud: unsupported
 
+    parity:
+      legacySurfaceId: 'native-copy'
+      docsUrl: 'https://docs.ollama.com/api/copy'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'CopyRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'source'
+          - 'destination'
   show:
     openapi: /api/show
     runtime:
@@ -123,6 +298,28 @@ operations:
     notes:
       - 'Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings).'
 
+    parity:
+      legacySurfaceId: 'native-show'
+      docsUrl: 'https://docs.ollama.com/api-reference/show-model-details'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request:
+        interfaceName: 'ShowRequestOptions'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'model'
+          - 'verbose'
+      response:
+        interfaceName: 'ShowResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'parameters'
+          - 'license'
+          - 'modified_at'
+          - 'details'
+          - 'template'
+          - 'capabilities'
+          - 'model_info'
+          - 'thinking'
   tags:
     openapi: /api/tags
     method: GET
@@ -133,6 +330,16 @@ operations:
       local: supported
       cloud: supported
 
+    parity:
+      legacySurfaceId: 'native-tags'
+      docsUrl: 'https://docs.ollama.com/api/tags'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request: fields:[]
+      response:
+        interfaceName: 'ListResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'models'
   ps:
     openapi: /api/ps
     method: GET
@@ -143,6 +350,16 @@ operations:
       local: supported
       cloud: supported
 
+    parity:
+      legacySurfaceId: 'native-ps'
+      docsUrl: 'https://docs.ollama.com/api/ps'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request: fields:[]
+      response:
+        interfaceName: 'PsResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'models'
   version:
     openapi: /api/version
     method: GET
@@ -153,6 +370,16 @@ operations:
       local: supported
       cloud: supported
 
+    parity:
+      legacySurfaceId: 'native-version'
+      docsUrl: 'https://docs.ollama.com/api-reference/get-version'
+      fallbackDocsFile: 'docs/upstream/ollama-openapi.yaml'
+      request: fields:[]
+      response:
+        interfaceName: 'VersionResponse'
+        sourceFile: 'src/types.ts'
+        fields:
+          - 'version'
   blobs:
     openapi: /api/blobs/{digest}
     method: HEAD

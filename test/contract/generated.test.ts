@@ -6,9 +6,7 @@ import {
   detectTypeDrift,
   formatDriftReport,
 } from '../../generator/emitters/typescript/drift-detector.js';
-import {
-  emitOperations,
-} from '../../generator/emitters/typescript/operations.js';
+import { emitOperations } from '../../generator/emitters/typescript/operations.js';
 import { emitApi } from '../../generator/emitters/typescript/api.js';
 import { normalizeContract } from '../../generator/normalize/contract-normalizer.js';
 import type { OllamaContract, SchemaContract } from '../../generator/types.js';

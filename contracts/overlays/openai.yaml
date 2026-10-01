@@ -35,6 +35,38 @@ operations:
     notes:
       - 'Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.'
 
+    parity:
+      legacySurfaceId: 'openai-chat'
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAIChatCompletionRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'model'
+          - 'messages'
+          - 'frequency_penalty'
+          - 'presence_penalty'
+          - 'response_format'
+          - 'seed'
+          - 'stop'
+          - 'stream'
+          - 'stream_options'
+          - 'temperature'
+          - 'top_p'
+          - 'max_tokens'
+          - 'tools'
+          - 'reasoning_effort'
+          - 'reasoning'
+          - 'tool_choice'
+          - 'logit_bias'
+          - 'user'
+          - 'n'
+          - 'logprobs'
+        sdkOnlyFields:
+          - 'parallel_tool_calls'
+        featureAliases:
+          'logprobs': ['Logprobs']
   openaiCompletions:
     path: /v1/completions
     method: POST
@@ -48,6 +80,34 @@ operations:
     capabilities:
       logprobs: supported
 
+    parity:
+      legacySurfaceId: 'openai-completions'
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAICompletionRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'model'
+          - 'prompt'
+          - 'frequency_penalty'
+          - 'presence_penalty'
+          - 'seed'
+          - 'stop'
+          - 'stream'
+          - 'stream_options'
+          - 'temperature'
+          - 'top_p'
+          - 'max_tokens'
+          - 'suffix'
+          - 'best_of'
+          - 'echo'
+          - 'logit_bias'
+          - 'user'
+          - 'n'
+          - 'logprobs'
+        featureAliases:
+          'logprobs': ['Logprobs']
   openaiEmbeddings:
     path: /v1/embeddings
     method: POST
@@ -60,6 +120,21 @@ operations:
     capabilities:
       embeddings: supported
 
+    parity:
+      legacySurfaceId: 'openai-embeddings'
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAIEmbeddingRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'model'
+          - 'input'
+          - 'encoding_format'
+          - 'dimensions'
+          - 'user'
+        docAliases:
+          'encoding_format': ['encoding_format', 'encoding format']
   openaiResponses:
     path: /v1/responses
     method: POST
@@ -76,6 +151,55 @@ operations:
     notes:
       - 'Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.'
 
+    parity:
+      legacySurfaceId: 'openai-responses'
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAIResponsesRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'model'
+          - 'input'
+          - 'instructions'
+          - 'tools'
+          - 'stream'
+          - 'temperature'
+          - 'top_p'
+          - 'max_output_tokens'
+          - 'truncation'
+          - 'reasoning'
+          - 'think'
+        unsupportedFields:
+          - 'previous_response_id'
+          - 'conversation'
+        sdkOnlyFields:
+          - 'parallel_tool_calls'
+      stream:
+        unionName: 'OpenAIResponsesStreamEvent'
+        interfaceNames:
+          - 'OpenAIResponsesOutputTextDeltaEvent'
+          - 'OpenAIResponsesOutputTextDoneEvent'
+          - 'OpenAIResponsesFunctionCallArgumentsDeltaEvent'
+          - 'OpenAIResponsesFunctionCallArgumentsDoneEvent'
+          - 'OpenAIResponsesReasoningTextDeltaEvent'
+          - 'OpenAIResponsesReasoningTextDoneEvent'
+          - 'OpenAIResponsesReasoningSummaryPartAddedEvent'
+          - 'OpenAIResponsesReasoningSummaryPartDoneEvent'
+          - 'OpenAIResponsesReasoningSummaryTextDeltaEvent'
+          - 'OpenAIResponsesReasoningSummaryTextDoneEvent'
+          - 'OpenAIResponsesOutputItemAddedEvent'
+          - 'OpenAIResponsesOutputItemDoneEvent'
+          - 'OpenAIResponsesContentPartAddedEvent'
+          - 'OpenAIResponsesContentPartDoneEvent'
+          - 'OpenAIResponsesRefusalDeltaEvent'
+          - 'OpenAIResponsesRefusalDoneEvent'
+          - 'OpenAIResponsesCreatedEvent'
+          - 'OpenAIResponsesInProgressEvent'
+          - 'OpenAIResponsesQueuedEvent'
+          - 'OpenAIResponsesCompletedEvent'
+          - 'OpenAIResponsesFailedEvent'
+          - 'OpenAIResponsesIncompleteEvent'
   openaiModels:
     path: /v1/models
     method: GET

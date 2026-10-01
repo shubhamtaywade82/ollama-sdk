@@ -88,6 +88,35 @@ export interface SchemaContract {
   readonly definition?: JsonSchemaNode;
 }
 
+/** Streaming-event union parity metadata mirrored from the overlay. */
+export interface StreamParityContract {
+  readonly unionName: string;
+  readonly interfaceNames: readonly string[];
+  readonly eventTypes?: readonly string[];
+}
+
+/** Field-level parity metadata for one side of an operation. */
+export interface FieldParityContract {
+  readonly fields: readonly string[];
+  readonly unsupportedFields: readonly string[];
+  readonly sdkOnlyFields: readonly string[];
+  readonly nestedUnsupportedFields: readonly string[];
+  readonly docAliases: Readonly<Record<string, readonly string[]>>;
+  readonly featureAliases: Readonly<Record<string, readonly string[]>>;
+  readonly interfaceName?: string;
+  readonly sourceFile?: string;
+}
+
+/** Parity metadata attached to an operation. */
+export interface OperationParityContract {
+  readonly legacySurfaceId?: string;
+  readonly docsUrl?: string;
+  readonly fallbackDocsFile?: string;
+  readonly request?: FieldParityContract;
+  readonly response?: FieldParityContract;
+  readonly stream?: StreamParityContract;
+}
+
 /** Runtime/behavioral overlay applied to a single operation. */
 export interface OperationContract {
   /** Stable operation id (e.g. `chat`, `systemOne`, `openaiChatCompletions`). */
@@ -139,6 +168,13 @@ export interface OperationContract {
 
   /** Free-form notes carrying the source rationale (e.g. "documented as local-only"). */
   readonly notes?: readonly string[];
+
+  /**
+   * Field-level parity metadata. Wave 5: migrated here from
+   * `docs/api-parity.json`. Consumed by the IR-driven verifier
+   * `scripts/verify-contract-parity.ts`.
+   */
+  readonly parity?: OperationParityContract;
 }
 
 /**

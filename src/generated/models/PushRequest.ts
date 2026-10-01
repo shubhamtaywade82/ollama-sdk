@@ -4,7 +4,6 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-
 export interface PushRequest {
   /** Name of the model to publish */
   readonly model: string;

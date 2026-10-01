@@ -26,6 +26,7 @@ import { emitModels } from './emitters/typescript/models.js';
 import { emitApi } from './emitters/typescript/api.js';
 import { emitOperations, emitOperationsIndex } from './emitters/typescript/operations.js';
 import { emitMetadata } from './emitters/metadata/metadata.js';
+import { emitMcpTools } from './emitters/mcp/tools.js';
 import { detectTypeDrift, formatDriftReport } from './emitters/typescript/drift-detector.js';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..');
@@ -141,8 +142,9 @@ function cmdGenerate(): void {
     emitOperationsIndex('src/generated/api', contract.operations),
   ];
   const metadataFile = emitMetadata('src/generated/metadata', contract.operations);
+  const mcpToolsFile = emitMcpTools('src/generated/mcp', contract.operations, contract.schemas);
 
-  const allFiles = [...modelFiles, ...apiFiles, ...opsFiles, metadataFile];
+  const allFiles = [...modelFiles, ...apiFiles, ...opsFiles, metadataFile, mcpToolsFile];
   for (const file of allFiles) {
     const absolute = resolve(PROJECT_ROOT, file.path);
     mkdirSync(resolve(absolute, '..'), { recursive: true });

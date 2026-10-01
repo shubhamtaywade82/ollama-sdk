@@ -96,9 +96,7 @@
       "status": {
         "documented": true
       },
-      "notes": [
-        "Model creation is local-only; Ollama Cloud does not support it."
-      ]
+      "notes": ["Model creation is local-only; Ollama Cloud does not support it."]
     },
     {
       "operationId": "delete",
@@ -429,9 +427,7 @@
       "status": {
         "documented": true
       },
-      "notes": [
-        "Returns metadata for a single OpenAI-compat model by id."
-      ]
+      "notes": ["Returns metadata for a single OpenAI-compat model by id."]
     },
     {
       "operationId": "openaiResponses",

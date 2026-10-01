@@ -1,8 +1,8 @@
 {
   "contractVersion": 1,
   "observedOllamaVersion": "0.1.0",
-  "generatedAt": "2026-10-01T04:00:41.590Z",
-  "sourceHash": "71129b508118afed",
+  "generatedAt": "2026-10-01T04:27:09.953Z",
+  "sourceHash": "b0796a35b1233381",
   "operations": [
     {
       "id": "blobs",
@@ -58,7 +58,57 @@
       "notes": [
         "Use /api/show to discover model-specific thinking values and defaults.",
         "Structured output (format field) is rejected by Ollama Cloud."
-      ]
+      ],
+      "parity": {
+        "legacySurfaceId": "native-chat",
+        "docsUrl": "https://docs.ollama.com/api/chat",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "messages",
+            "tools",
+            "format",
+            "options",
+            "stream",
+            "think",
+            "keep_alive",
+            "logprobs",
+            "top_logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ChatRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "model",
+            "created_at",
+            "message",
+            "done",
+            "done_reason",
+            "total_duration",
+            "load_duration",
+            "prompt_eval_count",
+            "prompt_eval_cached_count",
+            "prompt_eval_duration",
+            "eval_count",
+            "eval_duration",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ChatResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "copy",
@@ -79,7 +129,22 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-copy",
+        "docsUrl": "https://docs.ollama.com/api/copy",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["source", "destination"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "CopyRequestOptions",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "create",
@@ -108,9 +173,47 @@
         "documented": true
       },
       "domain": "native",
-      "notes": [
-        "Model creation is local-only; Ollama Cloud does not support it."
-      ]
+      "notes": ["Model creation is local-only; Ollama Cloud does not support it."],
+      "parity": {
+        "legacySurfaceId": "native-create",
+        "docsUrl": "https://docs.ollama.com/api/create",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "from",
+            "template",
+            "renderer",
+            "parser",
+            "license",
+            "system",
+            "parameters",
+            "messages",
+            "quantize",
+            "stream",
+            "draft_files",
+            "draft_quantize",
+            "requires"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "CreateRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "delete",
@@ -131,7 +234,22 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-delete",
+        "docsUrl": "https://docs.ollama.com/api/delete",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "DeleteRequestOptions",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "embed",
@@ -157,7 +275,32 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-embed",
+        "docsUrl": "https://docs.ollama.com/api/embed",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "input", "truncate", "dimensions", "keep_alive", "options"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "EmbedRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["model", "embeddings", "total_duration", "load_duration", "prompt_eval_count"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "EmbedResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "generate",
@@ -187,7 +330,61 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-generate",
+        "docsUrl": "https://docs.ollama.com/api/generate",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "prompt",
+            "suffix",
+            "images",
+            "format",
+            "system",
+            "stream",
+            "think",
+            "raw",
+            "keep_alive",
+            "options",
+            "logprobs",
+            "top_logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "GenerateRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "model",
+            "created_at",
+            "response",
+            "thinking",
+            "done",
+            "done_reason",
+            "total_duration",
+            "load_duration",
+            "prompt_eval_count",
+            "prompt_eval_cached_count",
+            "prompt_eval_duration",
+            "eval_count",
+            "eval_duration",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "GenerateResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "ps",
@@ -208,7 +405,30 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-ps",
+        "docsUrl": "https://docs.ollama.com/api/ps",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["models"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PsResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "pull",
@@ -233,7 +453,32 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-pull",
+        "docsUrl": "https://docs.ollama.com/api/pull",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "insecure", "stream"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PullRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "push",
@@ -258,7 +503,32 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-push",
+        "docsUrl": "https://docs.ollama.com/api/push",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "insecure", "stream"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PushRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "show",
@@ -285,7 +555,41 @@
       "domain": "native",
       "notes": [
         "Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings)."
-      ]
+      ],
+      "parity": {
+        "legacySurfaceId": "native-show",
+        "docsUrl": "https://docs.ollama.com/api-reference/show-model-details",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "verbose"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ShowRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "parameters",
+            "license",
+            "modified_at",
+            "details",
+            "template",
+            "capabilities",
+            "model_info",
+            "thinking"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ShowResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "systemOne",
@@ -342,7 +646,30 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-tags",
+        "docsUrl": "https://docs.ollama.com/api/tags",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["models"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ListResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "version",
@@ -363,7 +690,30 @@
       "status": {
         "documented": true
       },
-      "domain": "native"
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-version",
+        "docsUrl": "https://docs.ollama.com/api-reference/get-version",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["version"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "VersionResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
     },
     {
       "id": "openaiChatCompletions",
@@ -391,7 +741,45 @@
       "domain": "openai",
       "notes": [
         "Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx."
-      ]
+      ],
+      "parity": {
+        "legacySurfaceId": "openai-chat",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "messages",
+            "frequency_penalty",
+            "presence_penalty",
+            "response_format",
+            "seed",
+            "stop",
+            "stream",
+            "stream_options",
+            "temperature",
+            "top_p",
+            "max_tokens",
+            "tools",
+            "reasoning_effort",
+            "reasoning",
+            "tool_choice",
+            "logit_bias",
+            "user",
+            "n",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["parallel_tool_calls"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {
+            "logprobs": ["Logprobs"]
+          },
+          "interfaceName": "OpenAIChatCompletionRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
     },
     {
       "id": "openaiCompletions",
@@ -412,7 +800,43 @@
       "status": {
         "documented": true
       },
-      "domain": "openai"
+      "domain": "openai",
+      "parity": {
+        "legacySurfaceId": "openai-completions",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "prompt",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "stop",
+            "stream",
+            "stream_options",
+            "temperature",
+            "top_p",
+            "max_tokens",
+            "suffix",
+            "best_of",
+            "echo",
+            "logit_bias",
+            "user",
+            "n",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {
+            "logprobs": ["Logprobs"]
+          },
+          "interfaceName": "OpenAICompletionRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
     },
     {
       "id": "openaiEmbeddings",
@@ -432,7 +856,24 @@
       "status": {
         "documented": true
       },
-      "domain": "openai"
+      "domain": "openai",
+      "parity": {
+        "legacySurfaceId": "openai-embeddings",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": ["model", "input", "encoding_format", "dimensions", "user"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {
+            "encoding_format": ["encoding_format", "encoding format"]
+          },
+          "featureAliases": {},
+          "interfaceName": "OpenAIEmbeddingRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
     },
     {
       "id": "openaiModels",
@@ -469,9 +910,7 @@
         "documented": true
       },
       "domain": "openai",
-      "notes": [
-        "Returns metadata for a single OpenAI-compat model by id."
-      ]
+      "notes": ["Returns metadata for a single OpenAI-compat model by id."]
     },
     {
       "id": "openaiResponses",
@@ -496,7 +935,61 @@
       "domain": "openai",
       "notes": [
         "Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported."
-      ]
+      ],
+      "parity": {
+        "legacySurfaceId": "openai-responses",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "input",
+            "instructions",
+            "tools",
+            "stream",
+            "temperature",
+            "top_p",
+            "max_output_tokens",
+            "truncation",
+            "reasoning",
+            "think"
+          ],
+          "unsupportedFields": ["previous_response_id", "conversation"],
+          "sdkOnlyFields": ["parallel_tool_calls"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "OpenAIResponsesRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        },
+        "stream": {
+          "unionName": "OpenAIResponsesStreamEvent",
+          "interfaceNames": [
+            "OpenAIResponsesOutputTextDeltaEvent",
+            "OpenAIResponsesOutputTextDoneEvent",
+            "OpenAIResponsesFunctionCallArgumentsDeltaEvent",
+            "OpenAIResponsesFunctionCallArgumentsDoneEvent",
+            "OpenAIResponsesReasoningTextDeltaEvent",
+            "OpenAIResponsesReasoningTextDoneEvent",
+            "OpenAIResponsesReasoningSummaryPartAddedEvent",
+            "OpenAIResponsesReasoningSummaryPartDoneEvent",
+            "OpenAIResponsesReasoningSummaryTextDeltaEvent",
+            "OpenAIResponsesReasoningSummaryTextDoneEvent",
+            "OpenAIResponsesOutputItemAddedEvent",
+            "OpenAIResponsesOutputItemDoneEvent",
+            "OpenAIResponsesContentPartAddedEvent",
+            "OpenAIResponsesContentPartDoneEvent",
+            "OpenAIResponsesRefusalDeltaEvent",
+            "OpenAIResponsesRefusalDoneEvent",
+            "OpenAIResponsesCreatedEvent",
+            "OpenAIResponsesInProgressEvent",
+            "OpenAIResponsesQueuedEvent",
+            "OpenAIResponsesCompletedEvent",
+            "OpenAIResponsesFailedEvent",
+            "OpenAIResponsesIncompleteEvent"
+          ]
+        }
+      }
     },
     {
       "id": "anthropicMessages",
@@ -522,7 +1015,72 @@
       "notes": [
         "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.",
         "Nested cache_control fields under messages[].content[].cache_control are unsupported."
-      ]
+      ],
+      "parity": {
+        "legacySurfaceId": "anthropic-messages",
+        "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "max_tokens",
+            "messages",
+            "system",
+            "stream",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_sequences",
+            "tools",
+            "thinking",
+            "output_config"
+          ],
+          "unsupportedFields": ["tool_choice", "metadata"],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [
+            "messages[].content[].cache_control",
+            "messages[].content[].content[].cache_control",
+            "system[].cache_control"
+          ],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "AnthropicMessagesRequest",
+          "sourceFile": "src/integrations/anthropic.ts"
+        },
+        "response": {
+          "fields": ["id", "type", "role", "model", "content", "stop_reason", "usage"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["stop_sequence"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "AnthropicMessagesResponse",
+          "sourceFile": "src/integrations/anthropic.ts"
+        },
+        "stream": {
+          "unionName": "AnthropicMessageStreamEvent",
+          "interfaceNames": [
+            "AnthropicMessageStartEvent",
+            "AnthropicContentBlockStartEvent",
+            "AnthropicContentBlockDeltaEvent",
+            "AnthropicContentBlockStopEvent",
+            "AnthropicMessageDeltaEvent",
+            "AnthropicMessageStopEvent",
+            "AnthropicPingEvent",
+            "AnthropicErrorEvent"
+          ],
+          "eventTypes": [
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop",
+            "ping",
+            "error"
+          ]
+        }
+      }
     }
   ],
   "schemas": [
@@ -533,19 +1091,11 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "role",
-          "content"
-        ],
+        "required": ["role", "content"],
         "properties": {
           "role": {
             "type": "string",
-            "enum": [
-              "system",
-              "user",
-              "assistant",
-              "tool"
-            ],
+            "enum": ["system", "user", "assistant", "tool"],
             "description": "Author of the message."
           },
           "content": {
@@ -577,10 +1127,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model",
-          "messages"
-        ],
+        "required": ["model", "messages"],
         "properties": {
           "model": {
             "type": "string",
@@ -604,9 +1151,7 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": [
-                  "json"
-                ]
+                "enum": ["json"]
               },
               {
                 "type": "object"
@@ -668,9 +1213,7 @@
             "properties": {
               "role": {
                 "type": "string",
-                "enum": [
-                  "assistant"
-                ],
+                "enum": ["assistant"],
                 "description": "Always `assistant` for model responses"
               },
               "content": {
@@ -805,10 +1348,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "source",
-          "destination"
-        ],
+        "required": ["source", "destination"],
         "properties": {
           "source": {
             "type": "string",
@@ -828,9 +1368,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -922,9 +1460,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -940,10 +1476,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model",
-          "input"
-        ],
+        "required": ["model", "input"],
         "properties": {
           "model": {
             "type": "string",
@@ -1041,9 +1574,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -1498,9 +2029,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -1525,9 +2054,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -1552,9 +2079,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "model"
-        ],
+        "required": ["model"],
         "properties": {
           "model": {
             "type": "string",
@@ -1662,10 +2187,7 @@
       "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
       "definition": {
         "type": "object",
-        "required": [
-          "values",
-          "default"
-        ],
+        "required": ["values", "default"],
         "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
         "properties": {
           "values": {
@@ -1755,9 +2277,7 @@
         "properties": {
           "function": {
             "type": "object",
-            "required": [
-              "name"
-            ],
+            "required": ["name"],
             "properties": {
               "name": {
                 "type": "string",
@@ -1783,24 +2303,16 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "type",
-          "function"
-        ],
+        "required": ["type", "function"],
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "function"
-            ],
+            "enum": ["function"],
             "description": "Type of tool (always `function`)"
           },
           "function": {
             "type": "object",
-            "required": [
-              "name",
-              "parameters"
-            ],
+            "required": ["name", "parameters"],
             "properties": {
               "name": {
                 "type": "string",
@@ -1841,9 +2353,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "url"
-        ],
+        "required": ["url"],
         "properties": {
           "url": {
             "type": "string",
@@ -1887,9 +2397,7 @@
       },
       "definition": {
         "type": "object",
-        "required": [
-          "query"
-        ],
+        "required": ["query"],
         "properties": {
           "query": {
             "type": "string",

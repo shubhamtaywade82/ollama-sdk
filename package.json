@@ -122,6 +122,7 @@
     "test:coverage": "vitest run --coverage",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
     "verify:api-parity": "tsx scripts/verify-api-parity.ts",
+    "verify:contract-parity": "tsx scripts/verify-contract-parity.ts",
     "contract:fetch": "tsx scripts/fetch-contract.ts",
     "contract:normalize": "tsx scripts/build-contract.ts",
     "contract:validate": "tsx scripts/verify-contract.ts",

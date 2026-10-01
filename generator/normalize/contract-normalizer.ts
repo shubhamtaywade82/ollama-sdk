@@ -186,6 +186,36 @@ function buildOperationContract(
     status,
     domain,
     ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
+    ...(overlay.parity ? { parity: normalizeParity(overlay.parity) } : {}),
+  };
+}
+
+/** Convert an overlay's OperationParity into the IR's OperationParityContract. */
+function normalizeParity(
+  parity: import('./overlay-schema.js').OperationParity,
+): import('../types.js').OperationParityContract {
+  return {
+    ...(parity.legacySurfaceId ? { legacySurfaceId: parity.legacySurfaceId } : {}),
+    ...(parity.docsUrl ? { docsUrl: parity.docsUrl } : {}),
+    ...(parity.fallbackDocsFile ? { fallbackDocsFile: parity.fallbackDocsFile } : {}),
+    ...(parity.request ? { request: normalizeFieldParity(parity.request) } : {}),
+    ...(parity.response ? { response: normalizeFieldParity(parity.response) } : {}),
+    ...(parity.stream ? { stream: parity.stream } : {}),
+  };
+}
+
+function normalizeFieldParity(
+  fp: import('./overlay-schema.js').FieldParity,
+): import('../types.js').FieldParityContract {
+  return {
+    fields: [...(fp.fields ?? [])],
+    unsupportedFields: [...(fp.unsupportedFields ?? [])],
+    sdkOnlyFields: [...(fp.sdkOnlyFields ?? [])],
+    nestedUnsupportedFields: [...(fp.nestedUnsupportedFields ?? [])],
+    docAliases: { ...(fp.docAliases ?? {}) },
+    featureAliases: { ...(fp.featureAliases ?? {}) },
+    ...(fp.interfaceName ? { interfaceName: fp.interfaceName } : {}),
+    ...(fp.sourceFile ? { sourceFile: fp.sourceFile } : {}),
   };
 }
 

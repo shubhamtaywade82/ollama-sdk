@@ -6,7 +6,6 @@
 
 import type { ToolCall } from './index.js';
 
-
 export interface ChatMessage {
   /** Author of the message. */
   readonly role: 'system' | 'user' | 'assistant' | 'tool';

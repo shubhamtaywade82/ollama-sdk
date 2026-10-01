@@ -27,5 +27,65 @@ operations:
       - "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer."
       - 'Nested cache_control fields under messages[].content[].cache_control are unsupported.'
 
+    parity:
+      legacySurfaceId: 'anthropic-messages'
+      docsUrl: 'https://docs.ollama.com/api/anthropic-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-anthropic-compatibility.mdx'
+      request:
+        interfaceName: 'AnthropicMessagesRequest'
+        sourceFile: 'src/integrations/anthropic.ts'
+        fields:
+          - 'model'
+          - 'max_tokens'
+          - 'messages'
+          - 'system'
+          - 'stream'
+          - 'temperature'
+          - 'top_p'
+          - 'top_k'
+          - 'stop_sequences'
+          - 'tools'
+          - 'thinking'
+          - 'output_config'
+        unsupportedFields:
+          - 'tool_choice'
+          - 'metadata'
+        nestedUnsupportedFields:
+          - 'messages[].content[].cache_control'
+          - 'messages[].content[].content[].cache_control'
+          - 'system[].cache_control'
+      response:
+        interfaceName: 'AnthropicMessagesResponse'
+        sourceFile: 'src/integrations/anthropic.ts'
+        fields:
+          - 'id'
+          - 'type'
+          - 'role'
+          - 'model'
+          - 'content'
+          - 'stop_reason'
+          - 'usage'
+        sdkOnlyFields:
+          - 'stop_sequence'
+      stream:
+        unionName: 'AnthropicMessageStreamEvent'
+        interfaceNames:
+          - 'AnthropicMessageStartEvent'
+          - 'AnthropicContentBlockStartEvent'
+          - 'AnthropicContentBlockDeltaEvent'
+          - 'AnthropicContentBlockStopEvent'
+          - 'AnthropicMessageDeltaEvent'
+          - 'AnthropicMessageStopEvent'
+          - 'AnthropicPingEvent'
+          - 'AnthropicErrorEvent'
+        eventTypes:
+          - 'message_start'
+          - 'content_block_start'
+          - 'content_block_delta'
+          - 'content_block_stop'
+          - 'message_delta'
+          - 'message_stop'
+          - 'ping'
+          - 'error'
 parityBridge:
   anthropic-messages: anthropicMessages

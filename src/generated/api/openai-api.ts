@@ -7,7 +7,14 @@
 
 import type { OllamaRuntime } from '../runtime/runtime.js';
 // No model types referenced.
-import { openaiChatCompletionsOp, openaiCompletionsOp, openaiEmbeddingsOp, openaiModelsOp, openaiModelsGetOneOp, openaiResponsesOp } from './operations.js';
+import {
+  openaiChatCompletionsOp,
+  openaiCompletionsOp,
+  openaiEmbeddingsOp,
+  openaiModelsOp,
+  openaiModelsGetOneOp,
+  openaiResponsesOp,
+} from './operations.js';
 
 /**
  * Generated API surface for Ollama's openai domain.
@@ -17,8 +24,12 @@ export class OpenaiApi {
   constructor(private readonly runtime: OllamaRuntime) {}
 
   openaiChatCompletions(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
-  openaiChatCompletions(request: Record<string, unknown> & { stream: true }): Promise<AsyncGenerator<unknown, void, undefined>>;
-  openaiChatCompletions(request: Record<string, unknown>): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+  openaiChatCompletions(
+    request: Record<string, unknown> & { stream: true },
+  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+  openaiChatCompletions(
+    request: Record<string, unknown>,
+  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
     return this.runtime.invoke({
       operation: openaiChatCompletionsOp,
       body: request,
@@ -26,8 +37,12 @@ export class OpenaiApi {
   }
 
   openaiCompletions(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
-  openaiCompletions(request: Record<string, unknown> & { stream: true }): Promise<AsyncGenerator<unknown, void, undefined>>;
-  openaiCompletions(request: Record<string, unknown>): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+  openaiCompletions(
+    request: Record<string, unknown> & { stream: true },
+  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+  openaiCompletions(
+    request: Record<string, unknown>,
+  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
     return this.runtime.invoke({
       operation: openaiCompletionsOp,
       body: request,
@@ -58,8 +73,12 @@ export class OpenaiApi {
   }
 
   openaiResponses(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
-  openaiResponses(request: Record<string, unknown> & { stream: true }): Promise<AsyncGenerator<unknown, void, undefined>>;
-  openaiResponses(request: Record<string, unknown>): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+  openaiResponses(
+    request: Record<string, unknown> & { stream: true },
+  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+  openaiResponses(
+    request: Record<string, unknown>,
+  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
     return this.runtime.invoke({
       operation: openaiResponsesOp,
       body: request,

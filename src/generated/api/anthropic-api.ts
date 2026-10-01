@@ -17,8 +17,12 @@ export class AnthropicApi {
   constructor(private readonly runtime: OllamaRuntime) {}
 
   anthropicMessages(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
-  anthropicMessages(request: Record<string, unknown> & { stream: true }): Promise<AsyncGenerator<unknown, void, undefined>>;
-  anthropicMessages(request: Record<string, unknown>): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+  anthropicMessages(
+    request: Record<string, unknown> & { stream: true },
+  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+  anthropicMessages(
+    request: Record<string, unknown>,
+  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
     return this.runtime.invoke({
       operation: anthropicMessagesOp,
       body: request,

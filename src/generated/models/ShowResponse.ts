@@ -6,7 +6,6 @@
 
 import type { Thinking } from './index.js';
 
-
 export interface ShowResponse {
   readonly thinking?: Thinking | undefined;
   /** Model parameter settings serialized as text */

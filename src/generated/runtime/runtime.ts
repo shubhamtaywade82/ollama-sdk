@@ -143,34 +143,21 @@ export class OllamaRuntime {
       method: req.operation.method as 'GET' | 'POST' | 'DELETE' | 'HEAD',
       ...(body !== undefined ? { body } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      // For streaming calls, request the raw Response so we can pipe it
+      // through parseNdjsonStream directly. This inherits middleware,
+      // retry, telemetry, and error-mapping from HttpClient — the
+      // previous Wave 3 implementation bypassed them with a direct
+      // `fetch()` call.
+      ...(streaming ? { raw: true } : {}),
     };
 
     if (!streaming) {
       return (await this.options.http.request<T>(httpReq)) as T;
     }
 
-    // Streaming: HttpClient unwraps JSON by default. To get the raw
-    // Response body for NDJSON parsing, we use the `rawBody` channel with
-    // a sentinel `Response`-typed body and read from `.body`. For Wave 3
-    // simplicity (and to avoid reworking HttpClient), we fall back to a
-    // direct fetch via the http's baseUrl when streaming.
-    //
-    // This is acceptable for Wave 3 — a follow-up will plumb a `raw: true`
-    // option through HttpClient so the generated runtime doesn't need to
-    // duplicate fetch logic.
-    const url = `${this.options.http.baseUrl}${req.operation.path}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const response = await fetch(url, {
-      method: req.operation.method,
-      headers,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      ...(req.signal !== undefined ? { signal: req.signal } : {}),
-    });
-    if (!response.ok) {
-      throw new OllamaGenericClientError(
-        `Operation ${req.operation.operationId} failed: HTTP ${response.status} ${response.statusText}`,
-      );
-    }
+    // Streaming: HttpClient returns the raw Response (via the `raw: true`
+    // option) so we can read its body as an NDJSON stream.
+    const response = await this.options.http.request<Response>(httpReq);
     if (!response.body) {
       throw new OllamaGenericClientError(
         `Operation ${req.operation.operationId}: streaming response had no body.`,

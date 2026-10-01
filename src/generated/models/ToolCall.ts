@@ -4,14 +4,15 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-
 export interface ToolCall {
-  readonly function?: {
-  /** Name of the function to call */
-  readonly name: string;
-  /** What the function does */
-  readonly description?: string | undefined;
-  /** JSON object of arguments to pass to the function */
-  readonly arguments?: Record<string, unknown> | undefined;
-} | undefined;
+  readonly function?:
+    | {
+        /** Name of the function to call */
+        readonly name: string;
+        /** What the function does */
+        readonly description?: string | undefined;
+        /** JSON object of arguments to pass to the function */
+        readonly arguments?: Record<string, unknown> | undefined;
+      }
+    | undefined;
 }
