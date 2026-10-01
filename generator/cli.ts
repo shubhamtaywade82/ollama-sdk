@@ -206,7 +206,11 @@ function cmdInfo(): void {
     console.log(`  source version (OpenAPI info.version): ${sourceVersion}`);
   }
   console.log(`  source hash: ${contract.sourceHash}`);
-  console.log(`  generated at: ${contract.generatedAt}`);
+  // Wave 12 (P1): generatedAt is optional now (the normalizer no longer
+  // emits it; older committed IRs may still carry it).
+  if (contract.generatedAt) {
+    console.log(`  generated at: ${contract.generatedAt}`);
+  }
   console.log(`  operations (${contract.operations.length}):`);
   for (const [domain, count] of Object.entries(byDomain)) {
     console.log(`    ${domain}: ${count}`);

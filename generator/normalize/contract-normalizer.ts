@@ -407,7 +407,12 @@ export function normalizeContract(
     ...(parsed.info.version
       ? { sourceVersion: parsed.info.version, observedOllamaVersion: parsed.info.version }
       : {}),
-    generatedAt: new Date().toISOString(),
+    // Wave 12 (P1): generatedAt is intentionally OMITTED from the
+    // committed IR. The field made the IR non-deterministic — re-running
+    // `contract:normalize` produced a diff just because of the timestamp,
+    // even when nothing else changed. The sourceHash field already
+    // provides reproducibility. Build metadata (including generation
+    // timestamp) belongs in CI artifacts, not the canonical contract.
     sourceHash: sourceHash([readFileSync(openapiPath, 'utf8'), ...overlayContents]),
     operations,
     schemas,

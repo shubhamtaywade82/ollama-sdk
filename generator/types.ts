@@ -246,7 +246,19 @@ export interface OllamaContract {
   readonly sourceVersion?: string;
   /** @deprecated Use {@link sourceVersion} instead. Kept for compat. */
   readonly observedOllamaVersion?: string;
-  readonly generatedAt: string;
+  /**
+   * @deprecated Wave 12 (P1): the committed IR no longer carries a
+   * `generatedAt` timestamp. The field made the IR non-deterministic —
+   * re-running `contract:normalize` produced a diff just because of
+   * the timestamp, even when nothing else changed. The `sourceHash`
+   * field already provides reproducibility. Build metadata (including
+   * generation timestamp) belongs in CI artifacts, not the canonical
+   * contract.
+   *
+   * The field is kept on the type for backwards-compat readers (older
+   * normalizers may still emit it), but the current normalizer omits it.
+   */
+  readonly generatedAt?: string;
   readonly sourceHash: string;
   readonly operations: readonly OperationContract[];
   readonly schemas: readonly SchemaContract[];
