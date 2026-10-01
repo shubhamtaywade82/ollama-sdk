@@ -198,6 +198,19 @@ export {
   type McpListToolsParams,
   type McpContentBlock,
   type McpCallToolResult,
+  type McpInputRequiredResult,
+  type McpTaskStatus,
+  type McpTask,
+  type McpTaskMethod,
+  type McpTaskRequest,
+  type McpCreateTaskResult,
+  type McpToolCallResult,
+  type McpServerCapabilities,
+  type McpElicitationFormRequest,
+  type McpElicitationUrlRequest,
+  type McpElicitationRequest,
+  type McpElicitationResult,
+  type McpElicitationHandlers,
 } from './mcp/index.js';
 
 

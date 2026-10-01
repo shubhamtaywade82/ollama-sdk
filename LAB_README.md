@@ -6,6 +6,45 @@ This directory is a **manual LLM and Agent experimentation harness** for `@nemes
 
 ## 🚀 Quick Start
 
+### Run the consolidated live feature tour
+
+Start a local Ollama server and install at least one chat model. Then run:
+
+```bash
+ollama serve
+ollama pull qwen2.5:0.5b
+npm run lab:live
+```
+
+`lab:live` builds the SDK, then runs `lab/live-tour.ts`, which imports the public
+`@nemesis-oss/ollama-sdk` package and makes real requests to Ollama. It prints
+HTTP lifecycle events, streams generated tokens in real time, reports each
+feature as passed/failed/skipped, and appends details to
+`logs/manual/YYYY-MM-DD.jsonl`.
+
+Configure a different local server or installed model with:
+
+```env
+OLLAMA_LOCAL_BASE_URL=http://localhost:11434
+OLLAMA_LOCAL_MODEL=qwen2.5:0.5b
+OLLAMA_EMBED_MODEL=nomic-embed-text:latest
+```
+
+The tour automatically selects an installed non-embedding model when
+`OLLAMA_LOCAL_MODEL` is unset or its preferred default is unavailable. Embedding
+and vision checks run only when a matching model/input is available. Set
+`OLLAMA_LIVE_IMAGE` to an image file to exercise vision with a vision-capable
+model. Hosted web search is deliberately opt-in: set `OLLAMA_API_KEY` and
+`OLLAMA_LIVE_CLOUD=1`. Model mutation operations (pull/create/copy/delete/push)
+are never run by the tour.
+
+The tour covers native chat/generate, streaming and Web `Response` adapters,
+structured Zod output, tool calls and `Agent`, embeddings, model inspection,
+OpenAI/Anthropic compatibility, generated API/runtime, usage/quota utilities,
+and an MCP bridge connected to a deterministic in-memory adapter plus a real
+local model decision. A configured remote MCP URL is not invoked automatically:
+review its advertised tools first using the dedicated MCP labs.
+
 1. **Configure Environment Variables**
 
    ```bash
@@ -55,6 +94,7 @@ lab/
 │   ├── env.ts
 │   ├── logger.ts
 │   └── replay.ts
+├── live-tour.ts                 # Consolidated public-package live Ollama tour
 │
 ├── 00-smoke/                    # Connectivity & baseline smoke tests
 │   ├── local-chat.ts

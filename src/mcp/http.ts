@@ -6,7 +6,8 @@
  * over modern Streamable HTTP or legacy SSE.
  */
 
-import type { McpClientLike } from './types.js';
+import { registerElicitationHandlers, type McpClientRequestHandler } from './client-options.js';
+import type { McpClientLike, McpElicitationHandlers } from './types.js';
 
 const MCP_CLIENT_PACKAGE = '@modelcontextprotocol/client';
 
@@ -26,6 +27,9 @@ export interface HttpMcpClientOptions {
   readonly requestInit?: RequestInit | undefined;
   /** Optional fetch implementation forwarded to the MCP transport. */
   readonly fetch?: typeof globalThis.fetch | undefined;
+  readonly elicitation?: McpElicitationHandlers | undefined;
+  /** Defaults to manual so input_required responses are returned to the caller. */
+  readonly inputRequiredMode?: 'manual' | 'automatic' | undefined;
 }
 
 export interface HttpMcpConnection {
@@ -42,12 +46,13 @@ export interface HttpMcpConnection {
 interface DynamicMcpClient {
   readonly Client: new (
     metadata: { name: string; version: string },
+    options?: { readonly inputRequired?: { readonly autoFulfill: boolean } },
   ) => {
     connect: (transport: unknown) => Promise<void>;
     close: () => Promise<void>;
     listTools: McpClientLike['listTools'];
     callTool: McpClientLike['callTool'];
-  };
+  } & McpClientRequestHandler;
   readonly StreamableHTTPClientTransport: new (
     url: URL,
     options?: unknown,
@@ -113,10 +118,14 @@ async function connectWithTransport(
   options: HttpMcpClientOptions,
   modules: DynamicMcpClient,
 ): Promise<HttpMcpConnection> {
-  const client = new modules.Client({
-    name: options.name ?? '@nemesis-oss/ollama-sdk',
-    version: options.version ?? '1.0.0',
-  });
+  const client = new modules.Client(
+    {
+      name: options.name ?? '@nemesis-oss/ollama-sdk',
+      version: options.version ?? '1.0.0',
+    },
+    { inputRequired: { autoFulfill: options.inputRequiredMode === 'automatic' } },
+  );
+  registerElicitationHandlers(client, options.elicitation);
   const transport =
     mode === 'streamable-http'
       ? new modules.StreamableHTTPClientTransport(url, transportOptions(options))
