@@ -194,7 +194,9 @@ async function main(): Promise<void> {
         client.listModels(),
         client.ps(),
       ]);
-      const names = catalog.models.map((model) => model.name);
+      const installedModels = catalog.models ?? [];
+      const runningModels = running.models ?? [];
+      const names = installedModels.map((model) => model.name);
       const selectedModel = chooseModel(names);
       if (selectedModel === undefined) {
         const configured = process.env['OLLAMA_LOCAL_MODEL'] ?? process.env['OLLAMA_MODEL'];
@@ -208,7 +210,7 @@ async function main(): Promise<void> {
       return {
         version: version.version,
         installedModels: names,
-        runningModels: running.models.map((model) => model.name),
+        runningModels: runningModels.map((model) => model.name),
       };
     },
     (result) => result,
