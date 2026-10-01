@@ -10,6 +10,7 @@
  */
 
 import type * as Otel from '@opentelemetry/api';
+import { disposableSpan } from '../utils.js';
 
 export type SpanAttributeValue = string | number | boolean;
 export type SpanAttributes = Record<string, SpanAttributeValue | undefined>;
@@ -60,6 +61,7 @@ export async function withSpan<T>(
   const tracer = api.trace.getTracer(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION);
   return tracer.startActiveSpan(name, async (span) => {
     span.setAttributes(cleanAttributes(attributes));
+    using _span = disposableSpan(span);
     try {
       return await fn(span);
     } catch (err) {
@@ -67,9 +69,8 @@ export async function withSpan<T>(
       span.recordException(error);
       span.setStatus({ code: api.SpanStatusCode.ERROR, message: error.message });
       throw error;
-    } finally {
-      span.end();
     }
+    // span.end() called automatically via `using _span` at scope exit
   });
 }
 

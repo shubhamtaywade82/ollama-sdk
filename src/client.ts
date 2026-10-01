@@ -655,37 +655,39 @@ export class OllamaClient {
     options: RequestCancellationOptions,
   ): Promise<T> {
     const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, options.signal);
+    using _timeout = {
+      [Symbol.dispose]() {
+        timeout.cancel();
+      },
+    };
     const requestId = createLogicalRequestId();
-    try {
-      const http = new HttpClient({
-        baseUrl: OLLAMA_CLOUD_BASE_URL,
-        apiKey: this.cloudApiKey,
-        fetch: this.fetchImpl,
-        middleware: this.middleware,
-        onLifecycleEvent: this.onLifecycleEvent,
-        requestId,
-      });
-      return await withRetry(
-        () => operation(http, timeout.signal),
-        {
-          ...this.retryConfig,
-          onRetry: (error, attempt, delayMs) => {
-            this.retryConfig.onRetry?.(error, attempt, delayMs);
-            this.onLifecycleEvent?.({
-              type: 'retry',
-              requestId,
-              attempt: attempt + 1,
-              error,
-              delayMs,
-              timestamp: Date.now(),
-            });
-          },
+    const http = new HttpClient({
+      baseUrl: OLLAMA_CLOUD_BASE_URL,
+      apiKey: this.cloudApiKey,
+      fetch: this.fetchImpl,
+      middleware: this.middleware,
+      onLifecycleEvent: this.onLifecycleEvent,
+      requestId,
+    });
+    return await withRetry(
+      () => operation(http, timeout.signal),
+      {
+        ...this.retryConfig,
+        onRetry: (error, attempt, delayMs) => {
+          this.retryConfig.onRetry?.(error, attempt, delayMs);
+          this.onLifecycleEvent?.({
+            type: 'retry',
+            requestId,
+            attempt: attempt + 1,
+            error,
+            delayMs,
+            timestamp: Date.now(),
+          });
         },
-        timeout.signal,
-      );
-    } finally {
-      timeout.cancel();
-    }
+      },
+      timeout.signal,
+    );
+    // timeout.cancel() called automatically via `using _timeout`
   }
 
   // --- Capabilities & Health ---

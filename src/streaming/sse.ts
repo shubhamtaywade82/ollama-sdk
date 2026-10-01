@@ -5,6 +5,8 @@
  * any provider-specific event schema.
  */
 
+import { disposableReader } from '../utils.js';
+
 export interface SseEvent {
   /** Event type; omitted when the server emitted no explicit event field. */
   readonly event?: string | undefined;
@@ -92,49 +94,43 @@ export async function* parseSseStream(
     return undefined;
   };
 
-  try {
+  await using _reader = disposableReader(reader);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const lf = buffer.indexOf('\n');
+      const cr = buffer.indexOf('\r');
+      if (lf === -1 && cr === -1) break;
+      // A CR may be the first half of a CRLF sequence split across two network chunks.
+      if (cr !== -1 && lf === -1 && cr === buffer.length - 1) break;
 
-      buffer += decoder.decode(value, { stream: true });
+      const lineEnd = lf === -1 ? cr : cr === -1 ? lf : Math.min(lf, cr);
+      let separatorLength = 1;
 
-      while (true) {
-        const lf = buffer.indexOf('\n');
-        const cr = buffer.indexOf('\r');
-        if (lf === -1 && cr === -1) break;
-        // A CR may be the first half of a CRLF sequence split across two network chunks.
-        if (cr !== -1 && lf === -1 && cr === buffer.length - 1) break;
-
-        const lineEnd = lf === -1 ? cr : cr === -1 ? lf : Math.min(lf, cr);
-        let separatorLength = 1;
-
-        if (buffer[lineEnd] === '\r' && buffer[lineEnd + 1] === '\n') {
-          separatorLength = 2;
-        }
-
-        const line = buffer.slice(0, lineEnd);
-        buffer = buffer.slice(lineEnd + separatorLength);
-
-        const event = processLine(line);
-        if (event) yield event;
+      if (buffer[lineEnd] === '\r' && buffer[lineEnd + 1] === '\n') {
+        separatorLength = 2;
       }
-    }
 
-    buffer += decoder.decode();
-    if (buffer.length > 0) {
-      const event = processLine(buffer);
+      const line = buffer.slice(0, lineEnd);
+      buffer = buffer.slice(lineEnd + separatorLength);
+
+      const event = processLine(line);
       if (event) yield event;
     }
-
-    const terminal = dispatch(eventType, data, lastEventId, retry);
-    if (terminal) yield terminal;
-  } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      // The stream may already be closed or errored.
-    }
-    reader.releaseLock();
   }
+
+  buffer += decoder.decode();
+  if (buffer.length > 0) {
+    const event = processLine(buffer);
+    if (event) yield event;
+  }
+
+  const terminal = dispatch(eventType, data, lastEventId, retry);
+  if (terminal) yield terminal;
+  // reader.cancel() + reader.releaseLock() called automatically via `await using _reader`
 }

@@ -7,6 +7,7 @@ import type { OllamaEndpoint } from './endpoint-registry.js';
 import type { Middleware } from '../middleware.js';
 import type { RequestLifecycleHook } from '../logger.js';
 import type { VersionResponse } from '../types.js';
+import { disposableTimer } from '../utils.js';
 
 export interface EndpointHealthCheckResult {
   readonly name: string;
@@ -36,6 +37,7 @@ export async function checkEndpointHealth(
   const startTime = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  using _timer = disposableTimer(timer);
 
   try {
     const res = await client.request<VersionResponse>({
@@ -60,7 +62,6 @@ export async function checkEndpointHealth(
       latencyMs,
       error: err instanceof Error ? err.message : String(err),
     };
-  } finally {
-    clearTimeout(timer);
   }
+  // clearTimeout(timer) called automatically via `using _timer` at scope exit
 }
