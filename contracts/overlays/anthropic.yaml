@@ -1,0 +1,31 @@
+# Anthropic compatibility overlay.
+#
+# Ollama exposes /v1/messages as its Anthropic Messages API compatibility
+# surface. The overlay captures streaming semantics (SSE) and the explicit
+# unsupported fields (tool_choice, metadata) that the legacy parity manifest
+# currently tracks. Field-level parity will be migrated here in Wave 5.
+
+version: 1
+service: ollama
+domain: anthropic
+
+operations:
+  anthropicMessages:
+    path: /v1/messages
+    method: POST
+    runtime:
+      streaming: supported
+      streamingDefault: false
+      transport: sse
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      tools: model-dependent
+      thinking: model-dependent
+    notes:
+      - "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer."
+      - 'Nested cache_control fields under messages[].content[].cache_control are unsupported.'
+
+parityBridge:
+  anthropic-messages: anthropicMessages

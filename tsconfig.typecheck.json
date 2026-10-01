@@ -12,5 +12,5 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["src/**/*", "test/**/*", "bench/**/*", "scripts/**/*", "lab/**/*"]
+  "include": ["src/**/*", "test/**/*", "bench/**/*", "scripts/**/*", "lab/**/*", "generator/**/*"]
 }

@@ -122,6 +122,10 @@
     "test:coverage": "vitest run --coverage",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
     "verify:api-parity": "tsx scripts/verify-api-parity.ts",
+    "contract:fetch": "tsx scripts/fetch-contract.ts",
+    "contract:normalize": "tsx scripts/build-contract.ts",
+    "contract:validate": "tsx scripts/verify-contract.ts",
+    "contract:diff": "tsx scripts/diff-contract.ts",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
@@ -131,9 +135,9 @@
     "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/client": "^2.1.0",
     "@opentelemetry/api": "^1.9.0",
-    "zod": "^3.22.0 || ^4.0.0",
-    "@modelcontextprotocol/client": "^2.1.0"
+    "zod": "^3.22.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
@@ -151,6 +155,7 @@
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-async-hooks": "^1.30.1",
     "@opentelemetry/sdk-trace-base": "^1.30.1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.0",
     "@vitest/coverage-v8": "^4.1.9",
     "cross-env": "^10.1.0",
@@ -158,6 +163,7 @@
     "esbuild": "^0.27.7",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^9.1.2",
+    "js-yaml": "^5.4.2",
     "prettier": "^3.9.4",
     "tsup": "^8.5.1",
     "tsx": "^4.23.0",

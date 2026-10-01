@@ -1,0 +1,105 @@
+# OpenAI compatibility overlay.
+#
+# Each operation here corresponds to a `## /v1/...` heading in
+# docs/upstream/ollama-openai-compatibility.mdx. The overlay captures the
+# compatibility surface that OpenAPI cannot express: which OpenAI request
+# fields are supported, which are explicitly unsupported, which the SDK
+# forwards for interop even though Ollama doesn't document them.
+#
+# In Wave 1 this overlay is structural metadata only — field-level parity
+# still lives in docs/api-parity.json and is verified by the legacy
+# scripts/verify-api-parity.ts. Wave 5 migrates the field-level contract
+# into this overlay.
+
+version: 1
+service: ollama
+domain: openai
+
+operations:
+  openaiChatCompletions:
+    path: /v1/chat/completions
+    method: POST
+    runtime:
+      streaming: supported
+      streamingDefault: false
+      transport: sse
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      tools: model-dependent
+      thinking: model-dependent
+      structuredOutput: supported
+      logprobs: supported
+      vision: model-dependent
+    notes:
+      - 'Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.'
+
+  openaiCompletions:
+    path: /v1/completions
+    method: POST
+    runtime:
+      streaming: supported
+      streamingDefault: false
+      transport: sse
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      logprobs: supported
+
+  openaiEmbeddings:
+    path: /v1/embeddings
+    method: POST
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      embeddings: supported
+
+  openaiResponses:
+    path: /v1/responses
+    method: POST
+    runtime:
+      streaming: supported
+      streamingDefault: false
+      transport: sse
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      tools: model-dependent
+      thinking: model-dependent
+    notes:
+      - 'Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.'
+
+  openaiModels:
+    path: /v1/models
+    method: GET
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+
+  openaiModelsGetOne:
+    path: /v1/models/{model}
+    method: GET
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    notes:
+      - 'Returns metadata for a single OpenAI-compat model by id.'
+
+parityBridge:
+  openai-chat: openaiChatCompletions
+  openai-completions: openaiCompletions
+  openai-embeddings: openaiEmbeddings
+  openai-responses: openaiResponses

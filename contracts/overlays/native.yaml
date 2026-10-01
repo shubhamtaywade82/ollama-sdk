@@ -1,0 +1,184 @@
+# Native Ollama API overlay.
+#
+# Behavioral truth that the upstream OpenAPI spec cannot express: streaming
+# defaults, capability model-dependence, version constraints. Structural
+# truth (path, method, request/response schema refs) is inherited from the
+# OpenAPI spec via `openapi: <path>` references.
+#
+# The legacy docs/api-parity.json manifest is preserved verbatim; this overlay
+# is the contract-first successor and seeds its `id`/`path` mappings from the
+# legacy surface ids.
+
+version: 1
+service: ollama
+domain: native
+
+operations:
+  chat:
+    openapi: /api/chat
+    runtime:
+      streaming: supported
+      streamingDefault: true
+      transport: ndjson
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      tools: model-dependent
+      thinking: model-dependent
+      vision: model-dependent
+      structuredOutput: supported
+      logprobs: supported
+    notes:
+      - 'Use /api/show to discover model-specific thinking values and defaults.'
+      - 'Structured output (format field) is rejected by Ollama Cloud.'
+
+  generate:
+    openapi: /api/generate
+    runtime:
+      streaming: supported
+      streamingDefault: true
+      transport: ndjson
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      thinking: model-dependent
+      vision: supported
+      structuredOutput: supported
+      logprobs: supported
+
+  embed:
+    openapi: /api/embed
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    capabilities:
+      embeddings: supported
+
+  create:
+    openapi: /api/create
+    runtime:
+      streaming: supported
+      streamingDefault: true
+      transport: ndjson
+    environment:
+      local: supported
+      cloud: unsupported
+    capabilities:
+      tools: unsupported
+      thinking: unsupported
+    notes:
+      - 'Model creation is local-only; Ollama Cloud does not support it.'
+
+  delete:
+    openapi: /api/delete
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: unsupported
+
+  push:
+    openapi: /api/push
+    runtime:
+      streaming: supported
+      streamingDefault: true
+      transport: ndjson
+    environment:
+      local: supported
+      cloud: unsupported
+
+  pull:
+    openapi: /api/pull
+    runtime:
+      streaming: supported
+      streamingDefault: true
+      transport: ndjson
+    environment:
+      local: supported
+      cloud: unsupported
+
+  copy:
+    openapi: /api/copy
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: unsupported
+
+  show:
+    openapi: /api/show
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    notes:
+      - 'Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings).'
+
+  tags:
+    openapi: /api/tags
+    method: GET
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+
+  ps:
+    openapi: /api/ps
+    method: GET
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+
+  version:
+    openapi: /api/version
+    method: GET
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+
+  blobs:
+    openapi: /api/blobs/{digest}
+    method: HEAD
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: unsupported
+    notes:
+      - 'HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest.'
+
+# Bridge to the legacy docs/api-parity.json surface ids. Adding an entry here
+# makes the normalizer emit a ParitySurfaceMapping entry, which keeps
+# verify-api-parity.ts and the new contract system in lock-step during the
+# Wave 1→2 migration.
+parityBridge:
+  native-chat: chat
+  native-generate: generate
+  native-embed: embed
+  native-create: create
+  native-delete: delete
+  native-push: push
+  native-pull: pull
+  native-copy: copy
+  native-show: show
+  native-tags: tags
+  native-ps: ps
+  native-version: version

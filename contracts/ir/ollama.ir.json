@@ -1,0 +1,719 @@
+{
+  "contractVersion": 1,
+  "observedOllamaVersion": "0.1.0",
+  "generatedAt": "2026-10-01T02:58:41.447Z",
+  "sourceHash": "71129b508118afed",
+  "operations": [
+    {
+      "id": "blobs",
+      "method": "HEAD",
+      "path": "/api/blobs/{digest}",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest."
+      ]
+    },
+    {
+      "id": "chat",
+      "method": "POST",
+      "path": "/api/chat",
+      "request": {
+        "$ref": "#/schemas/ChatRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/ChatResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent",
+        "vision": "model-dependent",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "Use /api/show to discover model-specific thinking values and defaults.",
+        "Structured output (format field) is rejected by Ollama Cloud."
+      ]
+    },
+    {
+      "id": "copy",
+      "method": "POST",
+      "path": "/api/copy",
+      "request": {
+        "$ref": "#/schemas/CopyRequest"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "create",
+      "method": "POST",
+      "path": "/api/create",
+      "request": {
+        "$ref": "#/schemas/CreateRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "unsupported",
+        "tools": "unsupported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "Model creation is local-only; Ollama Cloud does not support it."
+      ]
+    },
+    {
+      "id": "delete",
+      "method": "DELETE",
+      "path": "/api/delete",
+      "request": {
+        "$ref": "#/schemas/DeleteRequest"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "embed",
+      "method": "POST",
+      "path": "/api/embed",
+      "request": {
+        "$ref": "#/schemas/EmbedRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/EmbedResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "embeddings": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "generate",
+      "method": "POST",
+      "path": "/api/generate",
+      "request": {
+        "$ref": "#/schemas/GenerateRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/GenerateResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "vision": "supported",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "ps",
+      "method": "GET",
+      "path": "/api/ps",
+      "response": {
+        "$ref": "#/schemas/PsResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "pull",
+      "method": "POST",
+      "path": "/api/pull",
+      "request": {
+        "$ref": "#/schemas/PullRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "push",
+      "method": "POST",
+      "path": "/api/push",
+      "request": {
+        "$ref": "#/schemas/PushRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "show",
+      "method": "POST",
+      "path": "/api/show",
+      "request": {
+        "$ref": "#/schemas/ShowRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/ShowResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings)."
+      ]
+    },
+    {
+      "id": "systemOne",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "thinking": "unsupported",
+        "tools": "unsupported",
+        "vision": "unsupported",
+        "structuredOutput": "unsupported",
+        "logprobs": "unsupported",
+        "embeddings": "unsupported"
+      },
+      "constraints": {
+        "minOllamaVersion": "0.35.0",
+        "maxRequestBytes": 65536
+      },
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "domain": "native",
+      "notes": [
+        "Local-only; Ollama Cloud rejects /v1/systemone.",
+        "Hard 64 KiB request body limit enforced by the server.",
+        "No images, no tools, no generation controls (temperature, top_p, etc.).",
+        "Experimental: behavioral surface may change between Ollama releases."
+      ]
+    },
+    {
+      "id": "tags",
+      "method": "GET",
+      "path": "/api/tags",
+      "response": {
+        "$ref": "#/schemas/ListResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "version",
+      "method": "GET",
+      "path": "/api/version",
+      "response": {
+        "$ref": "#/schemas/VersionResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native"
+    },
+    {
+      "id": "openaiChatCompletions",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent",
+        "vision": "model-dependent",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx."
+      ]
+    },
+    {
+      "id": "openaiCompletions",
+      "method": "POST",
+      "path": "/v1/completions",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai"
+    },
+    {
+      "id": "openaiEmbeddings",
+      "method": "POST",
+      "path": "/v1/embeddings",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "embeddings": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai"
+    },
+    {
+      "id": "openaiModels",
+      "method": "GET",
+      "path": "/v1/models",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "openai"
+    },
+    {
+      "id": "openaiModelsGetOne",
+      "method": "GET",
+      "path": "/v1/models/{model}",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Returns metadata for a single OpenAI-compat model by id."
+      ]
+    },
+    {
+      "id": "openaiResponses",
+      "method": "POST",
+      "path": "/v1/responses",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported."
+      ]
+    },
+    {
+      "id": "anthropicMessages",
+      "method": "POST",
+      "path": "/v1/messages",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "anthropic",
+      "notes": [
+        "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.",
+        "Nested cache_control fields under messages[].content[].cache_control are unsupported."
+      ]
+    }
+  ],
+  "schemas": [
+    {
+      "name": "GenerateRequest",
+      "source": {
+        "openapi": "#/components/schemas/GenerateRequest"
+      }
+    },
+    {
+      "name": "GenerateResponse",
+      "source": {
+        "openapi": "#/components/schemas/GenerateResponse"
+      }
+    },
+    {
+      "name": "ChatRequest",
+      "source": {
+        "openapi": "#/components/schemas/ChatRequest"
+      }
+    },
+    {
+      "name": "ChatResponse",
+      "source": {
+        "openapi": "#/components/schemas/ChatResponse"
+      }
+    },
+    {
+      "name": "EmbedRequest",
+      "source": {
+        "openapi": "#/components/schemas/EmbedRequest"
+      }
+    },
+    {
+      "name": "EmbedResponse",
+      "source": {
+        "openapi": "#/components/schemas/EmbedResponse"
+      }
+    },
+    {
+      "name": "ListResponse",
+      "source": {
+        "openapi": "#/components/schemas/ListResponse"
+      }
+    },
+    {
+      "name": "PsResponse",
+      "source": {
+        "openapi": "#/components/schemas/PsResponse"
+      }
+    },
+    {
+      "name": "ShowRequest",
+      "source": {
+        "openapi": "#/components/schemas/ShowRequest"
+      }
+    },
+    {
+      "name": "ShowResponse",
+      "source": {
+        "openapi": "#/components/schemas/ShowResponse"
+      }
+    },
+    {
+      "name": "CreateRequest",
+      "source": {
+        "openapi": "#/components/schemas/CreateRequest"
+      }
+    },
+    {
+      "name": "StatusResponse",
+      "source": {
+        "openapi": "#/components/schemas/StatusResponse"
+      }
+    },
+    {
+      "name": "CopyRequest",
+      "source": {
+        "openapi": "#/components/schemas/CopyRequest"
+      }
+    },
+    {
+      "name": "PullRequest",
+      "source": {
+        "openapi": "#/components/schemas/PullRequest"
+      }
+    },
+    {
+      "name": "PushRequest",
+      "source": {
+        "openapi": "#/components/schemas/PushRequest"
+      }
+    },
+    {
+      "name": "DeleteRequest",
+      "source": {
+        "openapi": "#/components/schemas/DeleteRequest"
+      }
+    },
+    {
+      "name": "VersionResponse",
+      "source": {
+        "openapi": "#/components/schemas/VersionResponse"
+      }
+    }
+  ],
+  "parityBridge": [
+    {
+      "operationId": "chat",
+      "legacySurfaceId": "native-chat",
+      "legacyEndpoint": "/api/chat"
+    },
+    {
+      "operationId": "copy",
+      "legacySurfaceId": "native-copy",
+      "legacyEndpoint": "/api/copy"
+    },
+    {
+      "operationId": "create",
+      "legacySurfaceId": "native-create",
+      "legacyEndpoint": "/api/create"
+    },
+    {
+      "operationId": "delete",
+      "legacySurfaceId": "native-delete",
+      "legacyEndpoint": "/api/delete"
+    },
+    {
+      "operationId": "embed",
+      "legacySurfaceId": "native-embed",
+      "legacyEndpoint": "/api/embed"
+    },
+    {
+      "operationId": "generate",
+      "legacySurfaceId": "native-generate",
+      "legacyEndpoint": "/api/generate"
+    },
+    {
+      "operationId": "ps",
+      "legacySurfaceId": "native-ps",
+      "legacyEndpoint": "/api/ps"
+    },
+    {
+      "operationId": "pull",
+      "legacySurfaceId": "native-pull",
+      "legacyEndpoint": "/api/pull"
+    },
+    {
+      "operationId": "push",
+      "legacySurfaceId": "native-push",
+      "legacyEndpoint": "/api/push"
+    },
+    {
+      "operationId": "show",
+      "legacySurfaceId": "native-show",
+      "legacyEndpoint": "/api/show"
+    },
+    {
+      "operationId": "tags",
+      "legacySurfaceId": "native-tags",
+      "legacyEndpoint": "/api/tags"
+    },
+    {
+      "operationId": "version",
+      "legacySurfaceId": "native-version",
+      "legacyEndpoint": "/api/version"
+    },
+    {
+      "operationId": "openaiChatCompletions",
+      "legacySurfaceId": "openai-chat",
+      "legacyEndpoint": "/v1/chat/completions"
+    },
+    {
+      "operationId": "openaiCompletions",
+      "legacySurfaceId": "openai-completions",
+      "legacyEndpoint": "/v1/completions"
+    },
+    {
+      "operationId": "openaiEmbeddings",
+      "legacySurfaceId": "openai-embeddings",
+      "legacyEndpoint": "/v1/embeddings"
+    },
+    {
+      "operationId": "openaiResponses",
+      "legacySurfaceId": "openai-responses",
+      "legacyEndpoint": "/v1/responses"
+    },
+    {
+      "operationId": "anthropicMessages",
+      "legacySurfaceId": "anthropic-messages",
+      "legacyEndpoint": "/v1/messages"
+    }
+  ]
+}

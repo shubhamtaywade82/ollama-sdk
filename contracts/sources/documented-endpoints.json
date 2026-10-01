@@ -1,0 +1,13 @@
+{
+  "$comment": "Endpoints documented by Ollama that are NOT currently auto-discoverable from contracts/sources/ollama.openapi.yaml or docs/upstream/*.mdx. Each entry must include the upstream URL where Ollama documents it, so the bidirectional discovery validator can confirm the endpoint is real and not a stale manifest entry. When Ollama eventually adds an endpoint here to the OpenAPI spec, this entry can be removed.",
+  "version": 1,
+  "endpoints": [
+    {
+      "path": "/v1/systemone",
+      "method": "POST",
+      "upstream": "https://docs.ollama.com/api",
+      "introducedIn": "0.35.0",
+      "rationale": "Documented on the rendered native API index page; not yet present in the pinned OpenAPI snapshot (86fc5e9) or any compat MDX."
+    }
+  ]
+}

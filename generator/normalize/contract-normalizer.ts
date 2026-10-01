@@ -1,0 +1,281 @@
+/**
+ * Contract normalizer.
+ *
+ * Walks the inputs in this order:
+ *
+ *   1. `contracts/sources/ollama.openapi.yaml` — structural truth
+ *      (paths, methods, request/response schema refs).
+ *   2. `contracts/overlays/*.yaml` — behavioral truth (streaming,
+ *      capabilities, env, version constraints).
+ *
+ * For each overlay operation, the normalizer:
+ *   - If `openapi:` is set, finds the matching OpenAPI operation and inherits
+ *     its method/path/schema refs.
+ *   - If `path:` and `method:` are set explicitly (for operations like
+ *     `/v1/systemone` that are documented but not in the OpenAPI spec),
+ *     synthesizes a new operation from the overlay alone.
+ *
+ * Output: a single {@link OllamaContract} IR, written to
+ * `contracts/ir/ollama.ir.json` (committed artifact).
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { resolve, basename, join } from 'node:path';
+import * as yaml from 'js-yaml';
+
+import type {
+  HttpMethod,
+  OperationContract,
+  OllamaContract,
+  SchemaContract,
+  TransportMode,
+} from '../types.js';
+import { parseOpenApi, type ParsedOpenApiOperation } from '../parser/openapi.js';
+import type { OverlayDomain, OverlayOperation } from './overlay-schema.js';
+
+const OVERLAY_DIR = 'contracts/overlays';
+const SOURCES_OPENAPI = 'contracts/sources/ollama.openapi.yaml';
+const IR_OUTPUT = 'contracts/ir/ollama.ir.json';
+const LEGACY_PARITY = 'docs/api-parity.json';
+
+interface OverlayFile {
+  readonly name: string;
+  readonly path: string;
+  readonly domain: OverlayDomain;
+}
+
+function readOverlays(projectRoot: string): readonly OverlayFile[] {
+  const dir = resolve(projectRoot, OVERLAY_DIR);
+  const files = readdirSync(dir).filter((file) => file.endsWith('.yaml') || file.endsWith('.yml'));
+  return files.map((file) => {
+    const path = join(dir, file);
+    const raw = readFileSync(path, 'utf8');
+    const domain = yaml.load(raw) as OverlayDomain;
+    return { name: basename(file, '.yaml'), path, domain };
+  });
+}
+
+function readLegacyParity(projectRoot: string): {
+  readonly byEndpoint: Readonly<Record<string, string>>;
+} {
+  const path = resolve(projectRoot, LEGACY_PARITY);
+  const raw = readFileSync(path, 'utf8');
+  const parsed = JSON.parse(raw) as {
+    surfaces: readonly { endpoint: string; id: string }[];
+  };
+  const byEndpoint: Record<string, string> = {};
+  for (const surface of parsed.surfaces) {
+    byEndpoint[surface.endpoint] = surface.id;
+  }
+  return { byEndpoint };
+}
+
+function boolFromSupport(value: 'supported' | 'unsupported' | undefined): boolean {
+  return value === 'supported';
+}
+
+function transportFromOverlay(
+  op: OverlayOperation,
+  fallbackMethod: HttpMethod,
+): {
+  mode: TransportMode;
+  streaming: boolean;
+  streamingDefault?: boolean;
+} {
+  const runtime = op.runtime;
+  const streaming = runtime?.streaming === 'supported';
+  const streamingDefault = runtime?.streamingDefault;
+  const declaredTransport = runtime?.transport;
+  const mode: TransportMode =
+    declaredTransport ?? (streaming ? (fallbackMethod === 'POST' ? 'ndjson' : 'json') : 'json');
+  return {
+    mode,
+    streaming,
+    ...(streamingDefault !== undefined ? { streamingDefault } : {}),
+  };
+}
+
+function lookupOpenApiOperation(
+  structural: readonly ParsedOpenApiOperation[],
+  overlay: OverlayOperation,
+): ParsedOpenApiOperation | undefined {
+  const target = overlay.openapi;
+  if (!target) return undefined;
+  return structural.find((op) => op.path === target);
+}
+
+function buildOperationContract(
+  overlayKey: string,
+  overlay: OverlayOperation,
+  parentDomain: 'native' | 'openai' | 'anthropic',
+  structural: readonly ParsedOpenApiOperation[],
+): OperationContract {
+  const match = lookupOpenApiOperation(structural, overlay);
+  const method: HttpMethod = overlay.method ?? match?.method ?? 'POST';
+  const path = overlay.path ?? match?.path ?? overlay.openapi ?? '';
+  if (!path) {
+    throw new Error(
+      `Overlay operation "${overlayKey}" declares neither \`openapi:\` nor \`path:\`; cannot resolve its HTTP path`,
+    );
+  }
+  const domain = overlay.domain ?? parentDomain;
+
+  const requestRef = match?.requestBodyRef
+    ? { $ref: `#/schemas/${match.requestBodyRef}` }
+    : undefined;
+  const responseRef = match?.responseRef ? { $ref: `#/schemas/${match.responseRef}` } : undefined;
+
+  const env = overlay.environment;
+  const local = boolFromSupport(env?.local ?? 'supported');
+  const cloud = boolFromSupport(env?.cloud ?? 'supported');
+
+  const transport = transportFromOverlay(overlay, method);
+
+  const caps = overlay.capabilities;
+  const capabilities: OperationContract['capabilities'] = {
+    ...(caps?.thinking !== undefined ? { thinking: caps.thinking } : {}),
+    ...(caps?.tools !== undefined ? { tools: caps.tools } : {}),
+    ...(caps?.vision !== undefined ? { vision: caps.vision } : {}),
+    ...(caps?.structuredOutput !== undefined ? { structuredOutput: caps.structuredOutput } : {}),
+    ...(caps?.logprobs !== undefined ? { logprobs: caps.logprobs } : {}),
+    ...(caps?.embeddings !== undefined ? { embeddings: caps.embeddings } : {}),
+  };
+
+  const compat = overlay.compatibility;
+  const limits = overlay.limits;
+  const constraints: OperationContract['constraints'] | undefined =
+    compat || limits
+      ? {
+          ...(compat?.minVersion !== undefined ? { minOllamaVersion: compat.minVersion } : {}),
+          ...(limits?.maxRequestBytes !== undefined
+            ? { maxRequestBytes: limits.maxRequestBytes }
+            : {}),
+        }
+      : undefined;
+
+  const statusOverlay = overlay.status;
+  // Default documented=true when EITHER the OpenAPI spec declares the
+  // operation OR the overlay declares an explicit `path:` (which means the
+  // operation is documented in another source — typically the OpenAI /
+  // Anthropic compatibility MDX files — even though it's absent from the
+  // pinned OpenAPI snapshot).
+  const documented =
+    statusOverlay?.documented ?? (match !== undefined || overlay.path !== undefined);
+  const status: OperationContract['status'] = {
+    documented,
+    ...(statusOverlay?.deprecated !== undefined ? { deprecated: statusOverlay.deprecated } : {}),
+    ...(statusOverlay?.experimental !== undefined
+      ? { experimental: statusOverlay.experimental }
+      : {}),
+  };
+
+  return {
+    id: overlay.id ?? overlayKey,
+    method,
+    path,
+    ...(requestRef ? { request: requestRef } : {}),
+    ...(responseRef ? { response: responseRef } : {}),
+    environment: { local, cloud },
+    transport,
+    capabilities,
+    ...(constraints ? { constraints } : {}),
+    status,
+    domain,
+    ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
+  };
+}
+
+function buildSchemas(structural: readonly ParsedOpenApiOperation[]): readonly SchemaContract[] {
+  const names = new Set<string>();
+  for (const op of structural) {
+    if (op.requestBodyRef) names.add(op.requestBodyRef);
+    if (op.responseRef) names.add(op.responseRef);
+  }
+  return [...names].map((name) => ({
+    name,
+    source: { openapi: `#/components/schemas/${name}` },
+  }));
+}
+
+function buildParityBridge(
+  operations: readonly OperationContract[],
+  legacyByEndpoint: Readonly<Record<string, string>>,
+): {
+  readonly legacySurfaceId: string;
+  readonly operationId: string;
+  readonly legacyEndpoint: string;
+}[] {
+  const bridge: { legacySurfaceId: string; operationId: string; legacyEndpoint: string }[] = [];
+  for (const op of operations) {
+    const legacySurfaceId = legacyByEndpoint[op.path];
+    if (legacySurfaceId) {
+      bridge.push({ operationId: op.id, legacySurfaceId, legacyEndpoint: op.path });
+    }
+  }
+  return bridge;
+}
+
+function sourceHash(parts: readonly string[]): string {
+  return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
+}
+
+/**
+ * Compile sources + overlays → canonical IR.
+ *
+ * @param projectRoot absolute path to the ollama-sdk repo root
+ * @param options.write when `true` (default), writes the IR to {@link IR_OUTPUT};
+ *   pass `false` for dry-run validations
+ */
+export function normalizeContract(
+  projectRoot: string,
+  options: { write?: boolean } = {},
+): OllamaContract {
+  const write = options.write ?? true;
+
+  const openapiPath = resolve(projectRoot, SOURCES_OPENAPI);
+  const parsed = parseOpenApi(openapiPath);
+  const overlays = readOverlays(projectRoot);
+  const legacy = readLegacyParity(projectRoot);
+
+  const operations: OperationContract[] = [];
+  const overlayContents: string[] = [];
+
+  for (const file of overlays) {
+    overlayContents.push(readFileSync(file.path, 'utf8'));
+    const parentDomain = file.domain.domain ?? 'native';
+    for (const [key, overlay] of Object.entries(file.domain.operations)) {
+      operations.push(buildOperationContract(key, overlay, parentDomain, parsed.operations));
+    }
+  }
+
+  // Stable sort: native first, then openai, then anthropic; within each domain,
+  // sort alphabetically by id. This makes the committed IR deterministic.
+  const domainOrder: Record<string, number> = { native: 0, openai: 1, anthropic: 2 };
+  operations.sort((a, b) => {
+    const da = domainOrder[a.domain] ?? 99;
+    const db = domainOrder[b.domain] ?? 99;
+    if (da !== db) return da - db;
+    return a.id.localeCompare(b.id);
+  });
+
+  const schemas = buildSchemas(parsed.operations);
+  const parityBridge = buildParityBridge(operations, legacy.byEndpoint);
+
+  const contract: OllamaContract = {
+    contractVersion: 1,
+    ...(parsed.info.version ? { observedOllamaVersion: parsed.info.version } : {}),
+    generatedAt: new Date().toISOString(),
+    sourceHash: sourceHash([readFileSync(openapiPath, 'utf8'), ...overlayContents]),
+    operations,
+    schemas,
+    parityBridge,
+  };
+
+  if (write) {
+    const outPath = resolve(projectRoot, IR_OUTPUT);
+    mkdirSync(resolve(projectRoot, 'contracts/ir'), { recursive: true });
+    writeFileSync(outPath, JSON.stringify(contract, null, 2) + '\n', 'utf8');
+  }
+
+  return contract;
+}

@@ -1,0 +1,58 @@
+# System One overlay.
+#
+# Ollama's /v1/systemone endpoint is the canonical example of an operation
+# that the legacy `docs/api-parity.json` manifest silently missed: it was
+# added to the official Ollama documentation but never declared in the
+# parity manifest, and the legacy verifier had no opinion about that because
+# it only checked `manifest -> docs`, never `docs -> manifest`.
+#
+# This overlay declares every behavioral constraint the OpenAPI spec cannot
+# express:
+#
+#   - local-only (Ollama Cloud does not support it)
+#   - requires Ollama >= 0.35.0
+#   - no streaming
+#   - no images, no tools, no generation controls
+#   - hard 64 KiB request size limit
+#
+# Once this overlay is in place, the bidirectional discovery validator
+# (generator/validators/endpoint-validator.ts) will catch any future drift
+# in either direction.
+
+version: 1
+service: ollama
+domain: native
+
+operations:
+  systemOne:
+    # /v1/systemone is documented by Ollama but absent from the pinned
+    # OpenAPI snapshot (contracts/sources/ollama.openapi.yaml). Declaring
+    # it via `path:` + `method:` (instead of `openapi:`) tells the
+    # normalizer to synthesize the operation from this overlay alone.
+    path: /v1/systemone
+    method: POST
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: unsupported
+    compatibility:
+      minVersion: 0.35.0
+    limits:
+      maxRequestBytes: 65536
+    capabilities:
+      tools: unsupported
+      vision: unsupported
+      thinking: unsupported
+      structuredOutput: unsupported
+      logprobs: unsupported
+      embeddings: unsupported
+    status:
+      documented: true
+      experimental: true
+    notes:
+      - 'Local-only; Ollama Cloud rejects /v1/systemone.'
+      - 'Hard 64 KiB request body limit enforced by the server.'
+      - 'No images, no tools, no generation controls (temperature, top_p, etc.).'
+      - 'Experimental: behavioral surface may change between Ollama releases.'
