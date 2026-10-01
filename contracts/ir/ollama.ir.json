@@ -1,0 +1,2546 @@
+{
+  "contractVersion": 1,
+  "observedOllamaVersion": "0.1.0",
+  "generatedAt": "2026-10-01T04:57:29.985Z",
+  "sourceHash": "b15dd9adb5694a74",
+  "operations": [
+    {
+      "id": "blobs",
+      "method": "HEAD",
+      "path": "/api/blobs/{digest}",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest."
+      ]
+    },
+    {
+      "id": "chat",
+      "method": "POST",
+      "path": "/api/chat",
+      "request": {
+        "$ref": "#/schemas/ChatRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/ChatResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent",
+        "vision": "model-dependent",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "Use /api/show to discover model-specific thinking values and defaults.",
+        "Structured output (format field) is rejected by Ollama Cloud."
+      ],
+      "parity": {
+        "legacySurfaceId": "native-chat",
+        "docsUrl": "https://docs.ollama.com/api/chat",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "messages",
+            "tools",
+            "format",
+            "options",
+            "stream",
+            "think",
+            "keep_alive",
+            "logprobs",
+            "top_logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["width", "height", "steps"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ChatRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "model",
+            "created_at",
+            "message",
+            "done",
+            "done_reason",
+            "total_duration",
+            "load_duration",
+            "prompt_eval_count",
+            "prompt_eval_cached_count",
+            "prompt_eval_duration",
+            "eval_count",
+            "eval_duration",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ChatResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "copy",
+      "method": "POST",
+      "path": "/api/copy",
+      "request": {
+        "$ref": "#/schemas/CopyRequest"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-copy",
+        "docsUrl": "https://docs.ollama.com/api/copy",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["source", "destination"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "CopyRequestOptions",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "create",
+      "method": "POST",
+      "path": "/api/create",
+      "request": {
+        "$ref": "#/schemas/CreateRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "unsupported",
+        "tools": "unsupported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": ["Model creation is local-only; Ollama Cloud does not support it."],
+      "parity": {
+        "legacySurfaceId": "native-create",
+        "docsUrl": "https://docs.ollama.com/api/create",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "from",
+            "template",
+            "renderer",
+            "parser",
+            "license",
+            "system",
+            "parameters",
+            "messages",
+            "quantize",
+            "stream",
+            "draft_files",
+            "draft_quantize",
+            "requires"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["adapters", "modelfile"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "CreateRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "delete",
+      "method": "DELETE",
+      "path": "/api/delete",
+      "request": {
+        "$ref": "#/schemas/DeleteRequest"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-delete",
+        "docsUrl": "https://docs.ollama.com/api/delete",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "DeleteRequestOptions",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "embed",
+      "method": "POST",
+      "path": "/api/embed",
+      "request": {
+        "$ref": "#/schemas/EmbedRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/EmbedResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "embeddings": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-embed",
+        "docsUrl": "https://docs.ollama.com/api/embed",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "input", "truncate", "dimensions", "keep_alive", "options"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "EmbedRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["model", "embeddings", "total_duration", "load_duration", "prompt_eval_count"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "EmbedResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "generate",
+      "method": "POST",
+      "path": "/api/generate",
+      "request": {
+        "$ref": "#/schemas/GenerateRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/GenerateResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "vision": "supported",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-generate",
+        "docsUrl": "https://docs.ollama.com/api/generate",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [
+            "model",
+            "prompt",
+            "suffix",
+            "images",
+            "format",
+            "system",
+            "stream",
+            "think",
+            "raw",
+            "keep_alive",
+            "options",
+            "logprobs",
+            "top_logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["context", "width", "height", "steps", "template"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "GenerateRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "model",
+            "created_at",
+            "response",
+            "thinking",
+            "done",
+            "done_reason",
+            "total_duration",
+            "load_duration",
+            "prompt_eval_count",
+            "prompt_eval_cached_count",
+            "prompt_eval_duration",
+            "eval_count",
+            "eval_duration",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["completed", "context", "image", "total"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "GenerateResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "ps",
+      "method": "GET",
+      "path": "/api/ps",
+      "response": {
+        "$ref": "#/schemas/PsResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-ps",
+        "docsUrl": "https://docs.ollama.com/api/ps",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["models"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PsResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "pull",
+      "method": "POST",
+      "path": "/api/pull",
+      "request": {
+        "$ref": "#/schemas/PullRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-pull",
+        "docsUrl": "https://docs.ollama.com/api/pull",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "insecure", "stream"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PullRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "push",
+      "method": "POST",
+      "path": "/api/push",
+      "request": {
+        "$ref": "#/schemas/PushRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "ndjson",
+        "streaming": true,
+        "streamingDefault": true
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-push",
+        "docsUrl": "https://docs.ollama.com/api/push",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "insecure", "stream"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "PushRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": ["status"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ProgressResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "show",
+      "method": "POST",
+      "path": "/api/show",
+      "request": {
+        "$ref": "#/schemas/ShowRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/ShowResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "notes": [
+        "Capabilities source: /api/show is the runtime source of truth for model-dependent capability values (tools, vision, thinking, embeddings)."
+      ],
+      "parity": {
+        "legacySurfaceId": "native-show",
+        "docsUrl": "https://docs.ollama.com/api-reference/show-model-details",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": ["model", "verbose"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["system", "template"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ShowRequestOptions",
+          "sourceFile": "src/types.ts"
+        },
+        "response": {
+          "fields": [
+            "parameters",
+            "license",
+            "modified_at",
+            "details",
+            "template",
+            "capabilities",
+            "model_info",
+            "thinking"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["messages", "modelfile", "system"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ShowResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "systemOne",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "thinking": "unsupported",
+        "tools": "unsupported",
+        "vision": "unsupported",
+        "structuredOutput": "unsupported",
+        "logprobs": "unsupported",
+        "embeddings": "unsupported"
+      },
+      "constraints": {
+        "minOllamaVersion": "0.35.0",
+        "maxRequestBytes": 65536
+      },
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "domain": "native",
+      "notes": [
+        "Local-only; Ollama Cloud rejects /v1/systemone.",
+        "Hard 64 KiB request body limit enforced by the server.",
+        "No images, no tools, no generation controls (temperature, top_p, etc.).",
+        "Experimental: behavioral surface may change between Ollama releases."
+      ]
+    },
+    {
+      "id": "tags",
+      "method": "GET",
+      "path": "/api/tags",
+      "response": {
+        "$ref": "#/schemas/ListResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-tags",
+        "docsUrl": "https://docs.ollama.com/api/tags",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["models"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "ListResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "version",
+      "method": "GET",
+      "path": "/api/version",
+      "response": {
+        "$ref": "#/schemas/VersionResponse"
+      },
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parity": {
+        "legacySurfaceId": "native-version",
+        "docsUrl": "https://docs.ollama.com/api-reference/get-version",
+        "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
+        "request": {
+          "fields": [],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {}
+        },
+        "response": {
+          "fields": ["version"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "VersionResponse",
+          "sourceFile": "src/types.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiChatCompletions",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent",
+        "vision": "model-dependent",
+        "structuredOutput": "supported",
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx."
+      ],
+      "parity": {
+        "legacySurfaceId": "openai-chat",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "messages",
+            "frequency_penalty",
+            "presence_penalty",
+            "response_format",
+            "seed",
+            "stop",
+            "stream",
+            "stream_options",
+            "temperature",
+            "top_p",
+            "max_tokens",
+            "tools",
+            "reasoning_effort",
+            "reasoning",
+            "tool_choice",
+            "logit_bias",
+            "user",
+            "n",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["parallel_tool_calls"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {
+            "logprobs": ["Logprobs"]
+          },
+          "interfaceName": "OpenAIChatCompletionRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiCompletions",
+      "method": "POST",
+      "path": "/v1/completions",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "logprobs": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "parity": {
+        "legacySurfaceId": "openai-completions",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "prompt",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "stop",
+            "stream",
+            "stream_options",
+            "temperature",
+            "top_p",
+            "max_tokens",
+            "suffix",
+            "best_of",
+            "echo",
+            "logit_bias",
+            "user",
+            "n",
+            "logprobs"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {
+            "logprobs": ["Logprobs"]
+          },
+          "interfaceName": "OpenAICompletionRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiEmbeddings",
+      "method": "POST",
+      "path": "/v1/embeddings",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {
+        "embeddings": "supported"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "parity": {
+        "legacySurfaceId": "openai-embeddings",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": ["model", "input", "encoding_format", "dimensions", "user"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {
+            "encoding_format": ["encoding_format", "encoding format"]
+          },
+          "featureAliases": {},
+          "interfaceName": "OpenAIEmbeddingRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiModels",
+      "method": "GET",
+      "path": "/v1/models",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "openai"
+    },
+    {
+      "id": "openaiModelsGetOne",
+      "method": "GET",
+      "path": "/v1/models/{model}",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": ["Returns metadata for a single OpenAI-compat model by id."]
+    },
+    {
+      "id": "openaiResponses",
+      "method": "POST",
+      "path": "/v1/responses",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported."
+      ],
+      "parity": {
+        "legacySurfaceId": "openai-responses",
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "input",
+            "instructions",
+            "tools",
+            "stream",
+            "temperature",
+            "top_p",
+            "max_output_tokens",
+            "truncation",
+            "reasoning",
+            "think"
+          ],
+          "unsupportedFields": ["previous_response_id", "conversation"],
+          "sdkOnlyFields": ["parallel_tool_calls"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "OpenAIResponsesRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        },
+        "stream": {
+          "unionName": "OpenAIResponsesStreamEvent",
+          "interfaceNames": [
+            "OpenAIResponsesOutputTextDeltaEvent",
+            "OpenAIResponsesOutputTextDoneEvent",
+            "OpenAIResponsesFunctionCallArgumentsDeltaEvent",
+            "OpenAIResponsesFunctionCallArgumentsDoneEvent",
+            "OpenAIResponsesReasoningTextDeltaEvent",
+            "OpenAIResponsesReasoningTextDoneEvent",
+            "OpenAIResponsesReasoningSummaryPartAddedEvent",
+            "OpenAIResponsesReasoningSummaryPartDoneEvent",
+            "OpenAIResponsesReasoningSummaryTextDeltaEvent",
+            "OpenAIResponsesReasoningSummaryTextDoneEvent",
+            "OpenAIResponsesOutputItemAddedEvent",
+            "OpenAIResponsesOutputItemDoneEvent",
+            "OpenAIResponsesContentPartAddedEvent",
+            "OpenAIResponsesContentPartDoneEvent",
+            "OpenAIResponsesRefusalDeltaEvent",
+            "OpenAIResponsesRefusalDoneEvent",
+            "OpenAIResponsesCreatedEvent",
+            "OpenAIResponsesInProgressEvent",
+            "OpenAIResponsesQueuedEvent",
+            "OpenAIResponsesCompletedEvent",
+            "OpenAIResponsesFailedEvent",
+            "OpenAIResponsesIncompleteEvent"
+          ]
+        }
+      }
+    },
+    {
+      "id": "anthropicMessages",
+      "method": "POST",
+      "path": "/v1/messages",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "sse",
+        "streaming": true,
+        "streamingDefault": false
+      },
+      "capabilities": {
+        "thinking": "model-dependent",
+        "tools": "model-dependent"
+      },
+      "status": {
+        "documented": true
+      },
+      "domain": "anthropic",
+      "notes": [
+        "tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.",
+        "Nested cache_control fields under messages[].content[].cache_control are unsupported."
+      ],
+      "parity": {
+        "legacySurfaceId": "anthropic-messages",
+        "docsUrl": "https://docs.ollama.com/api/anthropic-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-anthropic-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "max_tokens",
+            "messages",
+            "system",
+            "stream",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_sequences",
+            "tools",
+            "thinking",
+            "output_config"
+          ],
+          "unsupportedFields": ["tool_choice", "metadata"],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [
+            "messages[].content[].cache_control",
+            "messages[].content[].content[].cache_control",
+            "system[].cache_control"
+          ],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "AnthropicMessagesRequest",
+          "sourceFile": "src/integrations/anthropic.ts"
+        },
+        "response": {
+          "fields": ["id", "type", "role", "model", "content", "stop_reason", "usage"],
+          "unsupportedFields": [],
+          "sdkOnlyFields": ["stop_sequence"],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "AnthropicMessagesResponse",
+          "sourceFile": "src/integrations/anthropic.ts"
+        },
+        "stream": {
+          "unionName": "AnthropicMessageStreamEvent",
+          "interfaceNames": [
+            "AnthropicMessageStartEvent",
+            "AnthropicContentBlockStartEvent",
+            "AnthropicContentBlockDeltaEvent",
+            "AnthropicContentBlockStopEvent",
+            "AnthropicMessageDeltaEvent",
+            "AnthropicMessageStopEvent",
+            "AnthropicPingEvent",
+            "AnthropicErrorEvent"
+          ],
+          "eventTypes": [
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop",
+            "ping",
+            "error"
+          ]
+        }
+      }
+    }
+  ],
+  "schemas": [
+    {
+      "name": "ChatMessage",
+      "source": {
+        "openapi": "#/components/schemas/ChatMessage"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user", "assistant", "tool"],
+            "description": "Author of the message."
+          },
+          "content": {
+            "type": "string",
+            "description": "Message text content"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Base64-encoded image content"
+            },
+            "description": "Optional list of inline images for multimodal models"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "description": "Tool call requests produced by the model"
+          }
+        }
+      }
+    },
+    {
+      "name": "ChatRequest",
+      "source": {
+        "openapi": "#/components/schemas/ChatRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Chat history as an array of message objects (each with a role and content)",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "description": "Optional list of function tools the model may call during the chat",
+            "items": {
+              "$ref": "#/components/schemas/ToolDefinition"
+            }
+          },
+          "format": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": ["json"]
+              },
+              {
+                "type": "object"
+              }
+            ],
+            "description": "Format to return a response in. Can be `json` or a JSON schema"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ModelOptions"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": true
+          },
+          "think": {
+            "$ref": "#/components/schemas/ThinkValue"
+          },
+          "keep_alive": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Model keep-alive duration (for example `5m` or `0` to unload immediately)"
+          },
+          "logprobs": {
+            "type": "boolean",
+            "description": "Whether to return log probabilities of the output tokens"
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "description": "Number of most likely tokens to return at each token position when logprobs are enabled"
+          }
+        }
+      }
+    },
+    {
+      "name": "ChatResponse",
+      "source": {
+        "openapi": "#/components/schemas/ChatResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name used to generate this message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of response creation (ISO 8601)"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": ["assistant"],
+                "description": "Always `assistant` for model responses"
+              },
+              "content": {
+                "type": "string",
+                "description": "Assistant message text"
+              },
+              "thinking": {
+                "type": "string",
+                "description": "Optional deliberate thinking trace when `think` is enabled"
+              },
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                },
+                "description": "Tool calls requested by the assistant"
+              },
+              "images": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Optional base64-encoded images in the response"
+              }
+            }
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Indicates whether the chat response has finished"
+          },
+          "done_reason": {
+            "type": "string",
+            "description": "Reason the response finished"
+          },
+          "total_duration": {
+            "type": "integer",
+            "description": "Total time spent generating in nanoseconds"
+          },
+          "load_duration": {
+            "type": "integer",
+            "description": "Time spent loading the model in nanoseconds"
+          },
+          "prompt_eval_count": {
+            "type": "integer",
+            "description": "Number of tokens in the prompt"
+          },
+          "prompt_eval_cached_count": {
+            "type": "integer",
+            "description": "Number of prompt tokens read from the cache"
+          },
+          "prompt_eval_duration": {
+            "type": "integer",
+            "description": "Time spent evaluating uncached prompt tokens in nanoseconds"
+          },
+          "eval_count": {
+            "type": "integer",
+            "description": "Number of tokens generated in the response"
+          },
+          "eval_duration": {
+            "type": "integer",
+            "description": "Time spent generating tokens in nanoseconds"
+          },
+          "logprobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Logprob"
+            },
+            "description": "Log probability information for the generated tokens when logprobs are enabled"
+          }
+        }
+      }
+    },
+    {
+      "name": "ChatStreamEvent",
+      "source": {
+        "openapi": "#/components/schemas/ChatStreamEvent"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name used for this stream event"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this chunk was created (ISO 8601)"
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "description": "Role of the message for this chunk"
+              },
+              "content": {
+                "type": "string",
+                "description": "Partial assistant message text"
+              },
+              "thinking": {
+                "type": "string",
+                "description": "Partial thinking text when `think` is enabled"
+              },
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                },
+                "description": "Partial tool calls, if any"
+              },
+              "images": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Partial base64-encoded images, when present"
+              }
+            }
+          },
+          "done": {
+            "type": "boolean",
+            "description": "True for the final event in the stream"
+          }
+        }
+      }
+    },
+    {
+      "name": "CopyRequest",
+      "source": {
+        "openapi": "#/components/schemas/CopyRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["source", "destination"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Existing model name to copy from"
+          },
+          "destination": {
+            "type": "string",
+            "description": "New model name to create"
+          }
+        }
+      }
+    },
+    {
+      "name": "CreateRequest",
+      "source": {
+        "openapi": "#/components/schemas/CreateRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Name for the model to create"
+          },
+          "from": {
+            "type": "string",
+            "description": "Existing model to create from"
+          },
+          "template": {
+            "type": "string",
+            "description": "Prompt template to use for the model"
+          },
+          "renderer": {
+            "type": "string",
+            "description": "Name of the renderer for the model"
+          },
+          "parser": {
+            "type": "string",
+            "description": "Name of the parser for the model"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Source file names mapped to their SHA-256 digests. Split GGUF models must include each shard under its original split filename."
+          },
+          "draft_files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Draft source file names mapped to their SHA-256 digests"
+          },
+          "license": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "License string or list of licenses for the model"
+          },
+          "system": {
+            "type": "string",
+            "description": "System prompt to embed in the model"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Key-value parameters for the model"
+          },
+          "messages": {
+            "description": "Message history to use for the model",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "quantize": {
+            "type": "string",
+            "description": "Quantization level to apply during import (e.g. `nvfp4`)"
+          },
+          "draft_quantize": {
+            "type": "string",
+            "description": "Quantization level to apply to draft weights during import"
+          },
+          "requires": {
+            "type": "string",
+            "description": "Minimum Ollama version required by the model"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": true,
+            "description": "Stream status updates"
+          }
+        }
+      }
+    },
+    {
+      "name": "DeleteRequest",
+      "source": {
+        "openapi": "#/components/schemas/DeleteRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name to delete"
+          }
+        }
+      }
+    },
+    {
+      "name": "EmbedRequest",
+      "source": {
+        "openapi": "#/components/schemas/EmbedRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model", "input"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "input": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Text or array of texts to generate embeddings for"
+          },
+          "truncate": {
+            "type": "boolean",
+            "default": true,
+            "description": "If true, truncate inputs that exceed the context window. If false, returns an error."
+          },
+          "dimensions": {
+            "type": "integer",
+            "description": "Number of dimensions to generate embeddings for"
+          },
+          "keep_alive": {
+            "type": "string",
+            "description": "Model keep-alive duration"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ModelOptions"
+          }
+        }
+      }
+    },
+    {
+      "name": "EmbedResponse",
+      "source": {
+        "openapi": "#/components/schemas/EmbedResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model that produced the embeddings"
+          },
+          "embeddings": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "description": "Array of vector embeddings"
+          },
+          "total_duration": {
+            "type": "integer",
+            "description": "Total time spent generating in nanoseconds"
+          },
+          "load_duration": {
+            "type": "integer",
+            "description": "Load time in nanoseconds"
+          },
+          "prompt_eval_count": {
+            "type": "integer",
+            "description": "Number of input tokens processed to generate embeddings"
+          }
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse",
+      "source": {
+        "openapi": "#/components/schemas/ErrorResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong"
+          }
+        }
+      }
+    },
+    {
+      "name": "GenerateRequest",
+      "source": {
+        "openapi": "#/components/schemas/GenerateRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Text for the model to generate a response from"
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Used for fill-in-the-middle models, text that appears after the user prompt and before the model response"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Base64-encoded images for models that support image input"
+            }
+          },
+          "format": {
+            "description": "Structured output format for the model to generate a response from. Supports either the string `\"json\"` or a JSON schema object.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "system": {
+            "description": "System prompt for the model to generate a response from",
+            "type": "string"
+          },
+          "stream": {
+            "description": "When true, returns a stream of partial responses",
+            "type": "boolean",
+            "default": true
+          },
+          "think": {
+            "$ref": "#/components/schemas/ThinkValue"
+          },
+          "raw": {
+            "type": "boolean",
+            "description": "When true, returns the raw response from the model without any prompt templating"
+          },
+          "keep_alive": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Model keep-alive duration (for example `5m` or `0` to unload immediately)"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ModelOptions"
+          },
+          "logprobs": {
+            "type": "boolean",
+            "description": "Whether to return log probabilities of the output tokens"
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "description": "Number of most likely tokens to return at each token position when logprobs are enabled"
+          }
+        }
+      }
+    },
+    {
+      "name": "GenerateResponse",
+      "source": {
+        "openapi": "#/components/schemas/GenerateResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of response creation"
+          },
+          "response": {
+            "type": "string",
+            "description": "The model's generated text response"
+          },
+          "thinking": {
+            "type": "string",
+            "description": "The model's generated thinking output"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Indicates whether generation has finished"
+          },
+          "done_reason": {
+            "type": "string",
+            "description": "Reason the generation stopped"
+          },
+          "total_duration": {
+            "type": "integer",
+            "description": "Time spent generating the response in nanoseconds"
+          },
+          "load_duration": {
+            "type": "integer",
+            "description": "Time spent loading the model in nanoseconds"
+          },
+          "prompt_eval_count": {
+            "type": "integer",
+            "description": "Number of input tokens in the prompt"
+          },
+          "prompt_eval_cached_count": {
+            "type": "integer",
+            "description": "Number of prompt tokens read from the cache"
+          },
+          "prompt_eval_duration": {
+            "type": "integer",
+            "description": "Time spent evaluating uncached prompt tokens in nanoseconds"
+          },
+          "eval_count": {
+            "type": "integer",
+            "description": "Number of output tokens generated in the response"
+          },
+          "eval_duration": {
+            "type": "integer",
+            "description": "Time spent generating tokens in nanoseconds"
+          },
+          "logprobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Logprob"
+            },
+            "description": "Log probability information for the generated tokens when logprobs are enabled"
+          }
+        }
+      }
+    },
+    {
+      "name": "GenerateStreamEvent",
+      "source": {
+        "openapi": "#/components/schemas/GenerateStreamEvent"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of response creation"
+          },
+          "response": {
+            "type": "string",
+            "description": "The model's generated text response for this chunk"
+          },
+          "thinking": {
+            "type": "string",
+            "description": "The model's generated thinking output for this chunk"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Indicates whether the stream has finished"
+          },
+          "done_reason": {
+            "type": "string",
+            "description": "Reason streaming finished"
+          },
+          "total_duration": {
+            "type": "integer",
+            "description": "Time spent generating the response in nanoseconds"
+          },
+          "load_duration": {
+            "type": "integer",
+            "description": "Time spent loading the model in nanoseconds"
+          },
+          "prompt_eval_count": {
+            "type": "integer",
+            "description": "Number of input tokens in the prompt"
+          },
+          "prompt_eval_cached_count": {
+            "type": "integer",
+            "description": "Number of prompt tokens read from the cache"
+          },
+          "prompt_eval_duration": {
+            "type": "integer",
+            "description": "Time spent evaluating uncached prompt tokens in nanoseconds"
+          },
+          "eval_count": {
+            "type": "integer",
+            "description": "Number of output tokens generated in the response"
+          },
+          "eval_duration": {
+            "type": "integer",
+            "description": "Time spent generating tokens in nanoseconds"
+          }
+        }
+      }
+    },
+    {
+      "name": "ListResponse",
+      "source": {
+        "openapi": "#/components/schemas/ListResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelSummary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Logprob",
+      "source": {
+        "openapi": "#/components/schemas/Logprob"
+      },
+      "description": "Log probability information for a generated token",
+      "definition": {
+        "type": "object",
+        "description": "Log probability information for a generated token",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The text representation of the token"
+          },
+          "logprob": {
+            "type": "number",
+            "description": "The log probability of this token"
+          },
+          "bytes": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "The raw byte representation of the token"
+          },
+          "top_logprobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TokenLogprob"
+            },
+            "description": "Most likely tokens and their log probabilities at this position"
+          }
+        }
+      }
+    },
+    {
+      "name": "ModelOptions",
+      "source": {
+        "openapi": "#/components/schemas/ModelOptions"
+      },
+      "description": "Runtime options that control text generation",
+      "definition": {
+        "type": "object",
+        "description": "Runtime options that control text generation",
+        "properties": {
+          "seed": {
+            "type": "integer",
+            "description": "Random seed used for reproducible outputs"
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "description": "Controls randomness in generation (higher = more random)"
+          },
+          "top_k": {
+            "type": "integer",
+            "description": "Limits next token selection to the K most likely"
+          },
+          "top_p": {
+            "type": "number",
+            "format": "float",
+            "description": "Cumulative probability threshold for nucleus sampling"
+          },
+          "min_p": {
+            "type": "number",
+            "format": "float",
+            "description": "Minimum probability threshold for token selection"
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Stop sequences that will halt generation"
+          },
+          "num_ctx": {
+            "type": "integer",
+            "description": "Context length size (number of tokens)"
+          },
+          "num_predict": {
+            "type": "integer",
+            "description": "Maximum number of tokens to generate"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    {
+      "name": "ModelSummary",
+      "source": {
+        "openapi": "#/components/schemas/ModelSummary"
+      },
+      "description": "Summary information for a locally available model",
+      "definition": {
+        "type": "object",
+        "description": "Summary information for a locally available model",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model name"
+          },
+          "remote_model": {
+            "type": "string",
+            "description": "Name of the upstream model, if the model is remote"
+          },
+          "remote_host": {
+            "type": "string",
+            "description": "URL of the upstream Ollama host, if the model is remote"
+          },
+          "modified_at": {
+            "type": "string",
+            "description": "Last modified timestamp in ISO 8601 format"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Total size of the model on disk in bytes"
+          },
+          "digest": {
+            "type": "string",
+            "description": "SHA256 digest identifier of the model contents"
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional information about the model's format and family",
+            "properties": {
+              "format": {
+                "type": "string",
+                "description": "Model file format (for example `gguf`)"
+              },
+              "family": {
+                "type": "string",
+                "description": "Primary model family (for example `llama`)"
+              },
+              "families": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "All families the model belongs to, when applicable"
+              },
+              "parameter_size": {
+                "type": "string",
+                "description": "Approximate parameter count label (for example `7B`, `13B`)"
+              },
+              "quantization_level": {
+                "type": "string",
+                "description": "Quantization level used (for example `Q4_0`)"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Ps",
+      "source": {
+        "openapi": "#/components/schemas/Ps"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the running model"
+          },
+          "model": {
+            "type": "string",
+            "description": "Name of the running model"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Size of the model in bytes"
+          },
+          "digest": {
+            "type": "string",
+            "description": "SHA256 digest of the model"
+          },
+          "details": {
+            "type": "object",
+            "description": "Model details such as format and family"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Time when the model will be unloaded"
+          },
+          "size_vram": {
+            "type": "integer",
+            "description": "VRAM usage in bytes"
+          },
+          "context_length": {
+            "type": "integer",
+            "description": "Context length for the running model"
+          }
+        }
+      }
+    },
+    {
+      "name": "PsResponse",
+      "source": {
+        "openapi": "#/components/schemas/PsResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ps"
+            },
+            "description": "Currently running models"
+          }
+        }
+      }
+    },
+    {
+      "name": "PullRequest",
+      "source": {
+        "openapi": "#/components/schemas/PullRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Name of the model to download"
+          },
+          "insecure": {
+            "type": "boolean",
+            "description": "Allow downloading over insecure connections"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": true,
+            "description": "Stream progress updates"
+          }
+        }
+      }
+    },
+    {
+      "name": "PushRequest",
+      "source": {
+        "openapi": "#/components/schemas/PushRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Name of the model to publish"
+          },
+          "insecure": {
+            "type": "boolean",
+            "description": "Allow publishing over insecure connections"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": true,
+            "description": "Stream progress updates"
+          }
+        }
+      }
+    },
+    {
+      "name": "ShowRequest",
+      "source": {
+        "openapi": "#/components/schemas/ShowRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name to show"
+          },
+          "verbose": {
+            "type": "boolean",
+            "description": "If true, includes large verbose fields in the response."
+          }
+        }
+      }
+    },
+    {
+      "name": "ShowResponse",
+      "source": {
+        "openapi": "#/components/schemas/ShowResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "thinking": {
+            "$ref": "#/components/schemas/Thinking"
+          },
+          "parameters": {
+            "type": "string",
+            "description": "Model parameter settings serialized as text"
+          },
+          "license": {
+            "type": "string",
+            "description": "The license of the model"
+          },
+          "modified_at": {
+            "type": "string",
+            "description": "Last modified timestamp in ISO 8601 format"
+          },
+          "details": {
+            "type": "object",
+            "description": "High-level model details"
+          },
+          "template": {
+            "type": "string",
+            "description": "The template used by the model to render prompts"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of supported features"
+          },
+          "model_info": {
+            "type": "object",
+            "description": "Additional model metadata"
+          }
+        }
+      }
+    },
+    {
+      "name": "StatusEvent",
+      "source": {
+        "openapi": "#/components/schemas/StatusEvent"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Human-readable status message"
+          },
+          "digest": {
+            "type": "string",
+            "description": "Content digest associated with the status, if applicable"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of bytes expected for the operation"
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Number of bytes transferred so far"
+          }
+        }
+      }
+    },
+    {
+      "name": "StatusResponse",
+      "source": {
+        "openapi": "#/components/schemas/StatusResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Current status message"
+          }
+        }
+      }
+    },
+    {
+      "name": "Thinking",
+      "source": {
+        "openapi": "#/components/schemas/Thinking"
+      },
+      "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
+      "definition": {
+        "type": "object",
+        "required": ["values", "default"],
+        "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
+        "properties": {
+          "values": {
+            "type": "array",
+            "description": "Values explicitly supported by the model's `think` request field. Booleans represent on/off controls and strings represent model-defined levels. An array containing only `false` identifies a model without thinking support.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "default": {
+            "description": "Value used when `think` is not set. For models that use this metadata for named thinking levels, unsupported names resolve to this default.",
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "ThinkValue",
+      "source": {
+        "openapi": "#/components/schemas/ThinkValue"
+      },
+      "description": "Controls a model's thinking output. Use `/api/show` to discover the supported values and default for the selected model. `true` requests thinking, `false` requests no thinking output, and `null` uses the model default. String values are model-defined; supported names must match `/api/show` exactly. Numbers are not supported.",
+      "definition": {
+        "description": "Controls a model's thinking output. Use `/api/show` to discover the supported values and default for the selected model. `true` requests thinking, `false` requests no thinking output, and `null` uses the model default. String values are model-defined; supported names must match `/api/show` exactly. Numbers are not supported.",
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenLogprob",
+      "source": {
+        "openapi": "#/components/schemas/TokenLogprob"
+      },
+      "description": "Log probability information for a single token alternative",
+      "definition": {
+        "type": "object",
+        "description": "Log probability information for a single token alternative",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The text representation of the token"
+          },
+          "logprob": {
+            "type": "number",
+            "description": "The log probability of this token"
+          },
+          "bytes": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "The raw byte representation of the token"
+          }
+        }
+      }
+    },
+    {
+      "name": "ToolCall",
+      "source": {
+        "openapi": "#/components/schemas/ToolCall"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "function": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the function to call"
+              },
+              "description": {
+                "type": "string",
+                "description": "What the function does"
+              },
+              "arguments": {
+                "type": "object",
+                "description": "JSON object of arguments to pass to the function"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "ToolDefinition",
+      "source": {
+        "openapi": "#/components/schemas/ToolDefinition"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["type", "function"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["function"],
+            "description": "Type of tool (always `function`)"
+          },
+          "function": {
+            "type": "object",
+            "required": ["name", "parameters"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Function name exposed to the model"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of the function"
+              },
+              "parameters": {
+                "type": "object",
+                "description": "JSON Schema for the function parameters"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "VersionResponse",
+      "source": {
+        "openapi": "#/components/schemas/VersionResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Version of Ollama"
+          }
+        }
+      }
+    },
+    {
+      "name": "WebFetchRequest",
+      "source": {
+        "openapi": "#/components/schemas/WebFetchRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to fetch"
+          }
+        }
+      }
+    },
+    {
+      "name": "WebFetchResponse",
+      "source": {
+        "openapi": "#/components/schemas/WebFetchResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the fetched page"
+          },
+          "content": {
+            "type": "string",
+            "description": "Extracted page content"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Links found on the page"
+          }
+        }
+      }
+    },
+    {
+      "name": "WebSearchRequest",
+      "source": {
+        "openapi": "#/components/schemas/WebSearchRequest"
+      },
+      "definition": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query string"
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5,
+            "description": "Maximum number of results to return"
+          }
+        }
+      }
+    },
+    {
+      "name": "WebSearchResponse",
+      "source": {
+        "openapi": "#/components/schemas/WebSearchResponse"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebSearchResult"
+            },
+            "description": "Array of matching search results"
+          }
+        }
+      }
+    },
+    {
+      "name": "WebSearchResult",
+      "source": {
+        "openapi": "#/components/schemas/WebSearchResult"
+      },
+      "definition": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Page title of the result"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Resolved URL for the result"
+          },
+          "content": {
+            "type": "string",
+            "description": "Extracted text content snippet"
+          }
+        }
+      }
+    }
+  ],
+  "parityBridge": [
+    {
+      "operationId": "anthropicMessages",
+      "legacySurfaceId": "anthropic-messages",
+      "legacyEndpoint": "/v1/messages"
+    },
+    {
+      "operationId": "chat",
+      "legacySurfaceId": "native-chat",
+      "legacyEndpoint": "/api/chat"
+    },
+    {
+      "operationId": "generate",
+      "legacySurfaceId": "native-generate",
+      "legacyEndpoint": "/api/generate"
+    },
+    {
+      "operationId": "embed",
+      "legacySurfaceId": "native-embed",
+      "legacyEndpoint": "/api/embed"
+    },
+    {
+      "operationId": "create",
+      "legacySurfaceId": "native-create",
+      "legacyEndpoint": "/api/create"
+    },
+    {
+      "operationId": "delete",
+      "legacySurfaceId": "native-delete",
+      "legacyEndpoint": "/api/delete"
+    },
+    {
+      "operationId": "push",
+      "legacySurfaceId": "native-push",
+      "legacyEndpoint": "/api/push"
+    },
+    {
+      "operationId": "pull",
+      "legacySurfaceId": "native-pull",
+      "legacyEndpoint": "/api/pull"
+    },
+    {
+      "operationId": "copy",
+      "legacySurfaceId": "native-copy",
+      "legacyEndpoint": "/api/copy"
+    },
+    {
+      "operationId": "show",
+      "legacySurfaceId": "native-show",
+      "legacyEndpoint": "/api/show"
+    },
+    {
+      "operationId": "tags",
+      "legacySurfaceId": "native-tags",
+      "legacyEndpoint": "/api/tags"
+    },
+    {
+      "operationId": "ps",
+      "legacySurfaceId": "native-ps",
+      "legacyEndpoint": "/api/ps"
+    },
+    {
+      "operationId": "version",
+      "legacySurfaceId": "native-version",
+      "legacyEndpoint": "/api/version"
+    },
+    {
+      "operationId": "openaiChatCompletions",
+      "legacySurfaceId": "openai-chat",
+      "legacyEndpoint": "/v1/chat/completions"
+    },
+    {
+      "operationId": "openaiCompletions",
+      "legacySurfaceId": "openai-completions",
+      "legacyEndpoint": "/v1/completions"
+    },
+    {
+      "operationId": "openaiEmbeddings",
+      "legacySurfaceId": "openai-embeddings",
+      "legacyEndpoint": "/v1/embeddings"
+    },
+    {
+      "operationId": "openaiResponses",
+      "legacySurfaceId": "openai-responses",
+      "legacyEndpoint": "/v1/responses"
+    }
+  ]
+}

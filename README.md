@@ -25,17 +25,20 @@
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
 - 📦 **Dual ESM & CJS Build**: Full module support with clean TypeScript `.d.ts` declaration maps.
+- 🧩 **Contract-First Architecture**: A single canonical IR (`contracts/ir/ollama.ir.json`) drives TypeScript interfaces, generated API classes (`NativeApi`/`OpenAIApi`/`AnthropicApi`), MCP tool descriptors, Zod schemas, and field-level parity verification. New Ollama endpoints (like `/v1/systemone`) are caught automatically by bidirectional endpoint discovery. See [ADRs 0013-0019](./docs/adr/README.md).
 
 ---
 
-### API parity verification
+### Contract parity verification
 
-The repository keeps the Ollama compatibility contract in `docs/api-parity.json` and
-checks it against the current official documentation with `npm run verify:api-parity`.
-The manifest distinguishes **supported**, **explicitly unsupported**, and **SDK-only**
-fields, and can also verify documented response fields plus the public streaming-event
-union for compatibility adapters. This prevents a field merely being mentioned in
-upstream documentation from being mistaken for a supported Ollama feature.
+The repository keeps the Ollama compatibility contract in the canonical IR at
+`contracts/ir/ollama.ir.json` (compiled from `contracts/sources/` + `contracts/overlays/`)
+and checks it against the current official documentation with
+`npm run verify:contract-parity`. Each operation's `parity:` block distinguishes
+**supported**, **explicitly unsupported**, and **SDK-only** fields, and also tracks
+documented response fields plus the public streaming-event union for compatibility
+adapters. This prevents a field merely being mentioned in upstream documentation
+from being mistaken for a supported Ollama feature.
 
 For callers who want compile-time enforcement of the documented Ollama subset, the package
 also exports strict request types such as `OllamaOpenAIChatCompletionRequest`,
@@ -46,7 +49,6 @@ available for pass-through interoperability and vendor-specific fields.
 ### SSE Streaming Foundation
 
 Compatibility endpoints use Server-Sent Events when `stream: true`. The SDK now exposes a provider-neutral `parseSseStream()` and `HttpClient.requestSseStream()`, plus typed adapters for OpenAI Chat/Completions/Responses and Anthropic Messages. Native Ollama NDJSON streaming remains separate.
-
 
 ```typescript
 const stream = await client.openai.chatCompletions({
@@ -62,7 +64,6 @@ for await (const chunk of stream) {
 const final = await stream.finalResult;
 console.log(final.usage);
 ```
-
 
 ## MCP bridge
 
@@ -553,9 +554,24 @@ so it never burns a request retrying an unrelated key:
 const client = new OllamaClient({
   baseUrl: 'https://ollama.com',
   endpoints: [
-    { name: 'gpt-oss-key', apiKey: process.env.OLLAMA_KEY_1!, baseUrl: 'https://ollama.com', models: ['gpt-oss:120b'] },
-    { name: 'minimax-key', apiKey: process.env.OLLAMA_KEY_2!, baseUrl: 'https://ollama.com', models: ['minimax-m3'] },
-    { name: 'nemotron-key', apiKey: process.env.OLLAMA_KEY_3!, baseUrl: 'https://ollama.com', models: ['nemotron-3-super'] },
+    {
+      name: 'gpt-oss-key',
+      apiKey: process.env.OLLAMA_KEY_1!,
+      baseUrl: 'https://ollama.com',
+      models: ['gpt-oss:120b'],
+    },
+    {
+      name: 'minimax-key',
+      apiKey: process.env.OLLAMA_KEY_2!,
+      baseUrl: 'https://ollama.com',
+      models: ['minimax-m3'],
+    },
+    {
+      name: 'nemotron-key',
+      apiKey: process.env.OLLAMA_KEY_3!,
+      baseUrl: 'https://ollama.com',
+      models: ['nemotron-3-super'],
+    },
   ],
 });
 
@@ -694,7 +710,7 @@ always tried first regardless of its active count.
 
 #### Queueing past capacity, instead of overrunning an account
 
-`'least-connections'` alone only guarantees no collision for up to `N` *simultaneous*
+`'least-connections'` alone only guarantees no collision for up to `N` _simultaneous_
 calls against `N` candidates — an `(N+1)`th concurrent call would still be routed to
 whichever account looks least busy at that instant, which, once all `N` already have one
 request each, means sending it to an account that's already at its real limit. Add
@@ -789,7 +805,7 @@ compute, not a fixed token count, so a budget you set for one model won't transf
 exactly to another.
 
 `QuotaManager` is a client-side safety net, not a mirror of Ollama's real limits: it
-tracks usage you record against budgets *you* configure over one or more rolling
+tracks usage you record against budgets _you_ configure over one or more rolling
 windows, and fails fast — before a request is even sent — once a window's budget is
 spent. Pair it with catching `OllamaRateLimitError` (the server's actual `429`) as the
 authoritative signal.
@@ -815,7 +831,10 @@ async function chatWithQuota(prompt: string) {
   quota.assertCanProceed(); // throws OllamaQuotaExceededError if any window is spent
 
   try {
-    const res = await client.chat({ model: 'qwen3:8b', messages: [{ role: 'user', content: prompt }] });
+    const res = await client.chat({
+      model: 'qwen3:8b',
+      messages: [{ role: 'user', content: prompt }],
+    });
     quota.recordUsage(res); // reads prompt_eval_count/eval_count off the raw response
     return res.message.content;
   } catch (error) {
@@ -853,6 +872,130 @@ real Edge Runtime sandbox exposing only Web Standard globals. See
 
 ---
 
+## Contract-First Architecture
+
+Starting with v1.4.0, the SDK ships a **contract-first hybrid architecture** where a single
+canonical IR (`contracts/ir/ollama.ir.json`) drives seven consumers:
+
+1. **TypeScript interfaces** — `src/generated/models/<name>.ts` (36 schemas)
+2. **Generated API classes** — `NativeApi` / `OpenAIApi` / `AnthropicApi` in `src/generated/api/`
+3. **MCP tool descriptors** — `src/generated/mcp/tools.json` (21 tools, one per documented operation)
+4. **Operation metadata** — `src/generated/metadata/operations.json`
+5. **Field-level parity** — overlay `parity:` blocks verified by `npm run verify:contract-parity`
+6. **Zod schemas** — `src/generated/models/<name>.schema.ts` (paired with every TypeScript interface)
+7. **Bidirectional endpoint discovery** — catches new Ollama endpoints like `/v1/systemone` that the OpenAPI spec doesn't yet cover
+
+The IR is compiled from upstream OpenAPI + hand-maintained behavioral overlays by
+`npm run contract:normalize`. Run `npm run contract:generate` to regenerate every TypeScript /
+Zod / MCP artifact from the IR. See [ADRs 0013-0019](./docs/adr/README.md) for the full design.
+
+### Using the generated `NativeApi` (recommended for new code)
+
+The generated surface is opt-in — existing `OllamaClient` callers don't need to change anything.
+For new code, the generated API inherits every contract-layer guarantee (environment guards,
+version guards, streaming defaults) automatically:
+
+```typescript
+import { HttpClient } from '@nemesis-oss/ollama-sdk';
+import { OllamaRuntime } from '@nemesis-oss/ollama-sdk/generated/runtime';
+import { NativeApi } from '@nemesis-oss/ollama-sdk/generated/api';
+
+const http = new HttpClient({ baseUrl: 'http://localhost:11434' });
+const runtime = new OllamaRuntime({ http });
+const api = new NativeApi(runtime);
+
+// Non-streaming chat:
+const res = await api.chat({
+  model: 'qwen3:8b',
+  messages: [{ role: 'user', content: 'Hello' }],
+  stream: false,
+});
+
+// Streaming chat — explicitly request a stream:
+const stream = await api.chat({
+  model: 'qwen3:8b',
+  messages: [{ role: 'user', content: 'Hello' }],
+  stream: true,
+});
+for await (const chunk of stream) {
+  console.log(chunk.message?.content);
+}
+```
+
+### Mixing the legacy client with the generated surface
+
+`OllamaClient.runtime` returns a cached `OllamaRuntime` that shares the client's
+transport (HttpClient + middleware + retry + telemetry), so you can mix both
+surfaces in the same process without configuring two HttpClient instances:
+
+```typescript
+import { OllamaClient } from '@nemesis-oss/ollama-sdk';
+import { NativeApi } from '@nemesis-oss/ollama-sdk/generated/api';
+
+const client = new OllamaClient({ baseUrl: 'http://localhost:11434' });
+
+// Existing API:
+const res = await client.chat({ model: 'qwen3:8b', messages });
+
+// Generated API (shares transport):
+const api = new NativeApi(client.runtime);
+const res2 = await api.chat({ model: 'qwen3:8b', messages, stream: false });
+```
+
+`OllamaClient` carries a deprecation notice pointing to `NativeApi` for new code, but
+no method signatures have changed — existing callers continue to work.
+
+### Runtime validation with generated Zod schemas
+
+Every TypeScript interface in `src/generated/models/<name>.ts` has a paired Zod schema
+in `src/generated/models/<name>.schema.ts`. Use them for runtime validation of user
+input, server responses, or anywhere you need to confirm a value matches the IR shape:
+
+```typescript
+import { ChatRequestSchema } from '@nemesis-oss/ollama-sdk/generated/models/schemas';
+
+const result = ChatRequestSchema.safeParse(userInput);
+if (!result.success) {
+  console.error(result.error.issues);
+} else {
+  // result.data is typed as ChatRequest
+}
+```
+
+### Generated MCP tools
+
+The IR also produces 21 MCP tool descriptors (one per documented Ollama operation) at
+`src/generated/mcp/tools.json`. The runtime adapter at
+`@nemesis-oss/ollama-sdk/mcp/generated` exposes them as a callable tool registry:
+
+```typescript
+import { OllamaRuntime } from '@nemesis-oss/ollama-sdk/generated/runtime';
+import {
+  listGeneratedOllamaTools,
+  callGeneratedOllamaTool,
+} from '@nemesis-oss/ollama-sdk/mcp/generated';
+
+const tools = listGeneratedOllamaTools();
+// tools: [{ name: 'ollama_chat', inputSchema: {...}, annotations: {...} }, ...]
+
+const result = await callGeneratedOllamaTool(runtime, 'ollama_version', {});
+console.log(result.structuredContent); // { version: '0.5.0' }
+```
+
+### Contract maintenance commands
+
+| Command                          | What it does                                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run contract:fetch`         | Re-pull the upstream OpenAPI spec into `contracts/sources/`                                                                        |
+| `npm run contract:normalize`     | Compile sources + overlays → `contracts/ir/ollama.ir.json`                                                                         |
+| `npm run contract:validate`      | Run schema + compatibility + bidirectional endpoint discovery validators                                                           |
+| `npm run contract:diff`          | Fail if the committed IR is stale (CI gate)                                                                                        |
+| `npm run contract:generate`      | Regenerate every TypeScript / Zod / MCP artifact from the IR (idempotent)                                                          |
+| `npm run contract:drift`         | Print drift report between generated types and `src/types.ts` (pass `--strict` to fail CI on unexpected drift)                     |
+| `npm run verify:contract-parity` | Verify parity blocks against `src/types.ts` (structural) and `docs.ollama.com` (live-docs); pass `--skip-live-docs` for offline CI |
+
+---
+
 ## Error Handling
 
 Every failure thrown by the client is an `OllamaClientError` subclass, so you can catch the base
@@ -865,14 +1008,14 @@ class or narrow to a specific `code`:
 | `OllamaAuthError`                  | `auth_error`                    | `false`     | The endpoint returned `401`/`403`.                                                                                                                                                                                                                       |
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | The endpoint returned `404` (e.g. unknown model).                                                                                                                                                                                                        |
 | `OllamaRateLimitError`             | `rate_limited`                  | `true`      | The endpoint returned `429`.                                                                                                                                                                                                                             |
-| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` was called and would exceed a configured usage budget. Thrown client-side, before any network call — see [Quota Monitoring](#quota-monitoring).                                                                        |
-| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured `endpoints` entry's `models` allow-list includes the requested model. Thrown client-side, before any network call — see [Multiple API keys, each entitled to different models](#multiple-api-keys-each-entitled-to-different-models).   |
+| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` was called and would exceed a configured usage budget. Thrown client-side, before any network call — see [Quota Monitoring](#quota-monitoring).                                                                          |
+| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured `endpoints` entry's `models` allow-list includes the requested model. Thrown client-side, before any network call — see [Multiple API keys, each entitled to different models](#multiple-api-keys-each-entitled-to-different-models).      |
 | `OllamaServerError`                | `server_error`                  | `true`      | The endpoint returned `5xx`.                                                                                                                                                                                                                             |
 | `OllamaAbortError`                 | `aborted`                       | `false`     | The request was cancelled via `AbortSignal`.                                                                                                                                                                                                             |
 | `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | A tool call's arguments, or a `chatWithSchema`/`generateWithSchema` result, failed Zod validation.                                                                                                                                                       |
 | `OllamaUnsupportedCapabilityError` | `unsupported_capability`        | `false`     | A `format` (structured output) request was made against an endpoint inferred as Ollama Cloud, which doesn't currently support it. Thrown before any network call; in `DEFAULT_FAILOVER_CODES`, so a multi-endpoint setup tries the next candidate first. |
-| `OllamaIncompatibleModelError`     | `incompatible_model`            | `false`     | A tool-enabled `Agent` run was blocked by capability preflight because `/api/show` did not advertise `tools`. |
-| `OllamaAgentMaxIterationsError`    | `agent_max_iterations_exceeded` | `false`     | An `Agent` run exceeded `maxIterations` without producing a final answer.                                                                                                                                                                                     |
+| `OllamaIncompatibleModelError`     | `incompatible_model`            | `false`     | A tool-enabled `Agent` run was blocked by capability preflight because `/api/show` did not advertise `tools`.                                                                                                                                            |
+| `OllamaAgentMaxIterationsError`    | `agent_max_iterations_exceeded` | `false`     | An `Agent` run exceeded `maxIterations` without producing a final answer.                                                                                                                                                                                |
 | `OllamaMcpError`                   | `mcp_error`                     | varies      | An MCP `listTools`/`callTool` call failed.                                                                                                                                                                                                               |
 | `OllamaSkillNotFoundError`         | `skill_not_found`               | `false`     | `applySkill` referenced a skill that isn't registered.                                                                                                                                                                                                   |
 | `OllamaSkillInvalidError`          | `skill_invalid`                 | `false`     | A skill's frontmatter or contents failed to parse.                                                                                                                                                                                                       |
@@ -910,19 +1053,27 @@ observe per-endpoint circuit state directly.
 The repository maintains implementation-facing documentation alongside the package README:
 
 - [Architecture Decision Records](./docs/adr/README.md) — rationale for durable API and architecture choices.
-- [API parity contract](./docs/api-parity.json) — machine-readable Ollama compatibility surface checked by CI.
+- [Canonical Ollama IR](./contracts/ir/ollama.ir.json) — machine-readable Ollama contract compiled from sources + overlays, checked by CI.
 - [Multi-model agent benchmarking guide](./docs/guides/multi-model-agent-benchmarking.md) — running agent roles across multiple Ollama endpoints.
 - [Upstream compatibility notes](./docs/upstream/) — pinned OpenAI/Anthropic compatibility references and the upstream OpenAPI snapshot.
 - [Manual laboratory](./LAB_README.md) — runnable experiments for protocol, tool, streaming, and agent behavior.
 
-## API parity verification
+## Contract parity verification
 
-`npm run verify:api-parity` fetches the official Ollama API Markdown references during CI and
-checks that documented endpoint/request fields remain present in the SDK's TypeScript
-interfaces. The gate covers every currently indexed native REST endpoint (`chat`, `generate`,
-`embed`, `tags`, `ps`, `show`, `create`, `copy`, `pull`, `push`, `delete`, and `version`) plus
-OpenAI and Anthropic compatibility request surfaces. OpenAI Responses vendor extensions that are
-not currently documented by Ollama are deliberately kept outside the documented-field contract.
+`npm run verify:contract-parity` checks the canonical IR against the official Ollama
+documentation. The structural half verifies that every `parity.request.fields` /
+`parity.response.fields` entry exists on the hand-written TypeScript interfaces
+in `src/types.ts` and `src/integrations/*`. The live-docs half (when run without
+`--skip-live-docs`) fetches the rendered docs at `docs.ollama.com` and asserts each
+supported field is documented as supported, each unsupported field is explicitly
+marked as such, and each streaming event type is present.
+
+The gate covers every documented native REST endpoint (`chat`, `generate`, `embed`,
+`tags`, `ps`, `show`, `create`, `copy`, `pull`, `push`, `delete`, and `version`)
+plus the OpenAI and Anthropic compatibility request surfaces. SDK-only fields
+that exist in `src/types.ts` but are absent from the OpenAPI snapshot are declared
+as `sdkOnlyFields` in the overlay parity blocks and treated as expected drift,
+not findings.
 
 ## Middleware and request lifecycle
 
@@ -933,10 +1084,12 @@ model health checks, and the hosted web tools. Lifecycle events expose `start`, 
 
 ```ts
 const client = new OllamaClient({
-  middleware: [async ({ request, next }) => {
-    request.headers['X-Request-Source'] = 'my-app';
-    return next();
-  }],
+  middleware: [
+    async ({ request, next }) => {
+      request.headers['X-Request-Source'] = 'my-app';
+      return next();
+    },
+  ],
   onLifecycleEvent: (event) => {
     console.log(event.type, event.requestId);
   },
@@ -944,7 +1097,6 @@ const client = new OllamaClient({
 ```
 
 Retry backoff is also cancellation-aware: passing an `AbortSignal` to `withRetry` or cancelling an `OllamaClient` request interrupts an in-progress backoff immediately instead of waiting for the next retry delay.
-
 
 ## Compatibility routing and stream lifecycle
 

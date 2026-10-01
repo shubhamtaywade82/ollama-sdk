@@ -27,8 +27,12 @@ jobs:
 
       - run: npm run lint
 
-      - name: Verify Ollama API parity manifest
-        run: npm run verify:api-parity
+      - name: Verify Ollama contract parity (structural)
+        # --skip-live-docs avoids hitting docs.ollama.com from CI; the
+        # structural half (TypeScript interface + IR parity blocks) is
+        # sufficient for the PR gate. Live-docs verification runs in
+        # the dedicated contract-parity job below.
+        run: npm run verify:contract-parity -- --skip-live-docs
 
       - run: npm test
 
@@ -64,7 +68,7 @@ jobs:
           node --input-type=module -e "import { connectStdioMcpClient } from '@nemesis-oss/ollama-sdk/mcp/stdio'; if (typeof connectStdioMcpClient !== 'function') throw new Error('MCP stdio entry broken');"
           node --input-type=module -e "import { connectMcpHttpClient, connectStreamableHttpMcpClient } from '@nemesis-oss/ollama-sdk/mcp/http'; if (typeof connectMcpHttpClient !== 'function' || typeof connectStreamableHttpMcpClient !== 'function') throw new Error('MCP HTTP entry broken');"
 
-  api-parity:
+  contract-parity:
     runs-on: ubuntu-latest
     needs: test
 
@@ -77,7 +81,11 @@ jobs:
           cache: npm
 
       - run: npm ci --ignore-scripts
-      - run: npm run verify:api-parity
+      - name: Verify contract parity (structural + live-docs)
+        # This job runs the FULL verifier including live-docs fetching
+        # from docs.ollama.com. The pinned fallback snapshots under
+        # docs/upstream/ are used when the live docs are unreachable.
+        run: npm run verify:contract-parity
 
   edge-runtime:
     runs-on: ubuntu-latest

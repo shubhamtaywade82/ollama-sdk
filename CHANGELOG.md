@@ -2,8 +2,17 @@
 
 ## Unreleased
 
+- **Contract-first hybrid architecture (Waves 1-9).** The SDK now ships a single canonical IR at `contracts/ir/ollama.ir.json` (compiled from `contracts/sources/` + `contracts/overlays/`) that drives seven consumers: TypeScript interfaces, generated API classes, MCP tool descriptors, operation metadata, field-level parity, Zod schemas, and bidirectional endpoint discovery. Adding a new Ollama operation now requires writing one overlay block; everything else is generated. See [ADRs 0013-0019](./docs/adr/README.md) for the full design.
+  - **Wave 1** — Contract foundation: sources, overlays, canonical IR, bidirectional endpoint discovery (catches new endpoints like `/v1/systemone` that the OpenAPI spec doesn't yet cover).
+  - **Wave 2** — Generated TypeScript interfaces in `src/generated/models/` (36 schemas), with a drift detector comparing against `src/types.ts`.
+  - **Wave 3** — Generated API classes (`NativeApi` / `OpenAIApi` / `AnthropicApi`) delegating to a hand-written `OllamaRuntime` seam with environment + version guards.
+  - **Wave 4** — `raw: true` option on `HttpClient` so the generated runtime inherits middleware/retry/telemetry for streaming calls (instead of bypassing them with a direct `fetch()`).
+  - **Wave 5** — Field-level parity migrated from `docs/api-parity.json` into overlay `parity:` blocks; new IR-driven verifier `npm run verify:contract-parity`.
+  - **Wave 6** — MCP tool generation: 21 tool descriptors at `src/generated/mcp/tools.json` with the runtime adapter at `@nemesis-oss/ollama-sdk/mcp/generated`.
+  - **Wave 7** — Retired `docs/api-parity.json`, `scripts/verify-api-parity.ts`, and `scripts/parity-status.ts`. The IR-driven verifier is the only parity check.
+  - **Wave 8** — `OllamaClient.runtime` accessor returns a cached `OllamaRuntime` sharing the client's transport; non-breaking bridge between the legacy and generated surfaces.
+  - **Wave 9** — Zod schema generation: every TypeScript interface has a paired Zod schema at `src/generated/models/<name>.schema.ts` (36 schemas) for runtime validation.
 - **MCP remote transport integration.** Added the optional `@nemesis-oss/ollama-sdk/mcp/http` adapter for MCP Streamable HTTP, explicit legacy SSE, and guarded automatic SSE fallback on compatible non-authentication 4xx responses. It preserves the root package's transport boundary and supports custom `fetch`/`RequestInit` configuration.
-
 
 - **Ollama API parity refresh.** Updated the compatibility contract against the current documentation: native generate now preserves cached prompt-token metrics through streaming, OpenAI Chat/Completions parity includes documented logprobs fields, OpenAI Responses strict types retain supported `reasoning`/`think` controls, Anthropic `output_config.effort` is forwarded, and native Show/Create contracts include the newly verified fields.
 - **Generate stream fidelity.** Aggregated generate streams now preserve `thinking` alongside response text and cached prompt-token usage.
@@ -11,9 +20,8 @@
 
 - MCP tool arguments are now validated against advertised JSON Schema constraints before dispatch, while `resultMode: 'structured'` preserves raw MCP `CallToolResult` objects for programmatic consumers.
 
-
-
 ## [Unreleased]
+
 - **MCP bridge hardening.** MCP tool discovery now supports bounded pagination, repeated-cursor protection, request cancellation, richer MCP metadata types, and structured/non-text result preservation.
 - **Optional Node MCP stdio adapter.** `@nemesis-oss/ollama-sdk/mcp/stdio` connects to local MCP servers using the official `@modelcontextprotocol/client` v2 transport without importing Node-only code into the root package.
 
@@ -23,10 +31,11 @@
 - **ADR numbering.** Renumbered the MCP boundary and agent tool-precondition decision to ADR 0011 so ADR 0008 remains uniquely assigned to endpoint failover scope.
 
 ### Added
+
 - **First-class MCP bridge.** Added `McpBridge` to convert MCP `tools/list` descriptors into native Ollama tool definitions and register executable MCP-backed tools through the existing `ToolRegistry` without coupling the core package to a transport.
 - **Agent capability preflight and adaptive context.** Tool-enabled `Agent` runs using `OllamaClient` now query `/api/show` before the first model turn, fail with `OllamaIncompatibleModelError` when `tools` is absent, and default to `num_ctx: 32768` clamped to the model-reported context length; explicit `options.num_ctx` remains authoritative.
 - **Model context metadata.** `ModelCapabilities` now exposes `contextLength` parsed from `/api/show` `model_info` and accepts cancellation through the capability lookup.
-- **Machine-readable API parity manifest and CI verification.** `docs/api-parity.json` defines the supported Ollama surface and `verify:api-parity` checks the manifest against the current official documentation; publishing now runs the same verification.
+- **Machine-readable Ollama contract and IR-driven CI verification.** The canonical IR at `contracts/ir/ollama.ir.json` (compiled from `contracts/sources/` + `contracts/overlays/`) defines the supported Ollama surface, and `verify:contract-parity` checks it against the current official documentation; publishing now runs the same verification.
 - **Support-aware compatibility contract.** API parity manifest v4 now separates supported, explicitly unsupported, and SDK-only fields; verifies Anthropic response fields and the public OpenAI Responses/Anthropic stream unions; and exports strict Ollama-scoped request types without removing the broader compatibility request types.
 - **Strict Anthropic compatibility types.** Ollama-scoped tool and thinking types now exclude provider-only controls while the broader Anthropic compatibility types remain available for callers targeting the wider provider API.
 - **Anthropic Ollama-scope alignment.** The strict Anthropic request type now excludes `output_config`, redacted-thinking input blocks, and nested `cache_control` on tool-result text; the compatibility bridge strips those unsupported cache directives before transmission. Live documentation sections now take precedence over pinned fallbacks, and nested unsupported-field evidence is enforced.

@@ -1,0 +1,33 @@
+{
+  "$comment": "Index of every upstream docs source the contract system consults. Adding a new source here makes the bidirectional discovery validator aware of it. See generator/parser/docs.ts.",
+  "version": 1,
+  "sources": [
+    {
+      "id": "openapi",
+      "kind": "openapi-yaml",
+      "path": "contracts/sources/ollama.openapi.yaml",
+      "upstream": "https://github.com/ollama/ollama/blob/main/docs/openapi.yaml",
+      "pinnedSha": "86fc5e9dcadb89b042e31e9b4bbb35baac2e0e54",
+      "pinnedAt": "2026-09-25"
+    },
+    {
+      "id": "openai-compatibility",
+      "kind": "mdx",
+      "path": "docs/upstream/ollama-openai-compatibility.mdx",
+      "upstream": "https://docs.ollama.com/api/openai-compatibility"
+    },
+    {
+      "id": "anthropic-compatibility",
+      "kind": "mdx",
+      "path": "docs/upstream/ollama-anthropic-compatibility.mdx",
+      "upstream": "https://docs.ollama.com/api/anthropic-compatibility"
+    },
+    {
+      "id": "native-docs",
+      "kind": "html",
+      "path": null,
+      "upstream": "https://docs.ollama.com/api",
+      "$comment": "The rendered native API docs. Currently consulted at runtime by scripts/verify-api-parity.ts (the legacy verifier); the contract system will start consuming this in Wave 2 once an HTML→endpoint extractor exists."
+    }
+  ]
+}

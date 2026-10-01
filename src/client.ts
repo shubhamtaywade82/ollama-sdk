@@ -13,7 +13,11 @@ import {
   resolveCredentialEndpoints,
   type OllamaClientConfig,
 } from './config.js';
-import { OllamaClientError, OllamaModelRoutingError, OllamaUnsupportedCapabilityError } from './errors.js';
+import {
+  OllamaClientError,
+  OllamaModelRoutingError,
+  OllamaUnsupportedCapabilityError,
+} from './errors.js';
 import { createConsoleLogger, NOOP_LOGGER, type Logger } from './logger.js';
 import { EndpointRegistry, type EndpointHealth } from './providers/endpoint-registry.js';
 import { checkEndpointHealth, type EndpointHealthCheckResult } from './providers/health-check.js';
@@ -33,6 +37,7 @@ import { createTimeoutSignal } from './transport/timeout.js';
 import { ModelsClient } from './models-client.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
+import { OllamaRuntime } from './generated/runtime/runtime.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
 import { withEncodedImages, withEncodedMessageImages } from './utils.js';
 import {
@@ -76,6 +81,40 @@ function createLogicalRequestId(): string {
   return `ollama-request-${logicalRequestSequence}`;
 }
 
+/**
+ * High-level Ollama client — the original, hand-written API surface.
+ *
+ * **Wave 8 (ADR 0018) deprecation notice:**
+ *
+ * For new code, prefer the generated `NativeApi` from
+ * {@link ./generated/runtime/runtime.js} + {@link ./generated/api/native-api.js}
+ * instead. The generated surface:
+ *
+ *   - Inherits every contract-layer guarantee (environment guards, version
+ *     guards, streaming defaults) automatically from the canonical IR.
+ *   - Stays in sync with the OpenAPI spec by construction — no hand-written
+ *     surface to drift.
+ *   - Uses the same `HttpClient` (and therefore the same middleware,
+ *     retry, telemetry, and streaming pipeline) as this client.
+ *
+ * The migration path is non-breaking:
+ *
+ * ```ts
+ * // Before (still works, no breaking changes):
+ * const client = new OllamaClient({ baseUrl: 'http://localhost:11434' });
+ * const res = await client.chat({ model, messages });
+ *
+ * // After (recommended for new code):
+ * const http = new HttpClient({ baseUrl: 'http://localhost:11434' });
+ * const runtime = new OllamaRuntime({ http });
+ * const api = new NativeApi(runtime);
+ * const res = await api.chat({ model, messages, stream: false });
+ * ```
+ *
+ * `OllamaClient` is preserved verbatim — existing callers do not need to
+ * change anything. New methods and operations will land on the generated
+ * surface first; `OllamaClient` will receive them only as a follow-up.
+ */
 export class OllamaClient {
   readonly registry: EndpointRegistry;
   readonly models: ModelsClient;
@@ -111,7 +150,10 @@ export class OllamaClient {
               ...(config.headers !== undefined ? { headers: config.headers } : {}),
             },
           ]);
-    this.registry = new EndpointRegistry([...endpoints, ...credentialEndpoints], config.endpointHealth);
+    this.registry = new EndpointRegistry(
+      [...endpoints, ...credentialEndpoints],
+      config.endpointHealth,
+    );
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.failoverCodes = new Set(config.failoverOn ?? DEFAULT_FAILOVER_CODES);
     this.fetchImpl = config.fetch ?? globalThis.fetch;
@@ -128,6 +170,55 @@ export class OllamaClient {
   get modelsClient(): ModelsClient {
     return this.models;
   }
+
+  /**
+   * Return a generated {@link OllamaRuntime} that shares this client's
+   * transport (HttpClient + middleware + retry + telemetry).
+   *
+   * Wave 8 (ADR 0018) bridge: lets callers mix the existing `OllamaClient`
+   * API with the generated `NativeApi` / `OpenAIApi` / `AnthropicApi`
+   * surface without configuring two separate HttpClient instances.
+   *
+   * The returned runtime is bound to the registry's first candidate
+   * endpoint (or the resolved single-endpoint config if no `endpoints`
+   * array was provided). For multi-endpoint configs that need per-call
+   * routing, prefer constructing `OllamaRuntime` directly with a
+   * specific HttpClient:
+   *
+   * ```ts
+   * const http = new HttpClient({ baseUrl: 'http://host-a:11434' });
+   * const runtime = new OllamaRuntime({ http });
+   * const api = new NativeApi(runtime);
+   * ```
+   *
+   * The runtime is cached on first call — subsequent calls return the
+   * same instance.
+   */
+  get runtime(): OllamaRuntime {
+    if (this._runtime === undefined) {
+      // Pick the first candidate endpoint to bind the runtime to. The
+      // generated surface doesn't currently support multi-endpoint
+      // failover; callers needing that should keep using OllamaClient
+      // (or construct OllamaRuntime per-call with the desired endpoint).
+      const candidates = this.registry.candidates();
+      const endpoint = candidates[0];
+      const baseUrl = endpoint?.baseUrl ?? 'http://localhost:11434';
+      const http = new HttpClient({
+        baseUrl,
+        ...(endpoint?.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
+        ...(endpoint?.headers !== undefined ? { headers: endpoint.headers } : {}),
+        fetch: this.fetchImpl,
+        ...(this.middleware !== undefined ? { middleware: this.middleware } : {}),
+        ...(this.onLifecycleEvent !== undefined ? { onLifecycleEvent: this.onLifecycleEvent } : {}),
+      });
+      this._runtime = new OllamaRuntime({
+        http,
+        localMode: inferRuntimeMode(baseUrl) === 'local',
+      });
+    }
+    return this._runtime;
+  }
+  private _runtime: OllamaRuntime | undefined;
 
   /**
    * Fail-fast guard for `format` (structured output) requests: throws before any network
@@ -245,20 +336,24 @@ export class OllamaClient {
                 [ATTR_OLLAMA_ENDPOINT_ATTEMPT]: attemptIndex,
               },
               () =>
-                withRetry(() => operation(http, timeout.signal), {
-                  ...this.retryConfig,
-                  onRetry: (error, attempt, delayMs) => {
-                    this.retryConfig.onRetry?.(error, attempt, delayMs);
-                    this.onLifecycleEvent?.({
-                      type: 'retry',
-                      requestId,
-                      attempt: attempt + 1,
-                      error,
-                      delayMs,
-                      timestamp: Date.now(),
-                    });
+                withRetry(
+                  () => operation(http, timeout.signal),
+                  {
+                    ...this.retryConfig,
+                    onRetry: (error, attempt, delayMs) => {
+                      this.retryConfig.onRetry?.(error, attempt, delayMs);
+                      this.onLifecycleEvent?.({
+                        type: 'retry',
+                        requestId,
+                        attempt: attempt + 1,
+                        error,
+                        delayMs,
+                        timestamp: Date.now(),
+                      });
+                    },
                   },
-                }, timeout.signal),
+                  timeout.signal,
+                ),
             );
             this.registry.reportSuccess(endpoint.name);
             if (options?.holdUntil) {
@@ -570,20 +665,24 @@ export class OllamaClient {
         onLifecycleEvent: this.onLifecycleEvent,
         requestId,
       });
-      return await withRetry(() => operation(http, timeout.signal), {
-        ...this.retryConfig,
-        onRetry: (error, attempt, delayMs) => {
-          this.retryConfig.onRetry?.(error, attempt, delayMs);
-          this.onLifecycleEvent?.({
-            type: 'retry',
-            requestId,
-            attempt: attempt + 1,
-            error,
-            delayMs,
-            timestamp: Date.now(),
-          });
+      return await withRetry(
+        () => operation(http, timeout.signal),
+        {
+          ...this.retryConfig,
+          onRetry: (error, attempt, delayMs) => {
+            this.retryConfig.onRetry?.(error, attempt, delayMs);
+            this.onLifecycleEvent?.({
+              type: 'retry',
+              requestId,
+              attempt: attempt + 1,
+              error,
+              delayMs,
+              timestamp: Date.now(),
+            });
+          },
         },
-      }, timeout.signal);
+        timeout.signal,
+      );
     } finally {
       timeout.cancel();
     }

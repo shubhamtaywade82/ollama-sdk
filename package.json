@@ -1,7 +1,7 @@
 {
   "name": "@nemesis-oss/ollama-sdk",
   "version": "1.3.0",
-  "description": "Production-grade TypeScript SDK for Ollama with native fetch, high availability failover, multi-turn tool calling, structured outputs, reasoning stream tokens, OpenAI/Anthropic bridges, MCP, and Web Stream adapters.",
+  "description": "Production-grade TypeScript SDK for Ollama with native fetch, high availability failover, multi-turn tool calling, structured outputs, reasoning stream tokens, OpenAI/Anthropic bridges, MCP, Web Stream adapters, and a contract-first hybrid architecture that generates TypeScript types, API classes, MCP tools, and Zod schemas from a single canonical IR.",
   "keywords": [
     "ollama",
     "ollama-client",
@@ -79,6 +79,46 @@
         "types": "./dist/mcp-http.d.cts",
         "default": "./dist/mcp-http.cjs"
       }
+    },
+    "./generated/runtime": {
+      "import": {
+        "types": "./dist/generated-runtime.d.ts",
+        "default": "./dist/generated-runtime.js"
+      },
+      "require": {
+        "types": "./dist/generated-runtime.d.cts",
+        "default": "./dist/generated-runtime.cjs"
+      }
+    },
+    "./generated/api": {
+      "import": {
+        "types": "./dist/generated-api.d.ts",
+        "default": "./dist/generated-api.js"
+      },
+      "require": {
+        "types": "./dist/generated-api.d.cts",
+        "default": "./dist/generated-api.cjs"
+      }
+    },
+    "./generated/models/schemas": {
+      "import": {
+        "types": "./dist/generated-models-schemas.d.ts",
+        "default": "./dist/generated-models-schemas.js"
+      },
+      "require": {
+        "types": "./dist/generated-models-schemas.d.cts",
+        "default": "./dist/generated-models-schemas.cjs"
+      }
+    },
+    "./mcp/generated": {
+      "import": {
+        "types": "./dist/mcp-generated.d.ts",
+        "default": "./dist/mcp-generated.js"
+      },
+      "require": {
+        "types": "./dist/mcp-generated.d.cts",
+        "default": "./dist/mcp-generated.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -91,6 +131,18 @@
       ],
       "mcp/http": [
         "dist/mcp-http.d.ts"
+      ],
+      "generated/runtime": [
+        "dist/generated-runtime.d.ts"
+      ],
+      "generated/api": [
+        "dist/generated-api.d.ts"
+      ],
+      "generated/models/schemas": [
+        "dist/generated-models-schemas.d.ts"
+      ],
+      "mcp/generated": [
+        "dist/mcp-generated.d.ts"
       ]
     }
   },
@@ -121,19 +173,25 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:edge-runtime": "tsx scripts/verify-edge-runtime.ts",
-    "verify:api-parity": "tsx scripts/verify-api-parity.ts",
+    "verify:contract-parity": "tsx scripts/verify-contract-parity.ts",
+    "contract:fetch": "tsx scripts/fetch-contract.ts",
+    "contract:normalize": "tsx scripts/build-contract.ts",
+    "contract:validate": "tsx scripts/verify-contract.ts",
+    "contract:diff": "tsx scripts/diff-contract.ts",
+    "contract:generate": "tsx scripts/generate-contract.ts && prettier --write src/generated/",
+    "contract:drift": "tsx scripts/drift-contract.ts",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:api-parity"
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/client": "^2.1.0",
     "@opentelemetry/api": "^1.9.0",
-    "zod": "^3.22.0 || ^4.0.0",
-    "@modelcontextprotocol/client": "^2.1.0"
+    "zod": "^3.22.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
@@ -151,6 +209,7 @@
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-async-hooks": "^1.30.1",
     "@opentelemetry/sdk-trace-base": "^1.30.1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.0",
     "@vitest/coverage-v8": "^4.1.9",
     "cross-env": "^10.1.0",
@@ -158,6 +217,7 @@
     "esbuild": "^0.27.7",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^9.1.2",
+    "js-yaml": "^5.4.2",
     "prettier": "^3.9.4",
     "tsup": "^8.5.1",
     "tsx": "^4.23.0",

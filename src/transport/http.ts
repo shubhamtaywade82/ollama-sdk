@@ -75,6 +75,17 @@ export interface HttpRequestOptions {
   readonly rawBody?: BinaryBody | undefined;
   readonly headers?: Record<string, string> | undefined;
   readonly signal?: AbortSignal | undefined;
+  /**
+   * When `true`, return the raw {@link Response} object instead of parsing
+   * the body as JSON. Used by callers that need direct access to the
+   * streaming body (e.g. {@link src/generated/runtime/runtime.ts} for
+   * NDJSON streaming through the runtime seam).
+   *
+   * The returned `Response` is the same one middleware/retry/telemetry
+   * have already processed, so this option does NOT bypass any of the
+   * transport-layer concerns.
+   */
+  readonly raw?: boolean | undefined;
 }
 
 export class HttpClient {
@@ -313,6 +324,13 @@ export class HttpClient {
 
           if (options.method === 'HEAD' || response.status === 204) {
             return undefined as T;
+          }
+
+          // Raw mode: return the Response object directly so callers can
+          // access the streaming body. Middleware, retry, telemetry, and
+          // error-mapping have already run by this point.
+          if (options.raw === true) {
+            return response as unknown as T;
           }
 
           if (typeof response.text === 'function') {
