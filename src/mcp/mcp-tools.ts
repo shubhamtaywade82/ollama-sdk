@@ -27,6 +27,8 @@ export interface LoadMcpToolsOptions {
    * model-oriented text representation. The default preserves existing behavior.
    */
   readonly resultMode?: McpToolResultMode | undefined;
+  /** Validate structuredContent against a tool's MCP outputSchema. Defaults to true. */
+  readonly validateOutputSchema?: boolean | undefined;
 }
 
 function resolveMaxPages(options: LoadMcpToolsOptions): number {
@@ -53,6 +55,22 @@ export async function listAllMcpTools(
     const requestOptions: McpRequestOptions | undefined =
       signal !== undefined ? { signal } : undefined;
     const page = await mcpClient.listTools(params, requestOptions);
+    const pageNames = new Set<string>();
+    for (const tool of page.tools) {
+      if (pageNames.has(tool.name)) {
+        throw new OllamaMcpError(
+          `MCP tools/list returned duplicate tool name "${tool.name}"`,
+          { mcpMethod: 'listTools', toolName: tool.name },
+        );
+      }
+      pageNames.add(tool.name);
+      if (tools.some((existing) => existing.name === tool.name)) {
+        throw new OllamaMcpError(
+          `MCP tools/list returned duplicate tool name "${tool.name}" across pages`,
+          { mcpMethod: 'listTools', toolName: tool.name },
+        );
+      }
+    }
     tools.push(...page.tools);
 
     if (page.nextCursor === undefined) {
@@ -113,6 +131,7 @@ function convertMcpDescriptorToTool(
   mcpClient: McpClientLike,
   namePrefix = '',
   resultMode: McpToolResultMode = 'text',
+  validateOutputSchema = true,
 ): AnyTool {
   const toolName = `${namePrefix}${descriptor.name}`;
   const inputSchema = descriptor.inputSchema ?? { type: 'object', properties: {} };
@@ -138,6 +157,24 @@ function convertMcpDescriptorToTool(
           },
           context.signal !== undefined ? { signal: context.signal } : undefined,
         );
+
+        if (
+          validateOutputSchema &&
+          descriptor.outputSchema !== undefined &&
+          result.structuredContent !== undefined
+        ) {
+          const issues = validateJsonSchema(result.structuredContent, descriptor.outputSchema);
+          if (issues.length > 0) {
+            throw new OllamaMcpError(
+              `MCP tool "${descriptor.name}" returned structuredContent that violates outputSchema`,
+              {
+                mcpMethod: 'tools/call',
+                toolName: descriptor.name,
+                issues,
+              },
+            );
+          }
+        }
 
         // MCP tool failures are ordinary CallToolResult values, not transport failures.
         // Keep the result model-readable so the agent can observe the error and recover.
@@ -169,7 +206,13 @@ export async function loadMcpTools(
 ): Promise<AnyTool[]> {
   try {
     const tools = await listAllMcpTools(mcpClient, options, signal);
-    return tools.map((t) => convertMcpDescriptorToTool(t, mcpClient, options.namePrefix, options.resultMode));
+    return tools.map((t) => convertMcpDescriptorToTool(
+      t,
+      mcpClient,
+      options.namePrefix,
+      options.resultMode,
+      options.validateOutputSchema ?? true,
+    ));
   } catch (err) {
     throw new OllamaMcpError('Failed listing MCP tools from client', {
       mcpMethod: 'listTools',

@@ -170,6 +170,99 @@ describe('MCP bridge parity', () => {
     expect(result).toEqual(rawResult);
   });
 
+  it('validates MCP structuredContent against the declared outputSchema', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{
+          name: 'lookup',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: {
+            type: 'object',
+            properties: { count: { type: 'integer', minimum: 0 } },
+            required: ['count'],
+            additionalProperties: false,
+          },
+        }],
+      }),
+      callTool: vi.fn()
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok' }],
+          structuredContent: { count: 2 },
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'bad' }],
+          structuredContent: { count: -1 },
+        }),
+    };
+
+    const tools = await loadMcpTools(client);
+    await expect(tools[0]!.execute({}, {})).resolves.toEqual('ok\n{"count":2}');
+
+    await expect(tools[0]!.execute({}, {})).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'tools/call',
+      toolName: 'lookup',
+    });
+  });
+
+  it('allows disabling MCP outputSchema validation for legacy servers', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [{
+          name: 'lookup',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: { type: 'object', required: ['count'] },
+        }],
+      }),
+      callTool: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'legacy' }],
+        structuredContent: { wrong: true },
+      }),
+    };
+
+    const tools = await loadMcpTools(client, { validateOutputSchema: false });
+    await expect(tools[0]!.execute({}, {})).resolves.toContain('legacy');
+  });
+
+  it('refreshes MCP tools into an existing registry', async () => {
+    const client: McpClientLike = {
+      listTools: vi.fn()
+        .mockResolvedValueOnce({
+          tools: [{ name: 'one', inputSchema: { type: 'object', properties: {} } }],
+        })
+        .mockResolvedValueOnce({
+          tools: [{ name: 'two', inputSchema: { type: 'object', properties: {} } }],
+        }),
+      callTool: vi.fn(),
+    };
+    const registry = new ToolRegistry();
+    const bridge = new McpBridge(client);
+
+    await bridge.register(registry);
+    expect(registry.get('one')).toBeDefined();
+
+    await bridge.refresh(registry);
+    expect(registry.get('two')).toBeDefined();
+    expect(registry.get('one')).toBeDefined();
+  });
+
+  it('rejects duplicate MCP tool names instead of silently overwriting them', async () => {
+    const client: McpClientLike = {
+      listTools: async () => ({
+        tools: [
+          { name: 'duplicate', inputSchema: { type: 'object', properties: {} } },
+          { name: 'duplicate', inputSchema: { type: 'object', properties: {} } },
+        ],
+      }),
+      callTool: vi.fn(),
+    };
+
+    await expect(new McpBridge(client).definitions()).rejects.toMatchObject({
+      code: 'mcp_error',
+      mcpMethod: 'listTools',
+    });
+  });
+
   it('registers every page of MCP tools into the registry', async () => {
     const client: McpClientLike = {
       listTools: vi
