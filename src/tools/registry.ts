@@ -15,6 +15,7 @@ import {
 } from '../telemetry/index.js';
 import type { ToolCall, ToolDefinition } from '../types.js';
 import type { AnyTool, Tool, ToolExecutionContext, ToolExecutionResult } from './types.js';
+import { disposableTimer } from '../utils.js';
 
 export interface ToolRegistryOptions {
   readonly tools?: readonly AnyTool[] | undefined;
@@ -198,40 +199,41 @@ export class ToolRegistry {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
+    using _timer = disposableTimer(timer);
+    // Also clean up the parent-abort listener at scope exit (conditional on ctx.signal)
+    using _listener = {
+      [Symbol.dispose]() {
+        ctx.signal?.removeEventListener('abort', onParentAbort);
+      },
+    };
 
-    try {
-      const executePromise = Promise.resolve(
-        tool.execute(params, { ...ctx, signal: controller.signal }),
-      );
-      // Prevent an unhandled rejection if the tool's promise loses the race and later
-      // rejects; the tool remains responsible for actually stopping its own work via
-      // `signal` since JS cannot forcibly cancel work already in flight.
-      executePromise.catch(() => undefined);
+    const executePromise = Promise.resolve(
+      tool.execute(params, { ...ctx, signal: controller.signal }),
+    );
+    // Prevent an unhandled rejection if the tool's promise loses the race and later
+    // rejects; the tool remains responsible for actually stopping its own work via
+    // `signal` since JS cannot forcibly cancel work already in flight.
+    executePromise.catch(() => undefined);
 
-      const abortRejection = (): Error =>
-        timedOut
-          ? new OllamaToolTimeoutError(`Tool "${toolName}" timed out after ${timeoutMs}ms`, {
-              toolName,
-              timeoutMs,
-            })
-          : ((ctx.signal?.reason as Error | undefined) ?? new Error('Tool execution aborted'));
+    const abortRejection = (): Error =>
+      timedOut
+        ? new OllamaToolTimeoutError(`Tool "${toolName}" timed out after ${timeoutMs}ms`, {
+            toolName,
+            timeoutMs,
+          })
+        : ((ctx.signal?.reason as Error | undefined) ?? new Error('Tool execution aborted'));
 
-      return await Promise.race([
-        executePromise,
-        controller.signal.aborted
-          ? Promise.reject(abortRejection())
-          : new Promise<never>((_resolve, reject) => {
-              controller.signal.addEventListener('abort', () => reject(abortRejection()), {
-                once: true,
-              });
-            }),
-      ]);
-    } finally {
-      clearTimeout(timer);
-      if (ctx.signal) {
-        ctx.signal.removeEventListener('abort', onParentAbort);
-      }
-    }
+    return await Promise.race([
+      executePromise,
+      controller.signal.aborted
+        ? Promise.reject(abortRejection())
+        : new Promise<never>((_resolve, reject) => {
+            controller.signal.addEventListener('abort', () => reject(abortRejection()), {
+              once: true,
+            });
+          }),
+    ]);
+    // clearTimeout(timer) + removeEventListener called automatically via `using`
   }
 
   private truncateOutput(output: string): string {

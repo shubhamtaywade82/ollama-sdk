@@ -58,3 +58,42 @@ export async function withEncodedMessageImages<
     return messages;
   return Promise.all(messages.map((message) => withEncodedImages(message)));
 }
+
+// ─── Disposable helpers (TS 5.2+ `using` declarations) ──────────────────
+//
+// These wrappers turn cleanup operations into `Disposable` / `AsyncDisposable`
+// values so callers can use `using` / `await using` declarations instead of
+// try/finally blocks. This eliminates the "forgot to clean up in the finally
+// block" bug class for timer, reader, and span lifecycles.
+
+/** Wraps a `setTimeout` handle so `clearTimeout` runs at scope exit. */
+export function disposableTimer(timer: ReturnType<typeof setTimeout>): Disposable {
+  return {
+    [Symbol.dispose]() {
+      clearTimeout(timer);
+    },
+  };
+}
+
+/** Wraps a `ReadableStreamDefaultReader` so `cancel()` + `releaseLock()` run at scope exit. */
+export function disposableReader<T>(reader: ReadableStreamDefaultReader<T>): AsyncDisposable {
+  return {
+    async [Symbol.asyncDispose]() {
+      try {
+        await reader.cancel();
+      } catch {
+        /* stream may already be closed */
+      }
+      reader.releaseLock();
+    },
+  };
+}
+
+/** Wraps an OpenTelemetry span so `span.end()` runs at scope exit. */
+export function disposableSpan(span: { end(): void }): Disposable {
+  return {
+    [Symbol.dispose]() {
+      span.end();
+    },
+  };
+}
