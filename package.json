@@ -185,10 +185,11 @@
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
+    "verify:release": "npm run clean && npm run contract:diff && npm run contract:generate && npm run contract:drift -- --strict && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity -- --skip-live-docs && npm run check:types",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
     "lab:live": "npm run build && tsx lab/live-tour.ts",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity"
+    "prepublishOnly": "npm run verify:release"
   },
   "peerDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",
