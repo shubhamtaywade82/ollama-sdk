@@ -3,6 +3,7 @@
  */
 
 import { listAvailableModels } from './capabilities/capabilities.js';
+import { OllamaNotFoundError } from './errors.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
 import type { ProgressStreamResult } from './streaming/types.js';
@@ -194,6 +195,19 @@ export class ModelsClient {
   }
 
   async checkBlob(digest: string): Promise<boolean> {
+    // Wave 12 (P2): previously this method caught every error and returned
+    // false, which conflated "blob absent" (HTTP 404) with auth failures
+    // (401/403), rate limits (429), server errors (5xx), network failures,
+    // timeouts, and aborts. Callers had no way to distinguish "the blob
+    // doesn't exist" from "the server is unreachable" — both looked like
+    // `false`. That's a real SDK correctness issue: a transient network
+    // blip would silently look like a missing blob, and a downstream
+    // caller would proceed to re-upload (potentially burning bandwidth
+    // and quota on a blob that was already there).
+    //
+    // Only HTTP 404 means "blob absent." Everything else propagates so
+    // callers can branch on the actual failure mode. The OllamaNotFoundError
+    // class is what HttpClient throws for 404s (see src/errors.ts).
     try {
       await this.runner(
         (http, signal) =>
@@ -205,8 +219,9 @@ export class ModelsClient {
         { singleEndpoint: true },
       );
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof OllamaNotFoundError) return false;
+      throw err;
     }
   }
 }
