@@ -12,7 +12,7 @@
  * types from the IR) and `mcp` (MCP tool definitions from the IR).
  */
 import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 import { normalizeContract } from './normalize/contract-normalizer.js';
 import { validateOverlay } from './validators/schema-validator.js';
@@ -22,6 +22,11 @@ import {
   assertNoDiscoveryDrift,
 } from './validators/endpoint-validator.js';
 import { readOverlaysForValidation } from './normalize/overlay-loader.js';
+import { emitModels } from './emitters/typescript/models.js';
+import { emitApi } from './emitters/typescript/api.js';
+import { emitOperations, emitOperationsIndex } from './emitters/typescript/operations.js';
+import { emitMetadata } from './emitters/metadata/metadata.js';
+import { detectTypeDrift, formatDriftReport } from './emitters/typescript/drift-detector.js';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..');
 
@@ -125,6 +130,46 @@ function cmdDiff(): void {
   process.exitCode = 1;
 }
 
+function cmdGenerate(): void {
+  const contract = normalizeContract(PROJECT_ROOT, { write: false });
+  const writtenFiles: string[] = [];
+
+  const modelFiles = emitModels('src/generated/models', contract.schemas);
+  const apiFiles = emitApi('src/generated/api', contract.operations);
+  const opsFiles = [
+    emitOperations('src/generated/api', contract.operations),
+    emitOperationsIndex('src/generated/api', contract.operations),
+  ];
+  const metadataFile = emitMetadata('src/generated/metadata', contract.operations);
+
+  const allFiles = [...modelFiles, ...apiFiles, ...opsFiles, metadataFile];
+  for (const file of allFiles) {
+    const absolute = resolve(PROJECT_ROOT, file.path);
+    mkdirSync(resolve(absolute, '..'), { recursive: true });
+    writeFileSync(absolute, file.content, 'utf8');
+    writtenFiles.push(file.path);
+  }
+
+  console.log(`✓ Generated ${writtenFiles.length} files:`);
+  for (const p of writtenFiles) console.log(`  - ${p}`);
+
+  // Drift report — informational, not a gate. Surfacing drift early is the
+  // whole point of Wave 2; making it a CI gate would be premature until
+  // the migration is complete (Wave 3+).
+  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas);
+  console.log('\n' + formatDriftReport(drift));
+}
+
+function cmdDrift(): void {
+  const contract = normalizeContract(PROJECT_ROOT, { write: false });
+  const drift = detectTypeDrift(PROJECT_ROOT, contract.schemas);
+  console.log(formatDriftReport(drift));
+  // Exit non-zero only when there's drift AND the user passed --strict.
+  if (process.argv.includes('--strict') && (drift.totalAdded > 0 || drift.totalRemoved > 0)) {
+    process.exitCode = 1;
+  }
+}
+
 function cmdInfo(): void {
   const contract = normalizeContract(PROJECT_ROOT, { write: false });
   const byDomain = contract.operations.reduce<Record<string, number>>((acc, op) => {
@@ -156,11 +201,17 @@ switch (command) {
   case 'diff':
     cmdDiff();
     break;
+  case 'generate':
+    cmdGenerate();
+    break;
+  case 'drift':
+    cmdDrift();
+    break;
   case 'info':
     cmdInfo();
     break;
   default:
     console.error(`Unknown command: ${command}`);
-    console.error('Usage: tsx generator/cli.ts [normalize|validate|diff|info]');
+    console.error('Usage: tsx generator/cli.ts [normalize|validate|diff|generate|drift|info]');
     process.exitCode = 2;
 }

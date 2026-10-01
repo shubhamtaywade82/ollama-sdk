@@ -126,6 +126,8 @@
     "contract:normalize": "tsx scripts/build-contract.ts",
     "contract:validate": "tsx scripts/verify-contract.ts",
     "contract:diff": "tsx scripts/diff-contract.ts",
+    "contract:generate": "tsx scripts/generate-contract.ts",
+    "contract:drift": "tsx scripts/drift-contract.ts",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",

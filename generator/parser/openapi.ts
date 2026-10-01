@@ -24,10 +24,39 @@ export interface ParsedOpenApiOperation {
   readonly responseRef?: string;
 }
 
+/**
+ * A JSON Schema node extracted from the OpenAPI `components.schemas` section.
+ * The shape is intentionally permissive — the OpenAPI spec is the source of
+ * truth, and we pass through unknown keywords rather than reject them.
+ */
+export interface JsonSchemaNode {
+  readonly type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
+  readonly description?: string;
+  readonly required?: readonly string[];
+  readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
+  readonly items?: JsonSchemaNode;
+  readonly $ref?: string;
+  readonly oneOf?: readonly JsonSchemaNode[];
+  readonly anyOf?: readonly JsonSchemaNode[];
+  readonly allOf?: readonly JsonSchemaNode[];
+  readonly enum?: readonly (string | number | boolean | null)[];
+  readonly format?: string;
+  readonly default?: unknown;
+  readonly additionalProperties?: boolean | JsonSchemaNode;
+  readonly [keyword: string]: unknown;
+}
+
+/** A named schema definition with its name resolved from `components.schemas`. */
+export interface ParsedSchema {
+  readonly name: string;
+  readonly schema: JsonSchemaNode;
+}
+
 /** Result of parsing the upstream OpenAPI spec. */
 export interface ParsedOpenApi {
   readonly operations: readonly ParsedOpenApiOperation[];
   readonly schemaNames: readonly string[];
+  readonly schemas: readonly ParsedSchema[];
   readonly info: {
     readonly title?: string;
     readonly version?: string;
@@ -64,7 +93,7 @@ interface OpenApiDocument {
   readonly info?: { readonly title?: string; readonly version?: string };
   readonly paths?: Readonly<Record<string, OpenApiPathItem>>;
   readonly components?: {
-    readonly schemas?: Readonly<Record<string, unknown>>;
+    readonly schemas?: Readonly<Record<string, JsonSchemaNode>>;
   };
 }
 
@@ -94,14 +123,19 @@ function refName(ref: string | undefined): string | undefined {
   return match?.[1];
 }
 
-/** Parse an OpenAPI YAML file into a structural operation list. */
+/** Parse an OpenAPI YAML file into a structural operation list + named schemas. */
 export function parseOpenApi(filePath: string): ParsedOpenApi {
   const absolute = resolve(filePath);
   const raw = readFileSync(absolute, 'utf8');
   const doc = yaml.load(raw) as OpenApiDocument;
 
   const operations: ParsedOpenApiOperation[] = [];
-  const schemaNames = Object.keys(doc.components?.schemas ?? {});
+  const schemaMap = doc.components?.schemas ?? {};
+  const schemaNames = Object.keys(schemaMap);
+  const schemas: ParsedSchema[] = schemaNames.map((name) => ({
+    name,
+    schema: schemaMap[name] as JsonSchemaNode,
+  }));
 
   for (const [path, item] of Object.entries(doc.paths ?? {})) {
     for (const method of METHODS) {
@@ -125,6 +159,7 @@ export function parseOpenApi(filePath: string): ParsedOpenApi {
   return {
     operations,
     schemaNames,
+    schemas,
     info: {
       ...(doc.info?.title ? { title: doc.info.title } : {}),
       ...(doc.info?.version ? { version: doc.info.version } : {}),

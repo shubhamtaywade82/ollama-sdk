@@ -14,7 +14,7 @@
  */
 
 /** HTTP methods that Ollama exposes. */
-export type HttpMethod = 'GET' | 'POST' | 'DELETE' | 'PUT' | 'PATCH';
+export type HttpMethod = 'GET' | 'POST' | 'DELETE' | 'PUT' | 'PATCH' | 'HEAD';
 
 /**
  * Truth level for an operation or feature.
@@ -58,6 +58,24 @@ export interface SchemaRef {
   readonly $ref: string;
 }
 
+/** A JSON Schema node — permissive shape carrying OpenAPI/JSON Schema keywords. */
+export interface JsonSchemaNode {
+  readonly type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
+  readonly description?: string;
+  readonly required?: readonly string[];
+  readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
+  readonly items?: JsonSchemaNode;
+  readonly $ref?: string;
+  readonly oneOf?: readonly JsonSchemaNode[];
+  readonly anyOf?: readonly JsonSchemaNode[];
+  readonly allOf?: readonly JsonSchemaNode[];
+  readonly enum?: readonly (string | number | boolean | null)[];
+  readonly format?: string;
+  readonly default?: unknown;
+  readonly additionalProperties?: boolean | JsonSchemaNode;
+  readonly [keyword: string]: unknown;
+}
+
 /** Structural schema declaration, sourced from OpenAPI. */
 export interface SchemaContract {
   readonly name: string;
@@ -66,6 +84,8 @@ export interface SchemaContract {
     readonly overlay?: string;
   };
   readonly description?: string;
+  /** The full JSON Schema definition, available from Wave 2 onward. */
+  readonly definition?: JsonSchemaNode;
 }
 
 /** Runtime/behavioral overlay applied to a single operation. */

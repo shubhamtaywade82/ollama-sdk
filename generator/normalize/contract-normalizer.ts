@@ -30,7 +30,11 @@ import type {
   SchemaContract,
   TransportMode,
 } from '../types.js';
-import { parseOpenApi, type ParsedOpenApiOperation } from '../parser/openapi.js';
+import {
+  parseOpenApi,
+  type ParsedOpenApi,
+  type ParsedOpenApiOperation,
+} from '../parser/openapi.js';
 import type { OverlayDomain, OverlayOperation } from './overlay-schema.js';
 
 const OVERLAY_DIR = 'contracts/overlays';
@@ -185,16 +189,21 @@ function buildOperationContract(
   };
 }
 
-function buildSchemas(structural: readonly ParsedOpenApiOperation[]): readonly SchemaContract[] {
-  const names = new Set<string>();
-  for (const op of structural) {
-    if (op.requestBodyRef) names.add(op.requestBodyRef);
-    if (op.responseRef) names.add(op.responseRef);
+function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaContract[] {
+  const byName = new Map<string, SchemaContract>();
+  for (const spec of structural) {
+    for (const parsed of spec.schemas) {
+      const existing = byName.get(parsed.name);
+      if (existing) continue;
+      byName.set(parsed.name, {
+        name: parsed.name,
+        source: { openapi: `#/components/schemas/${parsed.name}` },
+        ...(parsed.schema.description ? { description: parsed.schema.description } : {}),
+        definition: parsed.schema,
+      });
+    }
   }
-  return [...names].map((name) => ({
-    name,
-    source: { openapi: `#/components/schemas/${name}` },
-  }));
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function buildParityBridge(
@@ -258,7 +267,7 @@ export function normalizeContract(
     return a.id.localeCompare(b.id);
   });
 
-  const schemas = buildSchemas(parsed.operations);
+  const schemas = buildSchemas([parsed]);
   const parityBridge = buildParityBridge(operations, legacy.byEndpoint);
 
   const contract: OllamaContract = {
