@@ -6,7 +6,6 @@
 
 import type { Logprob } from './index.js';
 
-
 export interface GenerateResponse {
   /** Model name */
   readonly model?: string | undefined;

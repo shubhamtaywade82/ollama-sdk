@@ -6,7 +6,6 @@
 
 import type { TokenLogprob } from './index.js';
 
-
 /** Log probability information for a generated token */
 export interface Logprob {
   /** The text representation of the token */

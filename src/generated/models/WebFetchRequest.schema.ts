@@ -5,5 +5,5 @@
 import { z } from 'zod';
 
 export const WebFetchRequestSchema = z.object({
-  "url": z.string(),
+  url: z.string(),
 });

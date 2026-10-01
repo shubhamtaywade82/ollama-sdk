@@ -5,6 +5,6 @@
 import { z } from 'zod';
 
 export const CopyRequestSchema = z.object({
-  "source": z.string(),
-  "destination": z.string(),
+  source: z.string(),
+  destination: z.string(),
 });

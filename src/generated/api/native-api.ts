@@ -6,8 +6,41 @@
  */
 
 import type { OllamaRuntime } from '../runtime/runtime.js';
-import type { ChatRequest, ChatResponse, CopyRequest, CreateRequest, DeleteRequest, EmbedRequest, EmbedResponse, GenerateRequest, GenerateResponse, ListResponse, PsResponse, PullRequest, PushRequest, ShowRequest, ShowResponse, StatusResponse, VersionResponse } from '../models/index.js';
-import { blobsOp, chatOp, copyOp, createOp, deleteOp, embedOp, generateOp, psOp, pullOp, pushOp, showOp, systemOneOp, tagsOp, versionOp } from './operations.js';
+import type {
+  ChatRequest,
+  ChatResponse,
+  CopyRequest,
+  CreateRequest,
+  DeleteRequest,
+  EmbedRequest,
+  EmbedResponse,
+  GenerateRequest,
+  GenerateResponse,
+  ListResponse,
+  PsResponse,
+  PullRequest,
+  PushRequest,
+  ShowRequest,
+  ShowResponse,
+  StatusResponse,
+  VersionResponse,
+} from '../models/index.js';
+import {
+  blobsOp,
+  chatOp,
+  copyOp,
+  createOp,
+  deleteOp,
+  embedOp,
+  generateOp,
+  psOp,
+  pullOp,
+  pushOp,
+  showOp,
+  systemOneOp,
+  tagsOp,
+  versionOp,
+} from './operations.js';
 
 /**
  * Generated API surface for Ollama's native domain.
@@ -25,8 +58,12 @@ export class NativeApi {
   }
 
   chat(request: ChatRequest & { stream?: false }): Promise<ChatResponse>;
-  chat(request: ChatRequest & { stream: true }): Promise<AsyncGenerator<ChatResponse, void, undefined>>;
-  chat(request: ChatRequest): Promise<ChatResponse | AsyncGenerator<ChatResponse, void, undefined>> {
+  chat(
+    request: ChatRequest & { stream: true },
+  ): Promise<AsyncGenerator<ChatResponse, void, undefined>>;
+  chat(
+    request: ChatRequest,
+  ): Promise<ChatResponse | AsyncGenerator<ChatResponse, void, undefined>> {
     return this.runtime.invoke({
       operation: chatOp,
       body: request,
@@ -42,8 +79,12 @@ export class NativeApi {
   }
 
   create(request: CreateRequest & { stream?: false }): Promise<StatusResponse>;
-  create(request: CreateRequest & { stream: true }): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
-  create(request: CreateRequest): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
+  create(
+    request: CreateRequest & { stream: true },
+  ): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
+  create(
+    request: CreateRequest,
+  ): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
     return this.runtime.invoke({
       operation: createOp,
       body: request,
@@ -66,8 +107,12 @@ export class NativeApi {
   }
 
   generate(request: GenerateRequest & { stream?: false }): Promise<GenerateResponse>;
-  generate(request: GenerateRequest & { stream: true }): Promise<AsyncGenerator<GenerateResponse, void, undefined>>;
-  generate(request: GenerateRequest): Promise<GenerateResponse | AsyncGenerator<GenerateResponse, void, undefined>> {
+  generate(
+    request: GenerateRequest & { stream: true },
+  ): Promise<AsyncGenerator<GenerateResponse, void, undefined>>;
+  generate(
+    request: GenerateRequest,
+  ): Promise<GenerateResponse | AsyncGenerator<GenerateResponse, void, undefined>> {
     return this.runtime.invoke({
       operation: generateOp,
       body: request,
@@ -84,8 +129,12 @@ export class NativeApi {
   }
 
   pull(request: PullRequest & { stream?: false }): Promise<StatusResponse>;
-  pull(request: PullRequest & { stream: true }): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
-  pull(request: PullRequest): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
+  pull(
+    request: PullRequest & { stream: true },
+  ): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
+  pull(
+    request: PullRequest,
+  ): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
     return this.runtime.invoke({
       operation: pullOp,
       body: request,
@@ -94,8 +143,12 @@ export class NativeApi {
   }
 
   push(request: PushRequest & { stream?: false }): Promise<StatusResponse>;
-  push(request: PushRequest & { stream: true }): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
-  push(request: PushRequest): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
+  push(
+    request: PushRequest & { stream: true },
+  ): Promise<AsyncGenerator<StatusResponse, void, undefined>>;
+  push(
+    request: PushRequest,
+  ): Promise<StatusResponse | AsyncGenerator<StatusResponse, void, undefined>> {
     return this.runtime.invoke({
       operation: pushOp,
       body: request,

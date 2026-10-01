@@ -6,7 +6,6 @@
 
 import type { Ps } from './index.js';
 
-
 export interface PsResponse {
   /** Currently running models */
   readonly models?: readonly Ps[] | undefined;

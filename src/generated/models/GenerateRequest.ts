@@ -6,7 +6,6 @@
 
 import type { ModelOptions, ThinkValue } from './index.js';
 
-
 export interface GenerateRequest {
   /** Model name */
   readonly model: string;

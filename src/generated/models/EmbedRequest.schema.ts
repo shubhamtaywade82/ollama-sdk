@@ -6,10 +6,10 @@ import { z } from 'zod';
 import { ModelOptionsSchema } from './ModelOptions.schema.js';
 
 export const EmbedRequestSchema = z.object({
-  "model": z.string(),
-  "input": z.union([z.string(), z.array(z.string())]),
-  "truncate": z.boolean().optional(),
-  "dimensions": z.number().optional(),
-  "keep_alive": z.string().optional(),
-  "options": ModelOptionsSchema.optional(),
+  model: z.string(),
+  input: z.union([z.string(), z.array(z.string())]),
+  truncate: z.boolean().optional(),
+  dimensions: z.number().optional(),
+  keep_alive: z.string().optional(),
+  options: ModelOptionsSchema.optional(),
 });

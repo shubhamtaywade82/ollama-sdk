@@ -4,7 +4,6 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-
 /** Runtime options that control text generation */
 export interface ModelOptions {
   /** Random seed used for reproducible outputs */

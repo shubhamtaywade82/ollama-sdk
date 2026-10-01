@@ -111,13 +111,19 @@ function emitZod(node: JsonSchemaNode | undefined, ctx: EmissionContext): string
       return node.items ? `z.array(${emitZod(node.items, ctx)})` : 'z.array(z.unknown())';
     case 'object':
       return emitObjectSchema(node, ctx);
-    default:
+    case undefined:
       if (node.properties) return emitObjectSchema(node, ctx);
       if (node.additionalProperties === true) return 'z.record(z.unknown())';
       if (node.additionalProperties && typeof node.additionalProperties === 'object') {
         return `z.record(${emitZod(node.additionalProperties, ctx)})`;
       }
       return 'z.unknown()';
+    default: {
+      // Exhaustive check — if JsonSchemaNode.type gains a new member,
+      // this line fails to compile, forcing the Zod emitter to be updated.
+      const _exhaustive: never = type;
+      throw new Error(`Unhandled schema type in Zod emitter: ${String(_exhaustive)}`);
+    }
   }
 }
 

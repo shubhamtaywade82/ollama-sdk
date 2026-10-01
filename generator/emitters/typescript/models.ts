@@ -119,7 +119,7 @@ function emitType(node: JsonSchemaNode | undefined, ctx: EmissionContext): strin
         return 'Record<string, unknown>';
       }
       return emitInlineObject(node, ctx);
-    default:
+    case undefined:
       // Object-like schemas (with `properties`) often omit `type: object`.
       if (node.properties) return emitInlineObject(node, ctx);
       if (node.additionalProperties === true) return 'Record<string, unknown>';
@@ -127,6 +127,13 @@ function emitType(node: JsonSchemaNode | undefined, ctx: EmissionContext): strin
         return `Record<string, ${emitType(node.additionalProperties, ctx)}>`;
       }
       return 'unknown';
+    default: {
+      // Exhaustive check — if JsonSchemaNode.type gains a new member
+      // (e.g. Ollama adds `type: 'xxx'` to the OpenAPI spec), this line
+      // fails to compile, forcing the emitter to be updated.
+      const _exhaustive: never = type;
+      throw new Error(`Unhandled schema type: ${String(_exhaustive)}`);
+    }
   }
 }
 

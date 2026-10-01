@@ -6,24 +6,25 @@
 
 import type { Logprob, ToolCall } from './index.js';
 
-
 export interface ChatResponse {
   /** Model name used to generate this message */
   readonly model?: string | undefined;
   /** Timestamp of response creation (ISO 8601) */
   readonly created_at?: string | undefined;
-  readonly message?: {
-  /** Always `assistant` for model responses */
-  readonly role?: 'assistant' | undefined;
-  /** Assistant message text */
-  readonly content?: string | undefined;
-  /** Optional deliberate thinking trace when `think` is enabled */
-  readonly thinking?: string | undefined;
-  /** Tool calls requested by the assistant */
-  readonly tool_calls?: readonly ToolCall[] | undefined;
-  /** Optional base64-encoded images in the response */
-  readonly images?: readonly string[] | undefined;
-} | undefined;
+  readonly message?:
+    | {
+        /** Always `assistant` for model responses */
+        readonly role?: 'assistant' | undefined;
+        /** Assistant message text */
+        readonly content?: string | undefined;
+        /** Optional deliberate thinking trace when `think` is enabled */
+        readonly thinking?: string | undefined;
+        /** Tool calls requested by the assistant */
+        readonly tool_calls?: readonly ToolCall[] | undefined;
+        /** Optional base64-encoded images in the response */
+        readonly images?: readonly string[] | undefined;
+      }
+    | undefined;
   /** Indicates whether the chat response has finished */
   readonly done?: boolean | undefined;
   /** Reason the response finished */
