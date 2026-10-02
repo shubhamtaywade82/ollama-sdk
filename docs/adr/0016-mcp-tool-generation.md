@@ -35,9 +35,15 @@ produces one `McpToolDescriptor` per documented operation:
 - **Input schema**: When the operation has a `request` schema ref, the
   emitter resolves every `$ref` against the IR's `schemas` list and emits
   a self-contained JSON Schema. For operations without a request schema
-  (`/v1/systemone`, `/api/blobs/{digest}`), a minimal
-  `{ prompt: string, additionalProperties: true }` schema is emitted so
-  the tool is still callable.
+  (GET/HEAD endpoints, `/api/blobs/{digest}`), the input schema is
+  derived from the operation's structural parameters — path parameters
+  become required string fields, parameterless operations get an empty
+  object schema. The previous `{ prompt: string, additionalProperties:
+  true }` fallback was removed in Wave 12 (P1 #5) because it fabricated
+  a field the actual API doesn't accept. Wave 17 (P0) further excludes
+  binary-body operations (e.g. `createBlob`) from MCP tool generation
+  entirely — the JSON runtime cannot execute them, so advertising them
+  as MCP tools would be misleading.
 - **Annotations**: Inferred from the HTTP method — GET/HEAD = `readOnlyHint
   - idempotentHint`, DELETE = `destructiveHint`, all = `openWorldHint:
     false`. These hints let MCP hosts route tool calls more safely (e.g.

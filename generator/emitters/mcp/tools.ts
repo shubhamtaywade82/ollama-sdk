@@ -216,6 +216,18 @@ function annotationsFor(op: OperationContract): McpToolDescriptor['annotations']
   };
 }
 
+/**
+ * Wave 17 (P0): operations excluded from generated MCP tools because they
+ * require binary request bodies (application/octet-stream) that the
+ * generated runtime's JSON-encoding path cannot handle. These operations
+ * are in the IR for endpoint-discovery completeness and are accessible
+ * via the hand-written OllamaClient methods (e.g. createBlob), but they
+ * must not be advertised as executable MCP tools — that would mislead
+ * MCP consumers into calling a tool that cannot actually perform the
+ * operation.
+ */
+const BINARY_BODY_MCP_EXCLUSIONS = new Set(['createBlob']);
+
 /** Build the list of MCP tool descriptors from the IR. */
 export function buildToolDescriptors(
   operations: readonly OperationContract[],
@@ -223,7 +235,7 @@ export function buildToolDescriptors(
 ): readonly McpToolDescriptor[] {
   const lookup = new Map(schemas.map((s) => [s.name, s] as const));
   return operations
-    .filter((op) => op.status.documented)
+    .filter((op) => op.status.documented && !BINARY_BODY_MCP_EXCLUSIONS.has(op.id))
     .map((op): McpToolDescriptor => {
       const reqRef = op.request?.$ref
         ?.replace(/^#\/schemas\//, '')

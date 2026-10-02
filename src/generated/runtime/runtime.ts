@@ -324,12 +324,27 @@ export class OllamaRuntime {
     // throw before making the HTTP request.
     const resolvedPath = resolvePathParams(req.operation.path, req.pathParams);
 
-    // Wave 15 (P1): extract model from the request body for failover
+    // Wave 17 (P1): apply query parameters to the path. Query params are
+    // appended as URL-encoded key=value pairs after a '?' separator.
+    const pathWithQuery = applyQueryParams(resolvedPath, req.queryParams);
+
+    // Wave 17 (P1): extract model from the request body for failover
     // routing. The failover layer uses this to filter endpoints by
     // OllamaEndpoint.models (credential-scoped routing). We extract it
     // here rather than in the FailoverHttpClient because the runtime
     // has access to the request body.
     const model = req.model ?? extractModelFromBody(body);
+
+    // Wave 17 (P1): merge header parameters from the InvokeRequest with
+    // any existing headers. The operation may declare header parameters
+    // (e.g. Authorization, Accept); the caller provides values via
+    // req.headerParams.
+    const headers: Record<string, string> = {};
+    if (req.headerParams) {
+      for (const [key, value] of Object.entries(req.headerParams)) {
+        headers[key] = value;
+      }
+    }
 
     // The HttpClient expects the narrow method union 'GET' | 'POST' |
     // 'DELETE' | 'HEAD' | undefined — cast through `as` because our
@@ -339,9 +354,10 @@ export class OllamaRuntime {
     // executeWithFailover for model-scoped routing. Plain HttpClient
     // ignores it (it's not part of HttpRequestOptions).
     const httpReq = {
-      path: resolvedPath,
+      path: pathWithQuery,
       method: req.operation.method as 'GET' | 'POST' | 'DELETE' | 'HEAD',
       ...(body !== undefined ? { body } : {}),
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
       ...(streaming ? { raw: true } : {}),
       ...(model !== undefined ? { model } : {}),
@@ -603,4 +619,23 @@ function extractModelFromBody(body: unknown): string | undefined {
   const obj = body as Record<string, unknown>;
   const model = obj.model;
   return typeof model === 'string' ? model : undefined;
+}
+
+/**
+ * Wave 17 (P1): append query parameters to a path.
+ *
+ * Takes a resolved path (e.g. `/api/tags`) and a map of query params
+ * (e.g. `{ limit: '10' }`), returns the path with `?limit=10` appended.
+ * Values are URI-encoded. If no query params are provided, the path is
+ * returned unchanged.
+ */
+function applyQueryParams(
+  path: string,
+  queryParams: Readonly<Record<string, string>> | undefined,
+): string {
+  if (!queryParams || Object.keys(queryParams).length === 0) return path;
+  const pairs = Object.entries(queryParams)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return `${path}?${pairs}`;
 }

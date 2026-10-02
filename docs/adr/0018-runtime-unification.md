@@ -29,35 +29,30 @@ as the host `OllamaClient`.
 
 The new accessor:
 
-1. Lazily constructs an `HttpClient` bound to the registry's first
-   candidate endpoint (or the resolved single-endpoint config when no
-   `endpoints` array was provided).
+1. Lazily constructs a `FailoverHttpClient` that routes each request
+   through `OllamaClient.executeWithFailover` — the generated surface
+   now participates in full multi-endpoint failover (Wave 14).
 2. Wraps that HttpClient in an `OllamaRuntime`, configured with
-   `localMode` inferred from the endpoint's baseUrl (same logic as
-   `inferRuntimeMode`).
-3. Caches the runtime — subsequent `client.runtime` calls return the same
+   `localMode` inferred from the first endpoint's baseUrl (same logic
+   as `inferRuntimeMode`).
+3. Also provides a `cloudHttp` backend for host-bearing operations
+   (web search, web fetch) that target `https://ollama.com` (Wave 15).
+4. Caches the runtime — subsequent `client.runtime` calls return the same
    instance.
-4. Inherits `fetch`, `middleware`, `onLifecycleEvent` from the host
+5. Inherits `fetch`, `middleware`, `onLifecycleEvent` from the host
    `OllamaClient`.
 
-### Multi-endpoint caveat
+### Multi-endpoint failover (Wave 14 update)
 
-The generated surface does not currently support multi-endpoint failover
-(the runtime is bound to one HttpClient, which is bound to one baseUrl).
-For multi-endpoint configs that need per-call routing, callers should
-either:
+The generated surface now supports multi-endpoint failover via
+`FailoverHttpClient`. Each request is routed through
+`executeWithFailover`, which picks the best healthy endpoint, applies
+retry/backoff, and fails over on retryable errors — matching the
+behavior of the hand-written `OllamaClient` methods.
 
-- Keep using `OllamaClient` (the failover layer lives there), or
-- Construct `OllamaRuntime` directly with a specific endpoint's
-  `HttpClient`:
-
-  ```ts
-  const http = new HttpClient({ baseUrl: 'http://host-a:11434' });
-  const runtime = new OllamaRuntime({ http });
-  const api = new NativeApi(runtime);
-  ```
-
-This is documented on the `runtime` getter itself.
+Model-aware routing is also supported (Wave 15): the runtime extracts
+the `model` field from the request body and passes it to the failover
+layer for endpoint filtering by `OllamaEndpoint.models`.
 
 ### Deprecation notice on `OllamaClient`
 
@@ -82,7 +77,8 @@ migrate at their own pace.
 ### Added
 
 - `OllamaClient.runtime` getter — returns a cached `OllamaRuntime`
-  bound to the first endpoint.
+  backed by a `FailoverHttpClient` (Wave 14) and a `cloudHttp` backend
+  for host-bearing operations (Wave 15).
 - `OllamaClient._runtime` private field — the cached instance.
 - Import of `OllamaRuntime` in `src/client.ts`.
 - JSDoc deprecation notice on `OllamaClient`.

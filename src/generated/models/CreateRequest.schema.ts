@@ -20,5 +20,6 @@ export const CreateRequestSchema = z.object({
   quantize: z.string().optional(),
   draft_quantize: z.string().optional(),
   requires: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   stream: z.boolean().optional(),
 });
