@@ -318,6 +318,13 @@ export interface EndpointDiscoveryReport {
   readonly discovered: readonly string[];
   readonly missingDeclared: readonly string[];
   readonly undeclaredDiscovered: readonly string[];
+  /**
+   * Wave 15: operation-level drift — (method, path) pairs that are
+   * discovered in the OpenAPI source but NOT declared in the IR. This
+   * catches missing HTTP methods on already-declared paths (e.g. if the
+   * IR has HEAD /api/blobs/{digest} but not POST).
+   */
+  readonly missingOperations: readonly string[];
 }
 
 /** Classification of a single IR diff entry, used by `scripts/diff-contract.ts`. */

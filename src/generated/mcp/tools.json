@@ -407,6 +407,30 @@
       "_operationId": "create"
     },
     {
+      "name": "ollama_createBlob",
+      "description": "Ollama POST /api/blobs/{digest} (native domain)\n\n- POST endpoint for blob creation; takes a binary body (application/octet-stream).\n- Handled by OllamaClient.createBlob() — the generated NativeApi does not expose this operation because the runtime JSON-encodes request bodies.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "digest": {
+            "type": "string",
+            "description": "path parameter: digest"
+          }
+        },
+        "required": ["digest"],
+        "additionalProperties": false,
+        "description": "POST /api/blobs/{digest} — 1 parameter."
+      },
+      "annotations": {
+        "title": "createBlob (Ollama)",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_operationId": "createBlob"
+    },
+    {
       "name": "ollama_delete",
       "description": "Ollama DELETE /api/delete (native domain)",
       "inputSchema": {

@@ -61,17 +61,34 @@ export function validateEndpointDiscovery(
     (endpoint) => !declaredSet.has(normalizeEndpoint(endpoint)),
   );
 
+  // Wave 15: Direction 3 — operation-level (method, path) check. Every
+  // (method, path) pair discovered in the OpenAPI source must be declared
+  // in the IR. This catches missing HTTP methods on already-declared
+  // paths (e.g. if the IR has HEAD /api/blobs/{digest} but the OpenAPI
+  // also declares POST /api/blobs/{digest} which the IR doesn't carry).
+  const declaredOps = new Set(
+    operations.map((op) => `${op.method.toUpperCase()} ${normalizeEndpoint(op.path)}`),
+  );
+  const missingOperations = discovery.operations
+    .filter((op) => !declaredOps.has(`${op.method.toUpperCase()} ${normalizeEndpoint(op.path)}`))
+    .map((op) => `${op.method} ${op.path}`);
+
   return {
     declared: operations.map((op) => op.path),
     discovered: discovery.endpoints,
     missingDeclared,
     undeclaredDiscovered,
+    missingOperations,
   };
 }
 
 /** Throw with a useful diagnostic if the report contains any drift. */
 export function assertNoDiscoveryDrift(report: EndpointDiscoveryReport): void {
-  if (report.missingDeclared.length === 0 && report.undeclaredDiscovered.length === 0) {
+  if (
+    report.missingDeclared.length === 0 &&
+    report.undeclaredDiscovered.length === 0 &&
+    report.missingOperations.length === 0
+  ) {
     return;
   }
   const lines: string[] = [];
@@ -89,6 +106,16 @@ export function assertNoDiscoveryDrift(report: EndpointDiscoveryReport): void {
       'These endpoints are documented by Ollama but not declared in any overlay.',
       'Add them to contracts/overlays/*.yaml before merging — this is the',
       '/v1/systemone-class bug the contract-first architecture is designed to catch.',
+    );
+  }
+  if (report.missingOperations.length > 0) {
+    lines.push(
+      `Discovered operations missing from contract IR (${report.missingOperations.length}):`,
+      ...report.missingOperations.map((p) => `  - ${p}`),
+      '',
+      'These (method, path) pairs are in the OpenAPI source but not in the IR.',
+      'A path may be declared but a specific HTTP method on it is missing.',
+      'Add the missing operations to contracts/overlays/*.yaml.',
     );
   }
   throw new Error(lines.join('\n'));
