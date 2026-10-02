@@ -139,8 +139,24 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.com/install.sh | sh
+      - name: Install Ollama (>= 0.35.0 for System One conformance)
+        run: |
+          # Install Ollama and its dependencies via the official script.
+          curl -fsSL https://ollama.com/install.sh | sh
+          # System One (POST /v1/systemone) requires Ollama >= 0.35.0.
+          # The install.sh installs the latest stable, which may be older
+          # (e.g. v0.34.4). If so, upgrade the binary to a known-good
+          # pre-release from GitHub releases.
+          VERSION=$(ollama --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "Installed Ollama version: $VERSION"
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          if [ "$MINOR" -lt 35 ]; then
+            echo "Version $VERSION < 0.35.0; upgrading to v0.40.0 pre-release"
+            curl -fsSL -o /tmp/ollama "https://github.com/ollama/ollama/releases/download/v0.40.0/ollama-linux-amd64"
+            chmod +x /tmp/ollama
+            sudo mv /tmp/ollama "$(which ollama)"
+            ollama --version
+          fi
 
       - name: Start Ollama server
         run: |
@@ -153,6 +169,8 @@ jobs:
             fi
             sleep 1
           done
+          # Print the server version for CI log clarity
+          curl -s http://localhost:11434/api/version || true
 
       - name: Pull conformance models
         run: |
