@@ -271,7 +271,7 @@ describe('Wave 14B: Decision helpers', () => {
       });
 
       expect(result.verified).toBe(true);
-      expect(result.confidence).toBe(0.92);
+      expect(result.probability).toBe(0.92);
     });
 
     it('returns verified=false when noul < 0.5', async () => {
@@ -292,7 +292,7 @@ describe('Wave 14B: Decision helpers', () => {
       });
 
       expect(result.verified).toBe(false);
-      expect(result.confidence).toBe(0.2);
+      expect(result.probability).toBe(0.2);
     });
 
     it('sends the claim + evidence as structured state', async () => {

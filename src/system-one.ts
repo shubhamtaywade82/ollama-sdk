@@ -96,12 +96,33 @@ export interface SystemOneUsage {
 export type SystemOneQuestions = Record<string, SystemOneQuestion>;
 
 /**
+ * Wave 16 (P2): conditional mapping from a question type to its
+ * corresponding answer type. This gives compile-time type correlation:
+ *
+ *   choice question → choice answer
+ *   noul question   → noul answer
+ *   score question  → score answer
+ *
+ * Without this, `SystemOneAnswers<Q>` maps every key to the full
+ * `SystemOneAnswer` union, requiring manual narrowing. With this,
+ * `result.answers.myChoiceQuestion` is automatically typed as
+ * `SystemOneChoiceAnswer`.
+ */
+export type AnswerFor<Q> = Q extends { readonly type: 'choice' }
+  ? SystemOneChoiceAnswer
+  : Q extends { readonly type: 'noul' }
+    ? SystemOneNoulAnswer
+    : Q extends { readonly type: 'score' }
+      ? SystemOneScoreAnswer
+      : SystemOneAnswer;
+
+/**
  * Key-safe answers map: for every question key `K` in `Q`, the response
- * carries a `SystemOneAnswer`. This lets callers do
- * `result.answers.myQuestionId` with full type safety.
+ * carries the answer type that corresponds to that question's type.
+ * Wave 16: now uses `AnswerFor<Q[K]>` for exact type correlation.
  */
 export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> = {
-  readonly [K in keyof Q]: SystemOneAnswer;
+  readonly [K in keyof Q]: AnswerFor<Q[K]>;
 };
 
 /**

@@ -414,6 +414,7 @@ export {
 export {
   type SystemOneQuestions,
   type SystemOneAnswers,
+  type AnswerFor,
   type SystemOneRequest,
   type SystemOneResponse,
   type SystemOneContent,

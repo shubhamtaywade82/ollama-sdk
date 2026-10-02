@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## [1.8.0] - 2026-10-02
+
+- **Contract execution completion (Waves 12-16).** The SDK's contract-first architecture is now fully executable: every operation in the canonical IR is represented, generated, typed, and runtime-enforced with no `Record<string, unknown>` escape hatches on the generated surface.
+  - **Wave 12** — Contract execution hardening: transport-mode dispatch (SSE for compat, NDJSON for native), `maxRequestBytes` enforcement (413 client-side), auto-fetch `minOllamaVersion` via cached `/api/version`, typed OpenAI/Anthropic generated APIs, fully generated System One types, MCP input schemas from path params, generated schema-registry, Web Search/Web Fetch in the IR, structural path parameters, `checkBlob` 404-only semantics, single `verify:release` gate, deterministic IR.
+  - **Wave 13** — System One contract completion: exact upstream OpenAPI schemas (correct `confidence: number`, `noul: number`, `score: number`, `legend: Record`, `probabilities: Record`), string `pattern`/`minLength`/`maxLength` enforcement, conditional request size limits (64 KiB / 32 MiB with images), `OllamaClient.systemOne<Q>()` with key-safe generic answer access, opt-in `validateResponses` runtime path, live System One conformance against real Ollama with `tev1:0.8b`.
+  - **Wave 14** — Failover + decision helpers: `OllamaClient.runtime` participates in multi-endpoint failover via `FailoverHttpClient`, higher-level System One decision helpers (`choice()`, `noul()`, `score()`, `route()`, `verify()`, `rank()`).
+  - **Wave 15** — Contract execution completion: path parameter substitution (`{model}` → `gpt-4` with URI encoding), host-aware execution (web search/fetch route to `https://ollama.com` via `cloudHttp` backend), model-aware failover routing, MCP argument routing (path params split from body), `contract:validate` in CI and release, method+path operation-level discovery (catches missing HTTP methods on declared paths).
+  - **Wave 16** — Final hardening: security invariant tests (path traversal prevention, host injection prevention, abort propagation), System One exact generic answer correlation (`AnswerFor<Q>`), decision helper `verify()` semantic fix (`probability` not `confidence`), ADR 0022 documenting hybrid compatibility typing policy, version bump to 1.8.0.
 
 ## [1.7.0] - 2026-10-01
 
