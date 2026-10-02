@@ -408,3 +408,23 @@ export {
   type LifecycleRetryEvent,
   type LifecycleErrorEvent,
 } from './logger.js';
+
+// System One — ergonomic typed decision layer (Wave 13)
+export {
+  type SystemOneQuestions,
+  type SystemOneAnswers,
+  type SystemOneRequest,
+  type SystemOneResponse,
+  type SystemOneContent,
+  type SystemOneQuestion,
+  type SystemOneChoiceQuestion,
+  type SystemOneNoulQuestion,
+  type SystemOneScoreQuestion,
+  type SystemOneAnswer,
+  type SystemOneChoiceAnswer,
+  type SystemOneNoulAnswer,
+  type SystemOneScoreAnswer,
+  type SystemOneProbabilities,
+  type SystemOneConfidence,
+  type SystemOneUsage,
+} from './system-one.js';
