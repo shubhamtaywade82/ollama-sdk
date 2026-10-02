@@ -35,9 +35,19 @@ import type { OperationDefinition, InvokeRequest } from './operation-definition.
 import type { TransportMode } from './operation-definition.js';
 import { getRequestSchema, getResponseSchema } from './schema-registry.js';
 
+/**
+ * Minimal HTTP client surface the runtime consumes. Either a full
+ * {@link HttpClient} or a {@link FailoverHttpClient} — the runtime only
+ * calls `request()`.
+ *
+ * Wave 14: widened from `HttpClient` to allow the failover-aware wrapper
+ * without breaking existing callers that pass a plain HttpClient.
+ */
+export type RuntimeHttpBackend = Pick<HttpClient, 'baseUrl' | 'request'>;
+
 /** Constructor options for {@link OllamaRuntime}. */
 export interface OllamaRuntimeOptions {
-  readonly http: HttpClient;
+  readonly http: RuntimeHttpBackend;
   /**
    * Whether this runtime is targeting a local Ollama instance. Defaults to
    * `true`. When `false`, operations marked `environment.cloud === false`
@@ -140,7 +150,7 @@ function compareVersions(a: string, b: string): number {
  * The result is cached per-runtime in {@link OllamaRuntime}'s private
  * state — we don't re-probe `/api/version` for every version-gated call.
  */
-async function fetchServerVersion(http: HttpClient): Promise<string | undefined> {
+async function fetchServerVersion(http: RuntimeHttpBackend): Promise<string | undefined> {
   const result = await http.request<{ version?: unknown }>({
     path: '/api/version',
     method: 'GET',
