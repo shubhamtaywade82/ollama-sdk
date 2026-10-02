@@ -9,6 +9,11 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
 
+  // GitHub Pages serves the site at https://shubhamtaywade82.github.io/ollama-sdk/
+  // The base path must match the repo name. Without this, CSS/JS/assets
+  // would resolve to the domain root and 404.
+  base: '/ollama-sdk/',
+
   head: [
     ['meta', { name: 'theme-color', content: '#10b981' }],
     ['meta', { property: 'og:title', content: 'Ollama SDK' }],
