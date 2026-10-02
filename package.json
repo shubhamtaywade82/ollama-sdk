@@ -189,7 +189,10 @@
     "example": "tsx",
     "lab": "tsx lab/run.ts",
     "lab:live": "npm run build && tsx lab/live-tour.ts",
-    "prepublishOnly": "npm run verify:release"
+    "prepublishOnly": "npm run verify:release",
+    "docs:dev": "cd docs-site && npm run dev",
+    "docs:build": "cd docs-site && npm run build",
+    "docs:preview": "cd docs-site && npm run preview"
   },
   "peerDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",
