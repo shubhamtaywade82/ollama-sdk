@@ -4,9 +4,13 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** A multiple-choice question. */
+import type { SystemOneContent } from './index.js';
+
 export interface SystemOneChoiceQuestion {
   readonly type: 'choice';
-  readonly prompt: string;
-  readonly choices: readonly string[];
+  readonly instructions: SystemOneContent;
+  /** Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order. */
+  readonly criteria: {
+    [key: string]: string | null;
+  };
 }

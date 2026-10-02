@@ -4,8 +4,5 @@
 
 import { z } from 'zod';
 
-/** Token usage for a System One call. */
-export const SystemOneUsageSchema = z.object({
-  input_tokens: z.number(),
-  output_tokens: z.number(),
-});
+/** Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision. */
+export const SystemOneProbabilitiesSchema = z.object({}).catchall(z.number().min(0).max(1));

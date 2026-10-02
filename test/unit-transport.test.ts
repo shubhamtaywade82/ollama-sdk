@@ -31,9 +31,7 @@ describe('Unit: Transport & Resilience', () => {
       const fn = vi.fn().mockResolvedValue('ok');
       const res = await withRetry(fn, {
         maxRetries: 2,
-        initialDelayMs: 1,
-        maxDelayMs: 10,
-        backoffFactor: 2,
+        backoff: { initialDelayMs: 1, maxDelayMs: 10, backoffFactor: 2 },
       });
       expect(res).toBe('ok');
       expect(fn).toHaveBeenCalledTimes(1);
@@ -49,9 +47,7 @@ describe('Unit: Transport & Resilience', () => {
 
       const res = await withRetry(fn, {
         maxRetries: 3,
-        initialDelayMs: 1,
-        maxDelayMs: 10,
-        backoffFactor: 1,
+        backoff: { initialDelayMs: 1, maxDelayMs: 10, backoffFactor: 1 },
       });
       expect(res).toBe('success');
       expect(fn).toHaveBeenCalledTimes(3);
@@ -62,7 +58,10 @@ describe('Unit: Transport & Resilience', () => {
       const fn = vi.fn().mockRejectedValue(new OllamaServerError('Busy', { status: 503 }));
       const retryPromise = withRetry(
         fn,
-        { maxRetries: 3, initialDelayMs: 10_000, maxDelayMs: 10_000, backoffFactor: 1 },
+        {
+          maxRetries: 3,
+          backoff: { initialDelayMs: 10_000, maxDelayMs: 10_000, backoffFactor: 1 },
+        },
         controller.signal,
       );
 
@@ -76,7 +75,10 @@ describe('Unit: Transport & Resilience', () => {
     it('aborts retries immediately on non-retryable errors', async () => {
       const fn = vi.fn().mockRejectedValue(new OllamaAuthError('Bad token'));
       await expect(
-        withRetry(fn, { maxRetries: 3, initialDelayMs: 1, maxDelayMs: 10, backoffFactor: 1 }),
+        withRetry(fn, {
+          maxRetries: 3,
+          backoff: { initialDelayMs: 1, maxDelayMs: 10, backoffFactor: 1 },
+        }),
       ).rejects.toThrow(OllamaAuthError);
       expect(fn).toHaveBeenCalledTimes(1);
     });

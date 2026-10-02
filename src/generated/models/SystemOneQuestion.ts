@@ -6,10 +6,10 @@
 
 import type {
   SystemOneChoiceQuestion,
+  SystemOneNoulQuestion,
   SystemOneScoreQuestion,
-  SystemOneYesNoQuestion,
 } from './index.js';
 
-/** Discriminated union of the three documented question kinds. */
+/** Discriminated union of the three question kinds. */
 export type SystemOneQuestion =
-  SystemOneChoiceQuestion | SystemOneYesNoQuestion | SystemOneScoreQuestion;
+  SystemOneChoiceQuestion | SystemOneNoulQuestion | SystemOneScoreQuestion;

@@ -37,6 +37,15 @@ export const CONFORMANCE_MODEL = process.env.OLLAMA_CONFORMANCE_MODEL ?? 'qwen3:
 export const CONFORMANCE_EMBED_MODEL =
   process.env.OLLAMA_CONFORMANCE_EMBED_MODEL ?? 'nomic-embed-text:latest';
 
+/**
+ * A System One-compatible decision model for the systemOne conformance
+ * tests. Wave 13: System One requires a dedicated decision model (not a
+ * general LLM). The default is `tev1:0.8b` (smallest System One model);
+ * override via OLLAMA_CONFORMANCE_SYSTEMONE_MODEL.
+ */
+export const CONFORMANCE_SYSTEMONE_MODEL =
+  process.env.OLLAMA_CONFORMANCE_SYSTEMONE_MODEL ?? 'tev1:0.8b';
+
 let reachable: boolean | undefined;
 
 /** Probe the server once; cache the result for the duration of the run. */
@@ -107,19 +116,29 @@ export function describeConformance(name: string, fn: () => void): void {
  * (vitest's runtime skip) — the test runner reports it as skipped
  * rather than passed, making the conformance suite's intent visible
  * in CI output.
+ *
+ * Conformance tests hit a REAL Ollama server, which means the first
+ * request to each model triggers a model load (downloading weights
+ * into memory). On CI this can take 10–60s for small models. The
+ * default vitest test timeout (5s) is far too short — we use 120s
+ * to match the functional test suite (see test/functional-models-blobs.test.ts).
  */
 export function itConformance(
   name: string,
   fn: (ctx: { skip: () => never }) => Promise<void>,
 ): void {
-  it(name, async (ctx) => {
-    const baseUrl = conformanceBaseUrl();
-    if (!baseUrl) {
-      ctx.skip();
-    }
-    if (!(await isOllamaReachable(baseUrl!))) {
-      ctx.skip();
-    }
-    await fn(ctx as { skip: () => never });
-  });
+  it(
+    name,
+    async (ctx) => {
+      const baseUrl = conformanceBaseUrl();
+      if (!baseUrl) {
+        ctx.skip();
+      }
+      if (!(await isOllamaReachable(baseUrl!))) {
+        ctx.skip();
+      }
+      await fn(ctx as { skip: () => never });
+    },
+    120_000,
+  );
 }

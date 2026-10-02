@@ -783,74 +783,168 @@
     },
     {
       "name": "ollama_systemOne",
-      "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- Hard 64 KiB request body limit enforced by the server.\n- No images, no tools, no generation controls (temperature, top_p, etc.).\n- Experimental: behavioral surface may change between Ollama releases.",
+      "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- 64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).\n- No tools, no generation controls (temperature, top_p, etc.).\n- Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.\n- Experimental: behavioral surface may change between Ollama releases.",
       "inputSchema": {
         "type": "object",
-        "description": "Request body for POST /v1/systemone.",
-        "additionalProperties": false,
         "required": ["model", "state", "questions"],
         "properties": {
           "model": {
             "type": "string",
-            "description": "Model name (e.g. \"systemone-v1\")."
+            "pattern": "\\S",
+            "description": "Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported."
           },
           "state": {
-            "description": "Opaque conversation state — any JSON value the caller round-trips."
+            "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "array",
+                "items": {}
+              }
+            ]
+          },
+          "images": {
+            "type": "array",
+            "description": "Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported.",
+            "items": {
+              "type": "string",
+              "format": "byte"
+            }
           },
           "questions": {
             "type": "object",
-            "description": "Map of question id → question descriptor.",
+            "description": "Named questions about the shared state. Answers are not passed to later questions.",
+            "minProperties": 1,
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "\\S"
+            },
             "additionalProperties": {
-              "description": "Discriminated union of the three documented question kinds.",
               "oneOf": [
                 {
+                  "title": "Choice",
                   "type": "object",
-                  "description": "A multiple-choice question.",
-                  "additionalProperties": false,
-                  "required": ["type", "prompt", "choices"],
+                  "required": ["type", "instructions", "criteria"],
                   "properties": {
                     "type": {
                       "type": "string",
                       "enum": ["choice"]
                     },
-                    "prompt": {
-                      "type": "string"
+                    "instructions": {
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "array",
+                          "items": {}
+                        }
+                      ]
                     },
-                    "choices": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
+                    "criteria": {
+                      "type": "object",
+                      "description": "Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order.",
+                      "minProperties": 2,
+                      "maxProperties": 26,
+                      "propertyNames": {
+                        "pattern": "\\S"
+                      },
+                      "additionalProperties": {
+                        "type": ["string", "null"]
                       }
                     }
                   }
                 },
                 {
+                  "title": "Noul",
                   "type": "object",
-                  "description": "A yes/no question.",
-                  "additionalProperties": false,
-                  "required": ["type", "prompt"],
+                  "required": ["type", "instructions"],
                   "properties": {
                     "type": {
                       "type": "string",
-                      "enum": ["yes_no"]
+                      "enum": ["noul"]
                     },
-                    "prompt": {
-                      "type": "string"
+                    "instructions": {
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "array",
+                          "items": {}
+                        }
+                      ]
+                    },
+                    "criteria": {
+                      "type": "object",
+                      "description": "Optional descriptions for the two outcomes. Omitted entries use No and Yes.",
+                      "properties": {
+                        "false": {
+                          "type": "string",
+                          "default": "No"
+                        },
+                        "true": {
+                          "type": "string",
+                          "default": "Yes"
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   }
                 },
                 {
+                  "title": "Score",
                   "type": "object",
-                  "description": "A 0–10 score question.",
-                  "additionalProperties": false,
-                  "required": ["type", "prompt"],
+                  "required": ["type", "instructions", "criteria"],
                   "properties": {
                     "type": {
                       "type": "string",
                       "enum": ["score"]
                     },
-                    "prompt": {
-                      "type": "string"
+                    "instructions": {
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "array",
+                          "items": {}
+                        }
+                      ]
+                    },
+                    "criteria": {
+                      "type": "array",
+                      "description": "Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1.",
+                      "minItems": 2,
+                      "maxItems": 26,
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -858,7 +952,15 @@
             }
           },
           "keep_alive": {
-            "description": "How long to keep the model loaded after this call. String (\"5m\") or number (seconds)."
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "How long to keep the model loaded after the request, as a duration string (such as 5m) or seconds. Zero unloads after the request; a negative value keeps it loaded. Defaults to the server's keep-alive setting (5m unless configured otherwise)."
           }
         }
       },

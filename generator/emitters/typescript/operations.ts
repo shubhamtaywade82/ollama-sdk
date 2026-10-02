@@ -57,6 +57,9 @@ function emitOperation(op: OperationContract): string {
           op.constraints.maxRequestBytes !== undefined
             ? `maxRequestBytes: ${literal(op.constraints.maxRequestBytes)}`
             : '',
+          op.constraints.maxRequestBytesWithImages !== undefined
+            ? `maxRequestBytesWithImages: ${literal(op.constraints.maxRequestBytesWithImages)}`
+            : '',
         ]
           .filter((s) => s.length > 0)
           .join(', ')} }`;

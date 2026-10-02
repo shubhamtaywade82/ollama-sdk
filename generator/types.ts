@@ -60,7 +60,30 @@ export interface SchemaRef {
 
 /** A JSON Schema node — permissive shape carrying OpenAPI/JSON Schema keywords. */
 export interface JsonSchemaNode {
-  readonly type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
+  /**
+   * JSON Schema `type` keyword. Can be a single type string or an array
+   * of type strings (e.g. `[string, "null"]` for a nullable string).
+   * The array form is valid JSON Schema and used by upstream Ollama
+   * (e.g. SystemOneChoiceQuestion.criteria.additionalProperties has
+   * `type: [string, "null"]`).
+   */
+  readonly type?:
+    | 'object'
+    | 'array'
+    | 'string'
+    | 'integer'
+    | 'number'
+    | 'boolean'
+    | 'null'
+    | readonly (
+        | 'object'
+        | 'array'
+        | 'string'
+        | 'integer'
+        | 'number'
+        | 'boolean'
+        | 'null'
+      )[];
   readonly description?: string;
   readonly required?: readonly string[];
   readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
@@ -73,6 +96,23 @@ export interface JsonSchemaNode {
   readonly format?: string;
   readonly default?: unknown;
   readonly additionalProperties?: boolean | JsonSchemaNode;
+  /** JSON Schema constraint: minimum number of properties on an object. */
+  readonly minProperties?: number;
+  /** JSON Schema constraint: maximum number of properties on an object. */
+  readonly maxProperties?: number;
+  /** JSON Schema constraint: pattern that property names must match. */
+  readonly propertyNames?: { readonly pattern?: string };
+  /** JSON Schema constraint: minimum number of items in an array. */
+  readonly minItems?: number;
+  /** JSON Schema constraint: maximum number of items in an array. */
+  readonly maxItems?: number;
+  /** JSON Schema numeric constraints. */
+  readonly minimum?: number;
+  readonly maximum?: number;
+  /** JSON Schema string constraints. */
+  readonly pattern?: string;
+  readonly minLength?: number;
+  readonly maxLength?: number;
   readonly [keyword: string]: unknown;
 }
 
@@ -173,6 +213,13 @@ export interface OperationContract {
   readonly constraints?: {
     readonly minOllamaVersion?: string;
     readonly maxRequestBytes?: number;
+    /**
+     * Wave 13: request size limit when the body contains images.
+     * System One allows 32 MiB when images are present (vs 64 KiB
+     * without). The runtime checks the body for an `images` array
+     * and applies the higher limit when it's non-empty.
+     */
+    readonly maxRequestBytesWithImages?: number;
   };
 
   readonly status: {

@@ -4,8 +4,8 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** A yes/no question. */
-export interface SystemOneYesNoQuestion {
-  readonly type: 'yes_no';
-  readonly prompt: string;
+export interface SystemOneNoulAnswer {
+  readonly type: 'noul';
+  /** Probability of true among the false and true candidates. This is a number, not a Boolean. */
+  readonly noul: number;
 }

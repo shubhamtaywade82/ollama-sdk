@@ -5,8 +5,13 @@
 import { z } from 'zod';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-export const SystemOneScoreQuestionSchema = z.object({
-  type: z.enum(['score']),
+export const SystemOneNoulQuestionSchema = z.object({
+  type: z.enum(['noul']),
   instructions: SystemOneContentSchema,
-  criteria: z.array(z.string()).min(2).max(26),
+  criteria: z
+    .object({
+      false: z.string().optional(),
+      true: z.string().optional(),
+    })
+    .optional(),
 });

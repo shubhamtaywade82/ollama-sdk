@@ -3,12 +3,19 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
-import { SystemOneAnswerSchema } from './SystemOneAnswer.schema.js';
-import { SystemOneUsageSchema } from './SystemOneUsage.schema.js';
+import { SystemOneChoiceAnswerSchema } from './SystemOneChoiceAnswer.schema.js';
+import { SystemOneNoulAnswerSchema } from './SystemOneNoulAnswer.schema.js';
+import { SystemOneScoreAnswerSchema } from './SystemOneScoreAnswer.schema.js';
 
-/** Response body for POST /v1/systemone. */
 export const SystemOneResponseSchema = z.object({
   model: z.string(),
-  answers: z.object({}).catchall(SystemOneAnswerSchema),
-  usage: SystemOneUsageSchema,
+  answers: z
+    .object({})
+    .catchall(
+      z.union([SystemOneChoiceAnswerSchema, SystemOneNoulAnswerSchema, SystemOneScoreAnswerSchema]),
+    ),
+  usage: z.object({
+    input_tokens: z.number().min(0),
+    output_tokens: z.number().min(0),
+  }),
 });

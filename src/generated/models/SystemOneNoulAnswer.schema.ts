@@ -4,8 +4,7 @@
 
 import { z } from 'zod';
 
-/** A yes/no question. */
-export const SystemOneYesNoQuestionSchema = z.object({
-  type: z.enum(['yes_no']),
-  prompt: z.string(),
+export const SystemOneNoulAnswerSchema = z.object({
+  type: z.enum(['noul']),
+  noul: z.number().min(0).max(1),
 });

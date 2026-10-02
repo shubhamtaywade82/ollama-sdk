@@ -4,18 +4,23 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneQuestion } from './index.js';
+import type {
+  SystemOneChoiceQuestion,
+  SystemOneContent,
+  SystemOneNoulQuestion,
+  SystemOneScoreQuestion,
+} from './index.js';
 
-/** Request body for POST /v1/systemone. */
 export interface SystemOneRequest {
-  /** Model name (e.g. "systemone-v1"). */
+  /** Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported. */
   readonly model: string;
-  /** Opaque conversation state — any JSON value the caller round-trips. */
-  readonly state: unknown;
-  /** Map of question id → question descriptor. */
+  readonly state: SystemOneContent;
+  /** Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported. */
+  readonly images?: readonly string[] | undefined;
+  /** Named questions about the shared state. Answers are not passed to later questions. */
   readonly questions: {
-    [key: string]: SystemOneQuestion;
+    [key: string]: SystemOneChoiceQuestion | SystemOneNoulQuestion | SystemOneScoreQuestion;
   };
-  /** How long to keep the model loaded after this call. String ("5m") or number (seconds). */
-  readonly keep_alive?: unknown | undefined;
+  /** How long to keep the model loaded after the request, as a duration string (such as 5m) or seconds. Zero unloads after the request; a negative value keeps it loaded. Defaults to the server's keep-alive setting (5m unless configured otherwise). */
+  readonly keep_alive?: string | number | undefined;
 }

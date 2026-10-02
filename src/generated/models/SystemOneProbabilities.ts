@@ -4,8 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** Token usage for a System One call. */
-export interface SystemOneUsage {
-  readonly input_tokens: number;
-  readonly output_tokens: number;
-}
+/** Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision. */
+export type SystemOneProbabilities = {
+  [key: string]: number;
+};

@@ -38,6 +38,16 @@ import { ModelsClient } from './models-client.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { OllamaRuntime } from './generated/runtime/runtime.js';
+import { NativeApi } from './generated/api/native-api.js';
+import type {
+  SystemOneRequest as SystemOneRequestBase,
+  SystemOneResponse as SystemOneResponseBase,
+} from './generated/models/index.js';
+import type {
+  SystemOneQuestions,
+  SystemOneRequest,
+  SystemOneResponse,
+} from './system-one.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
 import { withEncodedImages, withEncodedMessageImages } from './utils.js';
 import {
@@ -219,6 +229,21 @@ export class OllamaClient {
     return this._runtime;
   }
   private _runtime: OllamaRuntime | undefined;
+
+  /**
+   * Lazily-constructed `NativeApi` bound to this client's runtime. Exposes
+   * the full generated native API surface (chat, generate, embed, systemOne,
+   * etc.) with contract-driven types and runtime enforcement.
+   *
+   * Wave 13: `systemOne()` delegates to this accessor.
+   */
+  get native(): NativeApi {
+    if (this._nativeApi === undefined) {
+      this._nativeApi = new NativeApi(this.runtime);
+    }
+    return this._nativeApi;
+  }
+  private _nativeApi: NativeApi | undefined;
 
   /**
    * Fail-fast guard for `format` (structured output) requests: throws before any network
@@ -608,6 +633,51 @@ export class OllamaClient {
   readonly version = () => this.models.version();
   readonly createBlob = (digest: string, data: BinaryBody) => this.models.createBlob(digest, data);
   readonly checkBlob = (digest: string) => this.models.checkBlob(digest);
+
+  // --- System One (Wave 13) ---
+  /**
+   * Ollama's System One decision layer (`POST /v1/systemone`) — evaluates
+   * 1–64 typed questions (choice, noul, or score) against a provided state
+   * and returns typed answers with probabilities and confidence.
+   *
+   * Local-only; requires Ollama >= 0.35.0. The runtime enforces the
+   * version constraint automatically (lazily fetching `/api/version` when
+   * `enforceVersion` is `'auto'` or `'strict'`) and rejects cloud-mode
+   * calls. Request size is checked client-side: 64 KiB without images,
+   * 32 MiB with images.
+   *
+   * The generic `Q` parameter captures the caller's question map at
+   * compile time, giving key-safe answer access:
+   *
+   * ```ts
+   * const result = await ollama.systemOne({
+   *   model: 'tev1:4b',
+   *   state: { ticket: 'Customer was charged twice' },
+   *   questions: {
+   *     intent: { type: 'choice', instructions: '...', criteria: { ... } },
+   *     urgent: { type: 'noul', instructions: '...' },
+   *   },
+   * });
+   * result.answers.intent  // ✓ SystemOneAnswer (choice)
+   * result.answers.urgent  // ✓ SystemOneAnswer (noul)
+   * result.answers.typo    // ✗ TypeScript error
+   * ```
+   *
+   * For the low-level generated API (without the generic wrapper), use
+   * `client.native.systemOne(request)` directly.
+   */
+  async systemOne<Q extends SystemOneQuestions = SystemOneQuestions>(
+    request: SystemOneRequest<Q>,
+  ): Promise<SystemOneResponse<Q>> {
+    // Delegate to the generated NativeApi. The cast through `unknown`
+    // is necessary because the generic SystemOneRequest<Q> extends but
+    // doesn't sufficiently overlap with the base SystemOneRequest for
+    // TypeScript's direct conversion check. The generic Q is purely a
+    // compile-time wrapper — the runtime behavior is identical.
+    return this.native.systemOne(
+      request as unknown as SystemOneRequestBase,
+    ) as Promise<SystemOneResponseBase> as Promise<SystemOneResponse<Q>>;
+  }
 
   // --- Web Endpoints ---
   /**

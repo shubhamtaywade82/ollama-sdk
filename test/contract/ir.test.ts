@@ -35,12 +35,18 @@ describe('contract IR: System One is declared', () => {
     expect(op.transport.mode).toBe('json');
     expect(op.constraints?.minOllamaVersion).toBe('0.35.0');
     expect(op.constraints?.maxRequestBytes).toBe(65536);
+    // Wave 13: System One allows 32 MiB when the request contains images.
+    expect(op.constraints?.maxRequestBytesWithImages).toBe(33554432);
     expect(op.status.experimental).toBe(true);
     expect(op.status.documented).toBe(true);
 
-    // Every capability the docs mark as unsupported must be encoded as such.
+    // Capabilities: tools/thinking/structuredOutput/logprobs/embeddings
+    // are all unsupported. Vision is model-dependent — System One accepts
+    // images, but only vision-weighted models (Clef/Clef Flash) can
+    // process them. Wave 13 corrected this from 'unsupported' to
+    // 'model-dependent'.
     expect(op.capabilities.tools).toBe('unsupported');
-    expect(op.capabilities.vision).toBe('unsupported');
+    expect(op.capabilities.vision).toBe('model-dependent');
     expect(op.capabilities.thinking).toBe('unsupported');
     expect(op.capabilities.structuredOutput).toBe('unsupported');
   });

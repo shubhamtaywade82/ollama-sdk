@@ -260,14 +260,15 @@
       "capabilities": {
         "thinking": "unsupported",
         "tools": "unsupported",
-        "vision": "unsupported",
+        "vision": "model-dependent",
         "structuredOutput": "unsupported",
         "logprobs": "unsupported",
         "embeddings": "unsupported"
       },
       "constraints": {
         "minOllamaVersion": "0.35.0",
-        "maxRequestBytes": 65536
+        "maxRequestBytes": 65536,
+        "maxRequestBytesWithImages": 33554432
       },
       "status": {
         "documented": true,
@@ -275,8 +276,9 @@
       },
       "notes": [
         "Local-only; Ollama Cloud rejects /v1/systemone.",
-        "Hard 64 KiB request body limit enforced by the server.",
-        "No images, no tools, no generation controls (temperature, top_p, etc.).",
+        "64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).",
+        "No tools, no generation controls (temperature, top_p, etc.).",
+        "Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.",
         "Experimental: behavioral surface may change between Ollama releases."
       ]
     },

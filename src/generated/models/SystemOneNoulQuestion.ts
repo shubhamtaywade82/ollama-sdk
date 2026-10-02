@@ -6,9 +6,14 @@
 
 import type { SystemOneContent } from './index.js';
 
-export interface SystemOneScoreQuestion {
-  readonly type: 'score';
+export interface SystemOneNoulQuestion {
+  readonly type: 'noul';
   readonly instructions: SystemOneContent;
-  /** Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1. */
-  readonly criteria: readonly string[];
+  /** Optional descriptions for the two outcomes. Omitted entries use No and Yes. */
+  readonly criteria?:
+    | {
+        readonly false?: string | undefined;
+        readonly true?: string | undefined;
+      }
+    | undefined;
 }

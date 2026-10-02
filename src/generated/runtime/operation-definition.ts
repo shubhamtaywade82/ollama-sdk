@@ -73,6 +73,8 @@ export interface OperationDefinition {
   readonly constraints?: {
     readonly minOllamaVersion?: string;
     readonly maxRequestBytes?: number;
+    /** Wave 13: limit when body contains images (e.g. System One: 32 MiB). */
+    readonly maxRequestBytesWithImages?: number;
   };
   readonly status: {
     readonly documented: boolean;

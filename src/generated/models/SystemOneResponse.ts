@@ -4,14 +4,19 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneAnswer, SystemOneUsage } from './index.js';
+import type { SystemOneChoiceAnswer, SystemOneNoulAnswer, SystemOneScoreAnswer } from './index.js';
 
-/** Response body for POST /v1/systemone. */
 export interface SystemOneResponse {
+  /** Model name from the request. */
   readonly model: string;
-  /** Map of question id → answer descriptor. */
+  /** Answers keyed by the question names in the request. */
   readonly answers: {
-    [key: string]: SystemOneAnswer;
+    [key: string]: SystemOneChoiceAnswer | SystemOneNoulAnswer | SystemOneScoreAnswer;
   };
-  readonly usage: SystemOneUsage;
+  readonly usage: {
+    /** Total evaluated input tokens, including image positions. Shared context is counted again when the model scores questions separately. */
+    readonly input_tokens: number;
+    /** Tokens generated internally for scoring, including prefix preparation and retries. May exceed the question count; not the length of the JSON response. */
+    readonly output_tokens: number;
+  };
 }
