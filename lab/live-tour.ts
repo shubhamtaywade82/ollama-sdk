@@ -161,6 +161,28 @@ function chooseModel(modelNames: readonly string[]): string | undefined {
   return modelNames.find((name) => !/embed|rerank/i.test(name));
 }
 
+function isVersionAtLeast(version: string, minimum: string): boolean {
+  const parse = (value: string): number[] | undefined => {
+    const match = value.match(/\d+\.\d+\.\d+/);
+    return match?.[0].split('.').map(Number);
+  };
+  const actual = parse(version);
+  const required = parse(minimum);
+  if (actual === undefined || required === undefined) return false;
+  for (let index = 0; index < 3; index += 1) {
+    const actualPart = actual[index] ?? 0;
+    const requiredPart = required[index] ?? 0;
+    if (actualPart !== requiredPart) return actualPart > requiredPart;
+  }
+  return true;
+}
+
+function chooseSystemOneModel(modelNames: readonly string[]): string | undefined {
+  const configured = process.env['OLLAMA_SYSTEMONE_MODEL'];
+  if (configured !== undefined) return modelNames.find((name) => name === configured);
+  return modelNames.find((name) => name === 'nimble' || name === 'nimble:latest');
+}
+
 function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
   if (a.length !== b.length || a.length === 0) {
     throw new Error(`Embedding dimensions differ (${a.length} vs ${b.length})`);
@@ -520,15 +542,16 @@ async function main(): Promise<void> {
     return { id: result.id, model: result.model, content: result.content, usage: result.usage };
   });
 
+  const runtime = new OllamaRuntime({
+    http: new HttpClient({
+      baseUrl,
+      timeoutMs: 30_000,
+      onLifecycleEvent: logHttpEvent,
+    }),
+    serverVersion: discovery.version,
+  });
+  const api = new NativeApi(runtime);
   await runStep('Generated contract API surface', 'NativeApi through OllamaRuntime', async () => {
-    const runtime = new OllamaRuntime({
-      http: new HttpClient({
-        baseUrl,
-        timeoutMs: 30_000,
-        onLifecycleEvent: logHttpEvent,
-      }),
-    });
-    const api = new NativeApi(runtime);
     const response = await api.chat({
       model: activeModel,
       messages: [{ role: 'user', content: 'Reply with exactly: generated API works' }],
@@ -541,6 +564,38 @@ async function main(): Promise<void> {
       response: response.message.content,
     };
   });
+
+  const systemOneModel = chooseSystemOneModel(discovery.installedModels);
+  if (!isVersionAtLeast(discovery.version, '0.35.0')) {
+    await skipStep(
+      'System One endpoint',
+      `Ollama ${discovery.version} is below the endpoint minimum 0.35.0`,
+    );
+  } else if (systemOneModel === undefined) {
+    await skipStep(
+      'System One endpoint',
+      'No compatible System One model found; install nimble or set OLLAMA_SYSTEMONE_MODEL to an installed compatible model',
+    );
+  } else {
+    await runStep('System One typed decision endpoint', 'POST /v1/systemone', async () => {
+      const response = await api.systemOne({
+        model: systemOneModel,
+        state: 'A customer reports that checkout has returned HTTP 500 errors since this morning.',
+        questions: {
+          category: {
+            type: 'choice',
+            instructions: 'Choose the category that best matches this report.',
+            criteria: {
+              billing: 'Payment processing, charges, or refunds',
+              bug: 'A software error or malfunction',
+              account: 'Login or account access',
+            },
+          },
+        },
+      });
+      return { model: systemOneModel, response };
+    });
+  }
 
   const usageQuota = new QuotaManager({
     windows: [{ id: 'live-tour', windowMs: 60 * 60 * 1000, maxRequests: 100 }],
@@ -698,10 +753,16 @@ async function printSummary(): Promise<void> {
   const skipped = outcomes.filter((item) => item.status === 'skipped').length;
   console.log('\n════════════════════════════════════════════════════');
   console.log(`LIVE TOUR: ${passed} passed | ${failed} failed | ${skipped} skipped`);
-  for (const item of outcomes) {
-    const marker = item.status === 'passed' ? '✓' : item.status === 'failed' ? '✗' : '↷';
-    console.log(`${marker} ${item.name}${item.error ? ` — ${item.error}` : ''}`);
-  }
+  console.table(
+    outcomes.map((item) => ({
+      Status: item.status.toUpperCase(),
+      Check: item.name,
+      Duration: `${item.durationMs}ms`,
+      Details:
+        item.error ??
+        (item.status === 'skipped' && typeof item.detail === 'string' ? item.detail : ''),
+    })),
+  );
   const date = new Date().toISOString().slice(0, 10);
   const logPath = `${process.env['LAB_LOG_DIR'] ?? 'logs'}/manual/${date}.jsonl`;
   console.log(`Detailed JSONL logs: ${logPath}`);

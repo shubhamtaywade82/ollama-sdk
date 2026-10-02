@@ -19,7 +19,8 @@ npm run lab:live
 `lab:live` builds the SDK, then runs `lab/live-tour.ts`, which imports the public
 `@nemesis-oss/ollama-sdk` package and makes real requests to Ollama. It prints
 HTTP lifecycle events, streams generated tokens in real time, reports each
-feature as passed/failed/skipped, and appends details to
+feature as passed/failed/skipped in an end-of-run summary table with status,
+duration, and failure or skip details, and appends full details to
 `logs/manual/YYYY-MM-DD.jsonl`.
 
 Configure a different local server or installed model with:
@@ -38,12 +39,26 @@ model. Hosted web search is deliberately opt-in: set `OLLAMA_API_KEY` and
 `OLLAMA_LIVE_CLOUD=1`. Model mutation operations (pull/create/copy/delete/push)
 are never run by the tour.
 
+The experimental `/v1/systemone` check runs only on Ollama 0.35.0 or newer and
+when a compatible System One model is installed. To try it, install the
+documented `nimble` model and rerun the tour:
+
+```bash
+ollama pull nimble
+npm run lab:live
+```
+
+If you use another compatible model, set `OLLAMA_SYSTEMONE_MODEL` to its exact
+installed name. The endpoint is skipped when the server version or model
+requirements are not met.
+
 The tour covers native chat/generate, streaming and Web `Response` adapters,
 structured Zod output, tool calls and `Agent`, embeddings, model inspection,
 OpenAI/Anthropic compatibility, generated API/runtime, usage/quota utilities,
-and an MCP bridge connected to a deterministic in-memory adapter plus a real
-local model decision. A configured remote MCP URL is not invoked automatically:
-review its advertised tools first using the dedicated MCP labs.
+the version-gated System One endpoint, and an MCP bridge connected to a
+deterministic in-memory adapter plus a real local model decision. A configured
+remote MCP URL is not invoked automatically: review its advertised tools first
+using the dedicated MCP labs.
 
 1. **Configure Environment Variables**
 
@@ -192,6 +207,6 @@ lab/
 
 Experiment executions automatically output human-readable summaries to stdout and persist structured traces under `logs/`:
 
-* `logs/manual/YYYY-MM-DD.jsonl`: Event stream of requests, durations, models, and outputs.
-* `logs/agents/<agent-name>.json`: Complete multi-turn agent execution trace, turns, and tool results.
-* `logs/replay/<id>-<timestamp>.json`: Recorded snapshots for deterministic replay.
+- `logs/manual/YYYY-MM-DD.jsonl`: Event stream of requests, durations, models, and outputs.
+- `logs/agents/<agent-name>.json`: Complete multi-turn agent execution trace, turns, and tool results.
+- `logs/replay/<id>-<timestamp>.json`: Recorded snapshots for deterministic replay.
