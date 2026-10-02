@@ -49,6 +49,18 @@ export type RuntimeHttpBackend = Pick<HttpClient, 'baseUrl' | 'request'>;
 export interface OllamaRuntimeOptions {
   readonly http: RuntimeHttpBackend;
   /**
+   * Wave 15 (P0): HTTP backend for operations that declare a non-default
+   * `host` (e.g. web search/fetch at `https://ollama.com`). When an
+   * operation has `host: 'https://ollama.com'` and `cloudHttp` is
+   * configured, the runtime routes the request through this backend
+   * instead of the default `http`. When `cloudHttp` is not configured
+   * and a host-bearing operation is invoked, the runtime throws.
+   *
+   * OllamaClient.runtime sets this to a dedicated cloud HttpClient
+   * pointed at `https://ollama.com` with the configured API key.
+   */
+  readonly cloudHttp?: RuntimeHttpBackend;
+  /**
    * Whether this runtime is targeting a local Ollama instance. Defaults to
    * `true`. When `false`, operations marked `environment.cloud === false`
    * (i.e. local-only like `/v1/systemone`) are rejected at request time.
@@ -206,6 +218,32 @@ export class OllamaRuntime {
   constructor(private readonly options: OllamaRuntimeOptions) {}
 
   /**
+   * Wave 15 (P0): resolve the HTTP backend for a given operation.
+   *
+   * Operations with a declared `host` (e.g. web search/fetch at
+   * https://ollama.com) must route to a HttpClient pointed at that host,
+   * not the default one. The runtime accepts an optional `cloudHttp`
+   * backend for this purpose — if the operation declares a host and no
+   * cloud backend is configured, the runtime throws rather than silently
+   * sending the request to the wrong server.
+   */
+  private resolveHttpBackend(operation: OperationDefinition): RuntimeHttpBackend {
+    if (operation.host) {
+      const cloudHttp = this.options.cloudHttp;
+      if (!cloudHttp) {
+        throw new OllamaGenericClientError(
+          `Operation ${operation.operationId} (${operation.method} ${operation.path}) ` +
+            `targets host "${operation.host}" but the runtime has no cloudHttp backend configured. ` +
+            `Use OllamaClient.webSearch() / OllamaClient.webFetch() for cloud-hosted operations, ` +
+            `or construct OllamaRuntime with a cloudHttp option.`,
+        );
+      }
+      return cloudHttp;
+    }
+    return this.options.http;
+  }
+
+  /**
    * Invoke an operation. Called by every generated API method.
    *
    * Returns a `Promise<T>` for non-streaming operations, or an
@@ -278,24 +316,39 @@ export class OllamaRuntime {
 
     const streaming = shouldStream(req);
 
+    // Wave 15 (P0): substitute path parameters into the path template.
+    // The operation's path may contain `{name}` segments (e.g.
+    // `/v1/models/{model}`, `/api/blobs/{digest}`). The caller provides
+    // values via `req.pathParams`; we URI-encode each value and substitute
+    // it into the template. If a required path parameter is missing, we
+    // throw before making the HTTP request.
+    const resolvedPath = resolvePathParams(req.operation.path, req.pathParams);
+
+    // Wave 15 (P1): extract model from the request body for failover
+    // routing. The failover layer uses this to filter endpoints by
+    // OllamaEndpoint.models (credential-scoped routing). We extract it
+    // here rather than in the FailoverHttpClient because the runtime
+    // has access to the request body.
+    const model = req.model ?? extractModelFromBody(body);
+
     // The HttpClient expects the narrow method union 'GET' | 'POST' |
     // 'DELETE' | 'HEAD' | undefined — cast through `as` because our
     // OperationDefinition.method is the wider HttpMethod type.
-    const httpReq: HttpRequestOptions = {
-      path: req.operation.path,
+    // Wave 15: pass the model through via a custom property on the
+    // request options. The FailoverHttpClient reads this to pass to
+    // executeWithFailover for model-scoped routing. Plain HttpClient
+    // ignores it (it's not part of HttpRequestOptions).
+    const httpReq = {
+      path: resolvedPath,
       method: req.operation.method as 'GET' | 'POST' | 'DELETE' | 'HEAD',
       ...(body !== undefined ? { body } : {}),
       ...(req.signal !== undefined ? { signal: req.signal } : {}),
-      // For streaming calls, request the raw Response so we can pipe it
-      // through the parser the contract specifies for this operation.
-      // This inherits middleware, retry, telemetry, and error-mapping
-      // from HttpClient — the previous Wave 3 implementation bypassed
-      // them with a direct `fetch()` call.
       ...(streaming ? { raw: true } : {}),
-    };
+      ...(model !== undefined ? { model } : {}),
+    } as HttpRequestOptions;
 
     if (!streaming) {
-      const result = (await this.options.http.request<T>(httpReq)) as T;
+      const result = (await this.resolveHttpBackend(req.operation).request<T>(httpReq)) as T;
       // Wave 13: opt-in response validation. When `validateResponses: true`
       // is set and the operation has a registered response schema, validate
       // the response body before returning it. Throws
@@ -337,7 +390,7 @@ export class OllamaRuntime {
     // 'sse'` and now correctly use the SSE parser, then JSON-decode each
     // event's `data` field. This closes the contract/runtime violation
     // where generated compat streaming was being parsed as NDJSON.
-    const response = await this.options.http.request<Response>(httpReq);
+    const response = await this.resolveHttpBackend(req.operation).request<Response>(httpReq);
     if (!response.body) {
       throw new OllamaGenericClientError(
         `Operation ${req.operation.operationId}: streaming response had no body.`,
@@ -502,4 +555,52 @@ function bodyHasImages(body: unknown): boolean {
   const obj = body as Record<string, unknown>;
   const images = obj.images;
   return Array.isArray(images) && images.length > 0;
+}
+
+/**
+ * Wave 15 (P0): substitute path parameters into a path template.
+ *
+ * Replaces every `{name}` segment in the path with the URI-encoded value
+ * from `pathParams`. If a `{name}` segment has no corresponding value in
+ * `pathParams`, throws an error — sending a literal `{name}` to the server
+ * would produce a confusing 404 rather than a clear client-side error.
+ *
+ * Example:
+ *   resolvePathParams('/v1/models/{model}', { model: 'gpt-4' })
+ *   → '/v1/models/gpt-4'
+ *
+ *   resolvePathParams('/api/blobs/{digest}', { digest: 'sha256:abc' })
+ *   → '/api/blobs/sha256%3Aabc'
+ */
+function resolvePathParams(
+  pathTemplate: string,
+  pathParams: Readonly<Record<string, string>> | undefined,
+): string {
+  // If the path has no `{...}` segments, return it unchanged.
+  if (!pathTemplate.includes('{')) return pathTemplate;
+
+  const params = pathParams ?? {};
+  return pathTemplate.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    const value = params[name];
+    if (value === undefined) {
+      throw new OllamaGenericClientError(
+        `Missing path parameter "${name}" for path template "${pathTemplate}". ` +
+          `Provide it via the pathParams field on the invoke() request.`,
+      );
+    }
+    return encodeURIComponent(value);
+  });
+}
+
+/**
+ * Wave 15 (P1): extract the `model` field from a request body for
+ * failover routing. The failover layer uses this to filter endpoints by
+ * `OllamaEndpoint.models` (credential-scoped routing). Returns undefined
+ * for bodies that don't carry a model (e.g. GET /api/tags, GET /api/version).
+ */
+function extractModelFromBody(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const obj = body as Record<string, unknown>;
+  const model = obj.model;
+  return typeof model === 'string' ? model : undefined;
 }
