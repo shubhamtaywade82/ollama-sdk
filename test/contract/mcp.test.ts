@@ -12,10 +12,15 @@ function loadIR(): OllamaContract {
 }
 
 describe('Wave 6: MCP tool generation', () => {
-  it('emits one tool per documented operation in the IR', () => {
+  it('emits one tool per documented operation in the IR (excluding binary-body ops)', () => {
     const ir = loadIR();
     const descriptors = buildToolDescriptors(ir.operations, ir.schemas);
-    const documentedOps = ir.operations.filter((op) => op.status.documented);
+    // Wave 17: createBlob is excluded from MCP tools because it requires
+    // a binary body (application/octet-stream) that the JSON runtime
+    // cannot handle.
+    const documentedOps = ir.operations.filter(
+      (op) => op.status.documented && op.id !== 'createBlob',
+    );
     expect(descriptors.length).toBe(documentedOps.length);
   });
 
@@ -68,7 +73,10 @@ describe('Wave 6: MCP tool generation', () => {
       tools: readonly { name: string }[];
     };
     expect(parsed._comment).toMatch(/AUTO-GENERATED/);
-    expect(parsed.tools.length).toBe(ir.operations.filter((op) => op.status.documented).length);
+    // Wave 17: createBlob excluded from MCP tools (binary body)
+    expect(parsed.tools.length).toBe(
+      ir.operations.filter((op) => op.status.documented && op.id !== 'createBlob').length,
+    );
   });
 });
 

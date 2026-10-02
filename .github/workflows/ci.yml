@@ -179,9 +179,11 @@ jobs:
         run: |
           ollama pull qwen3:0.6b
           ollama pull nomic-embed-text:latest
-          # Wave 13: System One conformance requires a decision model.
-          # tev1:0.8b is the smallest System One-compatible model.
-          ollama pull tev1:0.8b || echo "tev1:0.8b not available; System One conformance tests will skip"
+          # Wave 17: System One conformance is mandatory, not skippable.
+          # tev1:0.8b is the smallest System One-compatible model. If this
+          # pull fails, the conformance job fails — System One live tests
+          # must execute, not skip.
+          ollama pull tev1:0.8b
 
       - name: Run conformance tests
         env:

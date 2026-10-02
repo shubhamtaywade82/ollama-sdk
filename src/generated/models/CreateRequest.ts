@@ -43,6 +43,8 @@ export interface CreateRequest {
   readonly draft_quantize?: string | undefined;
   /** Minimum Ollama version required by the model */
   readonly requires?: string | undefined;
+  /** Capabilities to add without removing inherited or inferred capabilities (e.g. `decision` for compatible decision models) */
+  readonly capabilities?: readonly string[] | undefined;
   /** Stream status updates */
   readonly stream?: boolean | undefined;
 }

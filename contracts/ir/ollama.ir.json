@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "f0bfcec5685b5a8e",
+  "sourceHash": "3782fe027c0a1c01",
   "operations": [
     {
       "id": "blobs",
@@ -1687,6 +1687,13 @@
           "requires": {
             "type": "string",
             "description": "Minimum Ollama version required by the model"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capabilities to add without removing inherited or inferred capabilities (e.g. `decision` for compatible decision models)"
           },
           "stream": {
             "type": "boolean",
