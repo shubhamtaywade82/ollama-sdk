@@ -6,13 +6,10 @@
 
 import type { SystemOneContent } from './index.js';
 
-/** A multiple-choice question with 2–26 named criteria. */
 export interface SystemOneChoiceQuestion {
   readonly type: 'choice';
   readonly instructions: SystemOneContent;
-  /** Map of criterion key → description. 2–26 entries. Values
-may be string or null (null means "use the key as-is").
- */
+  /** Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order. */
   readonly criteria: {
     [key: string]: string | null;
   };

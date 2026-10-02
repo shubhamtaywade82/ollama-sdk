@@ -786,18 +786,19 @@
       "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- 64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).\n- No tools, no generation controls (temperature, top_p, etc.).\n- Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.\n- Experimental: behavioral surface may change between Ollama releases.",
       "inputSchema": {
         "type": "object",
-        "description": "Request body for POST /v1/systemone.",
         "required": ["model", "state", "questions"],
         "properties": {
           "model": {
             "type": "string",
-            "description": "Model name (e.g. \"tev1:4b\")."
+            "pattern": "\\S",
+            "description": "Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported."
           },
           "state": {
-            "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+            "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
             "oneOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               {
                 "type": "object",
@@ -811,20 +812,25 @@
           },
           "images": {
             "type": "array",
+            "description": "Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported.",
             "items": {
-              "type": "string"
-            },
-            "description": "Base64-encoded images for vision-compatible models. Only\nsupported by models with vision weights (e.g. Clef/Clef\nFlash). When images are present, the request size limit\nincreases from 64 KiB to 32 MiB.\n"
+              "type": "string",
+              "format": "byte"
+            }
           },
           "questions": {
             "type": "object",
-            "description": "Map of question id → question descriptor. 1–64 questions\nper request. Each question is one of three discriminated\ntypes: choice, noul, or score.\n",
+            "description": "Named questions about the shared state. Answers are not passed to later questions.",
+            "minProperties": 1,
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "\\S"
+            },
             "additionalProperties": {
-              "description": "Discriminated union of the three question kinds.",
               "oneOf": [
                 {
+                  "title": "Choice",
                   "type": "object",
-                  "description": "A multiple-choice question with 2–26 named criteria.",
                   "required": ["type", "instructions", "criteria"],
                   "properties": {
                     "type": {
@@ -832,10 +838,11 @@
                       "enum": ["choice"]
                     },
                     "instructions": {
-                      "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
                       "oneOf": [
                         {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "\\S"
                         },
                         {
                           "type": "object",
@@ -849,23 +856,21 @@
                     },
                     "criteria": {
                       "type": "object",
-                      "description": "Map of criterion key → description. 2–26 entries. Values\nmay be string or null (null means \"use the key as-is\").\n",
+                      "description": "Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order.",
+                      "minProperties": 2,
+                      "maxProperties": 26,
+                      "propertyNames": {
+                        "pattern": "\\S"
+                      },
                       "additionalProperties": {
-                        "oneOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
+                        "type": ["string", "null"]
                       }
                     }
                   }
                 },
                 {
+                  "title": "Noul",
                   "type": "object",
-                  "description": "A yes/no (noul) question returning a boolean + probability.",
                   "required": ["type", "instructions"],
                   "properties": {
                     "type": {
@@ -873,10 +878,11 @@
                       "enum": ["noul"]
                     },
                     "instructions": {
-                      "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
                       "oneOf": [
                         {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "\\S"
                         },
                         {
                           "type": "object",
@@ -890,21 +896,24 @@
                     },
                     "criteria": {
                       "type": "object",
-                      "description": "Optional labels for the true/false outcomes.",
+                      "description": "Optional descriptions for the two outcomes. Omitted entries use No and Yes.",
                       "properties": {
-                        "true": {
-                          "type": "string"
-                        },
                         "false": {
-                          "type": "string"
+                          "type": "string",
+                          "default": "No"
+                        },
+                        "true": {
+                          "type": "string",
+                          "default": "Yes"
                         }
-                      }
+                      },
+                      "additionalProperties": false
                     }
                   }
                 },
                 {
+                  "title": "Score",
                   "type": "object",
-                  "description": "A scored question with 2–26 ordered criteria (rubric).",
                   "required": ["type", "instructions", "criteria"],
                   "properties": {
                     "type": {
@@ -912,10 +921,11 @@
                       "enum": ["score"]
                     },
                     "instructions": {
-                      "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+                      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
                       "oneOf": [
                         {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "\\S"
                         },
                         {
                           "type": "object",
@@ -929,7 +939,9 @@
                     },
                     "criteria": {
                       "type": "array",
-                      "description": "Ordered list of 2–26 rubric levels (low → high).",
+                      "description": "Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1.",
+                      "minItems": 2,
+                      "maxItems": 26,
                       "items": {
                         "type": "string"
                       }
@@ -940,7 +952,6 @@
             }
           },
           "keep_alive": {
-            "description": "How long to keep the model loaded after this call. String\n(e.g. \"5m\") or number (seconds).\n",
             "oneOf": [
               {
                 "type": "string"
@@ -948,7 +959,8 @@
               {
                 "type": "number"
               }
-            ]
+            ],
+            "description": "How long to keep the model loaded after the request, as a duration string (such as 5m) or seconds. Zero unloads after the request; a negative value keeps it loaded. Defaults to the server's keep-alive setting (5m unless configured otherwise)."
           }
         }
       },

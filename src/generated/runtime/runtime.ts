@@ -28,11 +28,12 @@ import {
   OllamaGenericClientError,
   OllamaRequestTooLargeError,
   OllamaRequestValidationError,
+  OllamaResponseValidationError,
   OllamaServerVersionUnknownError,
 } from '../../errors.js';
 import type { OperationDefinition, InvokeRequest } from './operation-definition.js';
 import type { TransportMode } from './operation-definition.js';
-import { getRequestSchema } from './schema-registry.js';
+import { getRequestSchema, getResponseSchema } from './schema-registry.js';
 
 /** Constructor options for {@link OllamaRuntime}. */
 export interface OllamaRuntimeOptions {
@@ -69,10 +70,32 @@ export interface OllamaRuntimeOptions {
    *     `/v1/systemone`, OpenAI/Anthropic compat surfaces), validation is
    *     skipped silently.
    *
-   * Response validation is intentionally NOT enabled — see ADR 0020 for
-   * the rationale (forward-compat with wire-format extensions).
+   * Response validation is intentionally NOT enabled by default — see
+   * ADR 0020 for the rationale (forward-compat with wire-format
+   * extensions).
+   *
+   * Wave 13: an opt-in `validateResponses` option is now available for
+   * operations where typed response semantics are the entire point
+   * (e.g. System One). When enabled, the runtime validates the HTTP
+   * response body against the operation's registered response schema
+   * before returning it to the caller. On failure, throws
+   * {@link OllamaResponseValidationError}.
    */
   readonly validateRequests?: boolean;
+  /**
+   * Wave 13: when `true`, the runtime validates every response body
+   * against the operation's registered response schema before returning
+   * it. Defaults to `false` — opt-in. Only operations with a registered
+   * response schema are validated; others pass through unchanged.
+   *
+   * On validation failure, throws {@link OllamaResponseValidationError}
+   * with the Zod issues attached. The HTTP response is still consumed.
+   *
+   * Use this for operations where typed response semantics are critical
+   * (System One, structured output). Don't enable globally — legitimate
+   * forward-compat wire-format extensions would cause false rejections.
+   */
+  readonly validateResponses?: boolean;
   /**
    * Policy for enforcing `constraints.minOllamaVersion` when
    * {@link serverVersion} is not explicitly supplied.
@@ -262,7 +285,34 @@ export class OllamaRuntime {
     };
 
     if (!streaming) {
-      return (await this.options.http.request<T>(httpReq)) as T;
+      const result = (await this.options.http.request<T>(httpReq)) as T;
+      // Wave 13: opt-in response validation. When `validateResponses: true`
+      // is set and the operation has a registered response schema, validate
+      // the response body before returning it. Throws
+      // OllamaResponseValidationError on failure. Only use this for
+      // operations where typed response semantics are critical (System One,
+      // structured output) — don't enable globally.
+      if (this.options.validateResponses === true) {
+        const responseSchema = getResponseSchema(req.operation.operationId);
+        if (responseSchema) {
+          const result2 = responseSchema.safeParse(result);
+          if (!result2.success) {
+            throw new OllamaResponseValidationError(
+              `Response validation failed for operation "${req.operation.operationId}" ` +
+                `(${req.operation.method} ${req.operation.path}): ` +
+                result2.error.issues
+                  .map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`)
+                  .join('; '),
+              {
+                operationId: req.operation.operationId,
+                issues: result2.error.issues,
+                request: { method: req.operation.method, url: req.operation.path },
+              },
+            );
+          }
+        }
+      }
+      return result;
     }
 
     // Streaming: HttpClient returns the raw Response (via the `raw: true`

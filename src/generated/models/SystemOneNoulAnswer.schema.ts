@@ -3,14 +3,8 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
-import { SystemOneConfidenceSchema } from './SystemOneConfidence.schema.js';
-import { SystemOneProbabilitiesSchema } from './SystemOneProbabilities.schema.js';
 
-/** Answer to a noul (yes/no) question. */
 export const SystemOneNoulAnswerSchema = z.object({
   type: z.enum(['noul']),
-  bool: z.boolean(),
-  probability: z.number().optional(),
-  probabilities: SystemOneProbabilitiesSchema.optional(),
-  confidence: SystemOneConfidenceSchema.optional(),
+  noul: z.number().min(0).max(1),
 });

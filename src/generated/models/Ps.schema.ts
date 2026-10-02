@@ -7,10 +7,10 @@ import { z } from 'zod';
 export const PsSchema = z.object({
   name: z.string().optional(),
   model: z.string().optional(),
-  size: z.number().optional(),
+  size: z.number().int().optional(),
   digest: z.string().optional(),
   details: z.object({}).optional(),
   expires_at: z.string().optional(),
-  size_vram: z.number().optional(),
-  context_length: z.number().optional(),
+  size_vram: z.number().int().optional(),
+  context_length: z.number().int().optional(),
 });

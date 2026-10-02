@@ -5,9 +5,8 @@
 import { z } from 'zod';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-/** A scored question with 2–26 ordered criteria (rubric). */
 export const SystemOneScoreQuestionSchema = z.object({
   type: z.enum(['score']),
   instructions: SystemOneContentSchema,
-  criteria: z.array(z.string()),
+  criteria: z.array(z.string()).min(2).max(26),
 });

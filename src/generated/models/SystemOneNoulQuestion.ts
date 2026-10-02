@@ -6,15 +6,14 @@
 
 import type { SystemOneContent } from './index.js';
 
-/** A yes/no (noul) question returning a boolean + probability. */
 export interface SystemOneNoulQuestion {
   readonly type: 'noul';
   readonly instructions: SystemOneContent;
-  /** Optional labels for the true/false outcomes. */
+  /** Optional descriptions for the two outcomes. Omitted entries use No and Yes. */
   readonly criteria?:
     | {
-        readonly true?: string | undefined;
         readonly false?: string | undefined;
+        readonly true?: string | undefined;
       }
     | undefined;
 }

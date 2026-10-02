@@ -8,5 +8,5 @@ import { z } from 'zod';
 export const TokenLogprobSchema = z.object({
   token: z.string().optional(),
   logprob: z.number().optional(),
-  bytes: z.array(z.number()).optional(),
+  bytes: z.array(z.number().int()).optional(),
 });

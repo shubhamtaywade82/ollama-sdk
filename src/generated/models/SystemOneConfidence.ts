@@ -4,12 +4,5 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** Distribution concentration indicating how confident the model
-is in its decision. Higher values = more concentrated
-distribution. This is NOT a guarantee of correctness —
-thresholds must be validated on your own task/data.
- */
-export interface SystemOneConfidence {
-  /** Concentration score (0–1). */
-  readonly score: number;
-}
+/** Distribution concentration, calculated as 1 - H(p) / ln(N), where H(p) is entropy and N is the candidate count. Zero means uniform probabilities; values near 1 mean one candidate dominates. Not calibrated correctness. */
+export type SystemOneConfidence = number;

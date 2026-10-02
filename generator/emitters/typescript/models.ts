@@ -94,6 +94,17 @@ function emitType(node: JsonSchemaNode | undefined, ctx: EmissionContext): strin
   }
 
   const type = node.type;
+
+  // Wave 13 fix: JSON Schema allows `type` to be an array (e.g.
+  // `type: [string, "null"]` for a nullable string). Handle this by
+  // emitting a TypeScript union of the individual types.
+  if (Array.isArray(type)) {
+    const members = type.map((t) => emitType({ ...node, type: t }, ctx));
+    // Deduplicate (e.g. [string, "null"] → string | null).
+    const unique = [...new Set(members)];
+    return unique.length === 1 ? unique[0]! : unique.join(' | ');
+  }
+
   switch (type) {
     case 'string':
       return 'string';
@@ -128,11 +139,9 @@ function emitType(node: JsonSchemaNode | undefined, ctx: EmissionContext): strin
       }
       return 'unknown';
     default: {
-      // Exhaustive check — if JsonSchemaNode.type gains a new member
-      // (e.g. Ollama adds `type: 'xxx'` to the OpenAPI spec), this line
-      // fails to compile, forcing the emitter to be updated.
-      const _exhaustive: never = type;
-      throw new Error(`Unhandled schema type: ${String(_exhaustive)}`);
+      // If we reach here, the type is a string variant we don't handle.
+      // Array types are handled above before the switch.
+      throw new Error(`Unhandled schema type: ${String(type)}`);
     }
   }
 }

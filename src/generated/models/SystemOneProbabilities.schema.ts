@@ -4,7 +4,5 @@
 
 import { z } from 'zod';
 
-/** Probability distribution over criteria (choice/noul answers).
-Keys are criterion labels; values are probabilities (0–1).
- */
-export const SystemOneProbabilitiesSchema = z.object({}).catchall(z.number());
+/** Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision. */
+export const SystemOneProbabilitiesSchema = z.object({}).catchall(z.number().min(0).max(1));

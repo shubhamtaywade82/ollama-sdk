@@ -97,34 +97,89 @@ function emitZod(node: JsonSchemaNode | undefined, ctx: EmissionContext): string
   }
 
   const type = node.type;
+
+  // Wave 13 fix: JSON Schema allows `type` to be an array (e.g.
+  // `type: [string, "null"]` for a nullable string). Emit a Zod union.
+  if (Array.isArray(type)) {
+    if (type.length === 1) {
+      return emitZod({ ...node, type: type[0] }, ctx);
+    }
+    const members = type.map((t) => emitZod({ ...node, type: t }, ctx));
+    return `z.union([${members.join(', ')}])`;
+  }
+
   switch (type) {
     case 'string':
       return 'z.string()';
-    case 'integer':
-    case 'number':
-      return 'z.number()';
+    case 'integer': {
+      let expr = 'z.number().int()';
+      if (typeof node.minimum === 'number') expr += `.min(${node.minimum})`;
+      if (typeof node.maximum === 'number') expr += `.max(${node.maximum})`;
+      return expr;
+    }
+    case 'number': {
+      let expr = 'z.number()';
+      if (typeof node.minimum === 'number') expr += `.min(${node.minimum})`;
+      if (typeof node.maximum === 'number') expr += `.max(${node.maximum})`;
+      return expr;
+    }
     case 'boolean':
       return 'z.boolean()';
     case 'null':
       return 'z.null()';
-    case 'array':
-      return node.items ? `z.array(${emitZod(node.items, ctx)})` : 'z.array(z.unknown())';
+    case 'array': {
+      const itemSchema = node.items ? emitZod(node.items, ctx) : 'z.unknown()';
+      let expr = `z.array(${itemSchema})`;
+      // Wave 13: enforce minItems/maxItems constraints.
+      if (typeof node.minItems === 'number') {
+        expr += `.min(${node.minItems})`;
+      }
+      if (typeof node.maxItems === 'number') {
+        expr += `.max(${node.maxItems})`;
+      }
+      return expr;
+    }
     case 'object':
       return emitObjectSchema(node, ctx);
     case undefined:
       if (node.properties) return emitObjectSchema(node, ctx);
       if (node.additionalProperties === true) return 'z.record(z.unknown())';
       if (node.additionalProperties && typeof node.additionalProperties === 'object') {
-        return `z.record(${emitZod(node.additionalProperties, ctx)})`;
+        return emitRecordSchema(node, ctx);
       }
       return 'z.unknown()';
     default: {
-      // Exhaustive check — if JsonSchemaNode.type gains a new member,
-      // this line fails to compile, forcing the Zod emitter to be updated.
-      const _exhaustive: never = type;
-      throw new Error(`Unhandled schema type in Zod emitter: ${String(_exhaustive)}`);
+      // If we reach here, the type is a string variant we don't handle.
+      // Array types are handled above before the switch.
+      throw new Error(`Unhandled schema type in Zod emitter: ${String(type)}`);
     }
   }
+}
+
+/**
+ * Wave 13: emit a z.record() with optional minProperties/maxProperties and
+ * propertyNames constraints. The upstream Ollama OpenAPI uses these on
+ * SystemOneRequest.questions (1–64, non-empty names) and
+ * SystemOneChoiceQuestion.criteria (2–26, non-empty names).
+ *
+ * Zod doesn't have a direct minProperties/maxProperties API, so we use
+ * `.refine()` to enforce them at runtime.
+ */
+function emitRecordSchema(node: JsonSchemaNode, ctx: EmissionContext): string {
+  const valueSchema = emitZod(node.additionalProperties as JsonSchemaNode, ctx);
+  const expr = `z.record(${valueSchema})`;
+  const refines: string[] = [];
+  if (typeof node.minProperties === 'number') {
+    refines.push(`.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`);
+  }
+  if (typeof node.maxProperties === 'number') {
+    refines.push(`.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`);
+  }
+  if (node.propertyNames?.pattern) {
+    const pat = JSON.stringify(node.propertyNames.pattern);
+    refines.push(`.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`);
+  }
+  return expr + refines.join('');
 }
 
 function emitObjectSchema(node: JsonSchemaNode, ctx: EmissionContext): string {
@@ -147,7 +202,26 @@ function emitObjectSchema(node: JsonSchemaNode, ctx: EmissionContext): string {
     lines.push(`.catchall(${emitZod(addl, ctx)})`);
   }
 
-  return lines.join('\n');
+  let result = lines.join('\n');
+
+  // Wave 13: enforce minProperties/maxProperties/propertyNames on objects
+  // (e.g. SystemOneRequest.questions: 1–64, non-empty names;
+  // SystemOneChoiceQuestion.criteria: 2–26, non-empty names).
+  // Zod doesn't have a direct API for these, so we use .refine().
+  const refines: string[] = [];
+  if (typeof node.minProperties === 'number') {
+    refines.push(`.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`);
+  }
+  if (typeof node.maxProperties === 'number') {
+    refines.push(`.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`);
+  }
+  if (node.propertyNames?.pattern) {
+    const pat = JSON.stringify(node.propertyNames.pattern);
+    refines.push(`.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`);
+  }
+  result += refines.join('');
+
+  return result;
 }
 
 /** Emit one Zod schema file. */

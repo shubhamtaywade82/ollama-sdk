@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "cb6190e73593bbef",
+  "sourceHash": "044d1da05f32a783",
   "operations": [
     {
       "id": "blobs",
@@ -2404,38 +2404,18 @@
       }
     },
     {
-      "name": "SystemOneAnswer",
-      "source": {
-        "openapi": "#/components/schemas/SystemOneAnswer"
-      },
-      "description": "Discriminated union of the three answer kinds.",
-      "definition": {
-        "description": "Discriminated union of the three answer kinds.",
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/SystemOneChoiceAnswer"
-          },
-          {
-            "$ref": "#/components/schemas/SystemOneNoulAnswer"
-          },
-          {
-            "$ref": "#/components/schemas/SystemOneScoreAnswer"
-          }
-        ]
-      }
-    },
-    {
       "name": "SystemOneChoiceAnswer",
       "source": {
         "openapi": "#/components/schemas/SystemOneChoiceAnswer"
       },
-      "description": "Answer to a choice question.",
       "definition": {
+        "title": "Choice",
         "type": "object",
-        "description": "Answer to a choice question.",
         "required": [
           "type",
-          "choice"
+          "choice",
+          "probabilities",
+          "confidence"
         ],
         "properties": {
           "type": {
@@ -2446,7 +2426,7 @@
           },
           "choice": {
             "type": "string",
-            "description": "The selected criterion key."
+            "description": "Option key with the highest probability. Ties follow the model's option order."
           },
           "probabilities": {
             "$ref": "#/components/schemas/SystemOneProbabilities"
@@ -2462,10 +2442,9 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneChoiceQuestion"
       },
-      "description": "A multiple-choice question with 2–26 named criteria.",
       "definition": {
+        "title": "Choice",
         "type": "object",
-        "description": "A multiple-choice question with 2–26 named criteria.",
         "required": [
           "type",
           "instructions",
@@ -2483,15 +2462,16 @@
           },
           "criteria": {
             "type": "object",
-            "description": "Map of criterion key → description. 2–26 entries. Values\nmay be string or null (null means \"use the key as-is\").\n",
+            "description": "Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order.",
+            "minProperties": 2,
+            "maxProperties": 26,
+            "propertyNames": {
+              "pattern": "\\S"
+            },
             "additionalProperties": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             }
           }
@@ -2503,19 +2483,12 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneConfidence"
       },
-      "description": "Distribution concentration indicating how confident the model\nis in its decision. Higher values = more concentrated\ndistribution. This is NOT a guarantee of correctness —\nthresholds must be validated on your own task/data.\n",
+      "description": "Distribution concentration, calculated as 1 - H(p) / ln(N), where H(p) is entropy and N is the candidate count. Zero means uniform probabilities; values near 1 mean one candidate dominates. Not calibrated correctness.",
       "definition": {
-        "type": "object",
-        "description": "Distribution concentration indicating how confident the model\nis in its decision. Higher values = more concentrated\ndistribution. This is NOT a guarantee of correctness —\nthresholds must be validated on your own task/data.\n",
-        "required": [
-          "score"
-        ],
-        "properties": {
-          "score": {
-            "type": "number",
-            "description": "Concentration score (0–1)."
-          }
-        }
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Distribution concentration, calculated as 1 - H(p) / ln(N), where H(p) is entropy and N is the candidate count. Zero means uniform probabilities; values near 1 mean one candidate dominates. Not calibrated correctness."
       }
     },
     {
@@ -2523,12 +2496,13 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneContent"
       },
-      "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+      "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
       "definition": {
-        "description": "Polymorphic content field used for `state` and `instructions`.\nAccepts a string, a JSON object, or a JSON array — the model\ninterprets the value as structured context for its decision.\n",
+        "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "pattern": "\\S"
           },
           {
             "type": "object",
@@ -2546,13 +2520,12 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneNoulAnswer"
       },
-      "description": "Answer to a noul (yes/no) question.",
       "definition": {
+        "title": "Noul",
         "type": "object",
-        "description": "Answer to a noul (yes/no) question.",
         "required": [
           "type",
-          "bool"
+          "noul"
         ],
         "properties": {
           "type": {
@@ -2561,19 +2534,11 @@
               "noul"
             ]
           },
-          "bool": {
-            "type": "boolean",
-            "description": "The model's boolean decision."
-          },
-          "probability": {
+          "noul": {
             "type": "number",
-            "description": "Probability of the `true` label (0–1)."
-          },
-          "probabilities": {
-            "$ref": "#/components/schemas/SystemOneProbabilities"
-          },
-          "confidence": {
-            "$ref": "#/components/schemas/SystemOneConfidence"
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Probability of true among the false and true candidates. This is a number, not a Boolean."
           }
         }
       }
@@ -2583,10 +2548,9 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneNoulQuestion"
       },
-      "description": "A yes/no (noul) question returning a boolean + probability.",
       "definition": {
+        "title": "Noul",
         "type": "object",
-        "description": "A yes/no (noul) question returning a boolean + probability.",
         "required": [
           "type",
           "instructions"
@@ -2603,15 +2567,18 @@
           },
           "criteria": {
             "type": "object",
-            "description": "Optional labels for the true/false outcomes.",
+            "description": "Optional descriptions for the two outcomes. Omitted entries use No and Yes.",
             "properties": {
-              "true": {
-                "type": "string"
-              },
               "false": {
-                "type": "string"
+                "type": "string",
+                "default": "No"
+              },
+              "true": {
+                "type": "string",
+                "default": "Yes"
               }
-            }
+            },
+            "additionalProperties": false
           }
         }
       }
@@ -2621,34 +2588,15 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneProbabilities"
       },
-      "description": "Probability distribution over criteria (choice/noul answers).\nKeys are criterion labels; values are probabilities (0–1).\n",
+      "description": "Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision.",
       "definition": {
         "type": "object",
-        "description": "Probability distribution over criteria (choice/noul answers).\nKeys are criterion labels; values are probabilities (0–1).\n",
+        "description": "Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision.",
         "additionalProperties": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         }
-      }
-    },
-    {
-      "name": "SystemOneQuestion",
-      "source": {
-        "openapi": "#/components/schemas/SystemOneQuestion"
-      },
-      "description": "Discriminated union of the three question kinds.",
-      "definition": {
-        "description": "Discriminated union of the three question kinds.",
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/SystemOneChoiceQuestion"
-          },
-          {
-            "$ref": "#/components/schemas/SystemOneNoulQuestion"
-          },
-          {
-            "$ref": "#/components/schemas/SystemOneScoreQuestion"
-          }
-        ]
       }
     },
     {
@@ -2656,10 +2604,8 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneRequest"
       },
-      "description": "Request body for POST /v1/systemone.",
       "definition": {
         "type": "object",
-        "description": "Request body for POST /v1/systemone.",
         "required": [
           "model",
           "state",
@@ -2668,27 +2614,43 @@
         "properties": {
           "model": {
             "type": "string",
-            "description": "Model name (e.g. \"tev1:4b\")."
+            "pattern": "\\S",
+            "description": "Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported."
           },
           "state": {
             "$ref": "#/components/schemas/SystemOneContent"
           },
           "images": {
             "type": "array",
+            "description": "Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported.",
             "items": {
-              "type": "string"
-            },
-            "description": "Base64-encoded images for vision-compatible models. Only\nsupported by models with vision weights (e.g. Clef/Clef\nFlash). When images are present, the request size limit\nincreases from 64 KiB to 32 MiB.\n"
+              "type": "string",
+              "format": "byte"
+            }
           },
           "questions": {
             "type": "object",
-            "description": "Map of question id → question descriptor. 1–64 questions\nper request. Each question is one of three discriminated\ntypes: choice, noul, or score.\n",
+            "description": "Named questions about the shared state. Answers are not passed to later questions.",
+            "minProperties": 1,
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "\\S"
+            },
             "additionalProperties": {
-              "$ref": "#/components/schemas/SystemOneQuestion"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SystemOneChoiceQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/SystemOneNoulQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/SystemOneScoreQuestion"
+                }
+              ]
             }
           },
           "keep_alive": {
-            "description": "How long to keep the model loaded after this call. String\n(e.g. \"5m\") or number (seconds).\n",
             "oneOf": [
               {
                 "type": "string"
@@ -2696,7 +2658,8 @@
               {
                 "type": "number"
               }
-            ]
+            ],
+            "description": "How long to keep the model loaded after the request, as a duration string (such as 5m) or seconds. Zero unloads after the request; a negative value keeps it loaded. Defaults to the server's keep-alive setting (5m unless configured otherwise)."
           }
         }
       }
@@ -2706,10 +2669,8 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneResponse"
       },
-      "description": "Response body for POST /v1/systemone.",
       "definition": {
         "type": "object",
-        "description": "Response body for POST /v1/systemone.",
         "required": [
           "model",
           "answers",
@@ -2717,17 +2678,47 @@
         ],
         "properties": {
           "model": {
-            "type": "string"
+            "type": "string",
+            "description": "Model name from the request."
           },
           "answers": {
             "type": "object",
-            "description": "Map of question id → typed answer.",
+            "description": "Answers keyed by the question names in the request.",
             "additionalProperties": {
-              "$ref": "#/components/schemas/SystemOneAnswer"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SystemOneChoiceAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/SystemOneNoulAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/SystemOneScoreAnswer"
+                }
+              ]
             }
           },
           "usage": {
-            "$ref": "#/components/schemas/SystemOneUsage"
+            "type": "object",
+            "required": [
+              "input_tokens",
+              "output_tokens"
+            ],
+            "properties": {
+              "input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Total evaluated input tokens, including image positions. Shared context is counted again when the model scores questions separately."
+              },
+              "output_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens generated internally for scoring, including prefix preparation and retries. May exceed the question count; not the length of the JSON response."
+              }
+            }
+          },
+          "output_tokens": {
+            "type": "integer"
           }
         }
       }
@@ -2737,13 +2728,15 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneScoreAnswer"
       },
-      "description": "Answer to a score question.",
       "definition": {
+        "title": "Score",
         "type": "object",
-        "description": "Answer to a score question.",
         "required": [
           "type",
-          "score"
+          "score",
+          "legend",
+          "probabilities",
+          "confidence"
         ],
         "properties": {
           "type": {
@@ -2753,19 +2746,21 @@
             ]
           },
           "score": {
-            "type": "integer",
-            "description": "Index into the question's criteria array."
+            "type": "number",
+            "minimum": 0,
+            "maximum": 25,
+            "description": "Probability-weighted average of the zero-based criterion indices, from 0 to the number of criteria minus 1. Not rounded to a level or normalized to 0–1."
           },
           "legend": {
-            "type": "string",
-            "description": "The criterion string at the selected index."
+            "type": "object",
+            "description": "Zero-based indices as string keys mapped to the criterion descriptions.",
+            "additionalProperties": {
+              "type": "string"
+            }
           },
           "probabilities": {
-            "type": "array",
-            "description": "Probability distribution over each criterion.",
-            "items": {
-              "type": "number"
-            }
+            "$ref": "#/components/schemas/SystemOneProbabilities",
+            "description": "Probabilities keyed by zero-based criterion indices as strings."
           },
           "confidence": {
             "$ref": "#/components/schemas/SystemOneConfidence"
@@ -2778,10 +2773,9 @@
       "source": {
         "openapi": "#/components/schemas/SystemOneScoreQuestion"
       },
-      "description": "A scored question with 2–26 ordered criteria (rubric).",
       "definition": {
+        "title": "Score",
         "type": "object",
-        "description": "A scored question with 2–26 ordered criteria (rubric).",
         "required": [
           "type",
           "instructions",
@@ -2799,33 +2793,12 @@
           },
           "criteria": {
             "type": "array",
-            "description": "Ordered list of 2–26 rubric levels (low → high).",
+            "description": "Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1.",
+            "minItems": 2,
+            "maxItems": 26,
             "items": {
               "type": "string"
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "SystemOneUsage",
-      "source": {
-        "openapi": "#/components/schemas/SystemOneUsage"
-      },
-      "description": "Token usage for a System One call.",
-      "definition": {
-        "type": "object",
-        "description": "Token usage for a System One call.",
-        "required": [
-          "input_tokens",
-          "output_tokens"
-        ],
-        "properties": {
-          "input_tokens": {
-            "type": "integer"
-          },
-          "output_tokens": {
-            "type": "integer"
           }
         }
       }

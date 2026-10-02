@@ -4,28 +4,23 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneContent, SystemOneQuestion } from './index.js';
+import type {
+  SystemOneChoiceQuestion,
+  SystemOneContent,
+  SystemOneNoulQuestion,
+  SystemOneScoreQuestion,
+} from './index.js';
 
-/** Request body for POST /v1/systemone. */
 export interface SystemOneRequest {
-  /** Model name (e.g. "tev1:4b"). */
+  /** Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported. */
   readonly model: string;
   readonly state: SystemOneContent;
-  /** Base64-encoded images for vision-compatible models. Only
-supported by models with vision weights (e.g. Clef/Clef
-Flash). When images are present, the request size limit
-increases from 64 KiB to 32 MiB.
- */
+  /** Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported. */
   readonly images?: readonly string[] | undefined;
-  /** Map of question id → question descriptor. 1–64 questions
-per request. Each question is one of three discriminated
-types: choice, noul, or score.
- */
+  /** Named questions about the shared state. Answers are not passed to later questions. */
   readonly questions: {
-    [key: string]: SystemOneQuestion;
+    [key: string]: SystemOneChoiceQuestion | SystemOneNoulQuestion | SystemOneScoreQuestion;
   };
-  /** How long to keep the model loaded after this call. String
-(e.g. "5m") or number (seconds).
- */
+  /** How long to keep the model loaded after the request, as a duration string (such as 5m) or seconds. Zero unloads after the request; a negative value keeps it loaded. Defaults to the server's keep-alive setting (5m unless configured otherwise). */
   readonly keep_alive?: string | number | undefined;
 }

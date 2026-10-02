@@ -4,12 +4,12 @@
 
 import { z } from 'zod';
 import { SystemOneConfidenceSchema } from './SystemOneConfidence.schema.js';
+import { SystemOneProbabilitiesSchema } from './SystemOneProbabilities.schema.js';
 
-/** Answer to a score question. */
 export const SystemOneScoreAnswerSchema = z.object({
   type: z.enum(['score']),
-  score: z.number(),
-  legend: z.string().optional(),
-  probabilities: z.array(z.number()).optional(),
-  confidence: SystemOneConfidenceSchema.optional(),
+  score: z.number().min(0).max(25),
+  legend: z.object({}).catchall(z.string()),
+  probabilities: SystemOneProbabilitiesSchema,
+  confidence: SystemOneConfidenceSchema,
 });

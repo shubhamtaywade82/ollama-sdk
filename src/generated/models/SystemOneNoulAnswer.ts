@@ -4,15 +4,8 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneConfidence, SystemOneProbabilities } from './index.js';
-
-/** Answer to a noul (yes/no) question. */
 export interface SystemOneNoulAnswer {
   readonly type: 'noul';
-  /** The model's boolean decision. */
-  readonly bool: boolean;
-  /** Probability of the `true` label (0–1). */
-  readonly probability?: number | undefined;
-  readonly probabilities?: SystemOneProbabilities | undefined;
-  readonly confidence?: SystemOneConfidence | undefined;
+  /** Probability of true among the false and true candidates. This is a number, not a Boolean. */
+  readonly noul: number;
 }

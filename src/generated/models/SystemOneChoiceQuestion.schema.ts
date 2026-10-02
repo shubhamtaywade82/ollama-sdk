@@ -5,9 +5,15 @@
 import { z } from 'zod';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-/** A multiple-choice question with 2–26 named criteria. */
 export const SystemOneChoiceQuestionSchema = z.object({
   type: z.enum(['choice']),
   instructions: SystemOneContentSchema,
-  criteria: z.object({}).catchall(z.union([z.string(), z.null()])),
+  criteria: z
+    .object({})
+    .catchall(z.union([z.string(), z.null()]))
+    .refine((v) => Object.keys(v).length >= 2, { message: 'must have at least 2 properties' })
+    .refine((v) => Object.keys(v).length <= 26, { message: 'must have at most 26 properties' })
+    .refine((v) => Object.keys(v).every((k) => new RegExp('\\S').test(k)), {
+      message: 'property names must match pattern "\\S"',
+    }),
 });

@@ -60,7 +60,30 @@ export interface SchemaRef {
 
 /** A JSON Schema node — permissive shape carrying OpenAPI/JSON Schema keywords. */
 export interface JsonSchemaNode {
-  readonly type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
+  /**
+   * JSON Schema `type` keyword. Can be a single type string or an array
+   * of type strings (e.g. `[string, "null"]` for a nullable string).
+   * The array form is valid JSON Schema and used by upstream Ollama
+   * (e.g. SystemOneChoiceQuestion.criteria.additionalProperties has
+   * `type: [string, "null"]`).
+   */
+  readonly type?:
+    | 'object'
+    | 'array'
+    | 'string'
+    | 'integer'
+    | 'number'
+    | 'boolean'
+    | 'null'
+    | readonly (
+        | 'object'
+        | 'array'
+        | 'string'
+        | 'integer'
+        | 'number'
+        | 'boolean'
+        | 'null'
+      )[];
   readonly description?: string;
   readonly required?: readonly string[];
   readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
@@ -73,6 +96,19 @@ export interface JsonSchemaNode {
   readonly format?: string;
   readonly default?: unknown;
   readonly additionalProperties?: boolean | JsonSchemaNode;
+  /** JSON Schema constraint: minimum number of properties on an object. */
+  readonly minProperties?: number;
+  /** JSON Schema constraint: maximum number of properties on an object. */
+  readonly maxProperties?: number;
+  /** JSON Schema constraint: pattern that property names must match. */
+  readonly propertyNames?: { readonly pattern?: string };
+  /** JSON Schema constraint: minimum number of items in an array. */
+  readonly minItems?: number;
+  /** JSON Schema constraint: maximum number of items in an array. */
+  readonly maxItems?: number;
+  /** JSON Schema numeric constraints. */
+  readonly minimum?: number;
+  readonly maximum?: number;
   readonly [keyword: string]: unknown;
 }
 

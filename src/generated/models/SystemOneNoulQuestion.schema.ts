@@ -5,14 +5,13 @@
 import { z } from 'zod';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-/** A yes/no (noul) question returning a boolean + probability. */
 export const SystemOneNoulQuestionSchema = z.object({
   type: z.enum(['noul']),
   instructions: SystemOneContentSchema,
   criteria: z
     .object({
-      true: z.string().optional(),
       false: z.string().optional(),
+      true: z.string().optional(),
     })
     .optional(),
 });

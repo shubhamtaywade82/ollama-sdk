@@ -6,10 +6,9 @@
 
 import type { SystemOneContent } from './index.js';
 
-/** A scored question with 2–26 ordered criteria (rubric). */
 export interface SystemOneScoreQuestion {
   readonly type: 'score';
   readonly instructions: SystemOneContent;
-  /** Ordered list of 2–26 rubric levels (low → high). */
+  /** Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1. */
   readonly criteria: readonly string[];
 }

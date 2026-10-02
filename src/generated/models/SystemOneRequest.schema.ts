@@ -3,14 +3,28 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
+import { SystemOneChoiceQuestionSchema } from './SystemOneChoiceQuestion.schema.js';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
-import { SystemOneQuestionSchema } from './SystemOneQuestion.schema.js';
+import { SystemOneNoulQuestionSchema } from './SystemOneNoulQuestion.schema.js';
+import { SystemOneScoreQuestionSchema } from './SystemOneScoreQuestion.schema.js';
 
-/** Request body for POST /v1/systemone. */
 export const SystemOneRequestSchema = z.object({
   model: z.string(),
   state: SystemOneContentSchema,
   images: z.array(z.string()).optional(),
-  questions: z.object({}).catchall(SystemOneQuestionSchema),
+  questions: z
+    .object({})
+    .catchall(
+      z.union([
+        SystemOneChoiceQuestionSchema,
+        SystemOneNoulQuestionSchema,
+        SystemOneScoreQuestionSchema,
+      ]),
+    )
+    .refine((v) => Object.keys(v).length >= 1, { message: 'must have at least 1 properties' })
+    .refine((v) => Object.keys(v).length <= 64, { message: 'must have at most 64 properties' })
+    .refine((v) => Object.keys(v).every((k) => new RegExp('\\S').test(k)), {
+      message: 'property names must match pattern "\\S"',
+    }),
   keep_alive: z.union([z.string(), z.number()]).optional(),
 });

@@ -206,6 +206,33 @@ export class OllamaRequestTooLargeError extends OllamaClientError {
 }
 
 /**
+ * Thrown by `OllamaRuntime.invoke` AFTER the HTTP response is received
+ * when `validateResponses: true` is set and the response body fails Zod
+ * validation against the operation's registered response schema.
+ *
+ * Wave 13: the runtime previously never validated responses (see ADR
+ * 0020). This opt-in error gives callers a way to detect wire-format
+ * mismatches for operations where typed response semantics are critical
+ * (e.g. System One). The error carries the original Zod issues so
+ * callers can inspect which fields failed.
+ */
+export class OllamaResponseValidationError extends OllamaClientError {
+  readonly operationId: string;
+  readonly issues: readonly z.ZodIssue[];
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      operationId: string;
+      issues: readonly z.ZodIssue[];
+    },
+  ) {
+    super(message, { ...options, code: 'response_validation_error', retryable: false });
+    this.operationId = options.operationId;
+    this.issues = options.issues;
+  }
+}
+
+/**
  * Thrown by `OllamaRuntime.invoke` BEFORE any HTTP request is made when the
  * operation declares `constraints.minOllamaVersion` and the runtime could
  * not obtain a server version to compare against (e.g. `enforceVersion:

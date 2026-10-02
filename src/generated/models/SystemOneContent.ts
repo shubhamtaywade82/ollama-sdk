@@ -4,10 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** Polymorphic content field used for `state` and `instructions`.
-Accepts a string, a JSON object, or a JSON array — the model
-interprets the value as structured context for its decision.
- */
+/** A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input. */
 export type SystemOneContent =
   | string
   | {

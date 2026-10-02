@@ -3,8 +3,8 @@
  * contract models.
  *
  * The generated `SystemOneRequest` and `SystemOneResponse` (in
- * `src/generated/models/`) use `Record<string, SystemOneQuestion>` for
- * the questions/answers maps. That's structurally correct but loses the
+ * `src/generated/models/`) use `Record<string, ...>` for the
+ * questions/answers maps. That's structurally correct but loses the
  * connection between the question names the caller sends and the answer
  * names they receive back — `response.answers.someRandomKey` would
  * compile even though the caller never asked that question.
@@ -34,29 +34,63 @@
  * Wave 13.
  */
 
+// Re-export the concrete generated types that the OpenAPI source defines
+// as named schemas.
 export type {
   SystemOneContent,
   SystemOneRequest as SystemOneRequestBase,
   SystemOneResponse as SystemOneResponseBase,
-  SystemOneQuestion,
   SystemOneChoiceQuestion,
   SystemOneNoulQuestion,
   SystemOneScoreQuestion,
-  SystemOneAnswer,
   SystemOneChoiceAnswer,
   SystemOneNoulAnswer,
   SystemOneScoreAnswer,
   SystemOneProbabilities,
   SystemOneConfidence,
-  SystemOneUsage,
 } from './generated/models/index.js';
 
 import type {
-  SystemOneQuestion,
-  SystemOneAnswer,
+  SystemOneChoiceQuestion,
+  SystemOneNoulQuestion,
+  SystemOneScoreQuestion,
+  SystemOneChoiceAnswer,
+  SystemOneNoulAnswer,
+  SystemOneScoreAnswer,
   SystemOneRequest as SystemOneRequestBase,
   SystemOneResponse as SystemOneResponseBase,
 } from './generated/models/index.js';
+
+/**
+ * Discriminated union of the three question kinds. The upstream OpenAPI
+ * defines this inline as `oneOf` within SystemOneRequest.questions; we
+ * reconstruct it as a named type for SDK ergonomics.
+ */
+export type SystemOneQuestion =
+  | SystemOneChoiceQuestion
+  | SystemOneNoulQuestion
+  | SystemOneScoreQuestion;
+
+/**
+ * Discriminated union of the three answer kinds. The upstream OpenAPI
+ * defines this inline as `oneOf` within SystemOneResponse.answers; we
+ * reconstruct it as a named type for SDK ergonomics.
+ */
+export type SystemOneAnswer =
+  | SystemOneChoiceAnswer
+  | SystemOneNoulAnswer
+  | SystemOneScoreAnswer;
+
+/**
+ * Token usage for a System One call. The upstream OpenAPI defines this
+ * inline within SystemOneResponse; we reconstruct it as a named type
+ * for SDK ergonomics. Carries input_tokens and output_tokens (not
+ * prompt_tokens/completion_tokens).
+ */
+export interface SystemOneUsage {
+  readonly input_tokens: number;
+  readonly output_tokens: number;
+}
 
 /** Map of question id → question descriptor. */
 export type SystemOneQuestions = Record<string, SystemOneQuestion>;
@@ -90,6 +124,7 @@ export interface SystemOneRequest<Q extends SystemOneQuestions = SystemOneQuesti
  * caller asked.
  */
 export interface SystemOneResponse<Q extends SystemOneQuestions = SystemOneQuestions>
-  extends Omit<SystemOneResponseBase, 'answers'> {
+  extends Omit<SystemOneResponseBase, 'answers' | 'usage'> {
   readonly answers: SystemOneAnswers<Q>;
+  readonly usage: SystemOneUsage;
 }

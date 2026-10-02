@@ -18,5 +18,5 @@ export const ChatRequestSchema = z.object({
   think: ThinkValueSchema.optional(),
   keep_alive: z.union([z.string(), z.number()]).optional(),
   logprobs: z.boolean().optional(),
-  top_logprobs: z.number().optional(),
+  top_logprobs: z.number().int().optional(),
 });

@@ -4,16 +4,17 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneConfidence } from './index.js';
+import type { SystemOneConfidence, SystemOneProbabilities } from './index.js';
 
-/** Answer to a score question. */
 export interface SystemOneScoreAnswer {
   readonly type: 'score';
-  /** Index into the question's criteria array. */
+  /** Probability-weighted average of the zero-based criterion indices, from 0 to the number of criteria minus 1. Not rounded to a level or normalized to 0–1. */
   readonly score: number;
-  /** The criterion string at the selected index. */
-  readonly legend?: string | undefined;
-  /** Probability distribution over each criterion. */
-  readonly probabilities?: readonly number[] | undefined;
-  readonly confidence?: SystemOneConfidence | undefined;
+  /** Zero-based indices as string keys mapped to the criterion descriptions. */
+  readonly legend: {
+    [key: string]: string;
+  };
+  /** Probabilities keyed by zero-based criterion indices as strings. */
+  readonly probabilities: SystemOneProbabilities;
+  readonly confidence: SystemOneConfidence;
 }

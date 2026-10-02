@@ -5,6 +5,7 @@ import { systemOneOp } from '../../src/generated/api/operations.js';
 import { SystemOneRequestSchema } from '../../src/generated/models/SystemOneRequest.schema.js';
 import { SystemOneResponseSchema } from '../../src/generated/models/SystemOneResponse.schema.js';
 import type { SystemOneRequest, SystemOneResponse } from '../../src/generated/models/index.js';
+import type { SystemOneUsage } from '../../src/system-one.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -113,26 +114,32 @@ describe('Wave 13: System One is contract-generated from OpenAPI', () => {
   });
 
   it('SystemOneResponseSchema validates a well-formed response with typed answers', () => {
+    // Wave 13 correction: uses the exact upstream wire format.
+    // - confidence is a number (not { score: number })
+    // - noul answer has `noul: number` (not `bool: boolean` + `probability`)
+    // - score answer has `legend: Record<string, string>` (not string)
+    //   and `probabilities: Record<string, number>` (not number[])
+    //   and `score: number` (probability-weighted average, not integer index)
+    //   and `confidence: number` (all fields required)
     const valid: SystemOneResponse = {
       model: 'tev1:4b',
       answers: {
         intent: {
           type: 'choice',
           choice: 'duplicate_charge',
-          confidence: { score: 0.92 },
+          probabilities: { refund: 0.0125, duplicate_charge: 0.9781, cancellation: 0.0093 },
+          confidence: 0.8906,
         },
         urgent: {
           type: 'noul',
-          bool: true,
-          probability: 0.87,
-          confidence: { score: 0.85 },
+          noul: 0.87,
         },
         difficulty: {
           type: 'score',
-          score: 3,
-          legend: 'complex',
-          probabilities: [0.05, 0.1, 0.2, 0.55, 0.1],
-          confidence: { score: 0.78 },
+          score: 2.73,
+          legend: { '0': 'trivial', '1': 'simple', '2': 'moderate', '3': 'complex', '4': 'very_complex' },
+          probabilities: { '0': 0.05, '1': 0.1, '2': 0.2, '3': 0.55, '4': 0.1 },
+          confidence: 0.78,
         },
       },
       usage: { input_tokens: 142, output_tokens: 8 },
@@ -145,7 +152,9 @@ describe('Wave 13: System One is contract-generated from OpenAPI', () => {
     // Wave 12 incorrectly used prompt_tokens/completion_tokens/total_tokens.
     // Wave 13 corrects this to match the actual Ollama API: input_tokens
     // and output_tokens only (no total_tokens — callers can add them).
-    type Usage = import('../../src/generated/models/index.js').SystemOneUsage;
+    // SystemOneUsage is defined in src/system-one.ts (the upstream OpenAPI
+    // defines usage inline within SystemOneResponse, not as a named schema).
+    type Usage = SystemOneUsage;
     // Should have input_tokens and output_tokens.
     expect(isAssignable<Usage, { input_tokens: number; output_tokens: number }>(true)).toBe(true);
     // Should NOT have prompt_tokens or completion_tokens.

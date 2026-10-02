@@ -9,6 +9,6 @@ import { TokenLogprobSchema } from './TokenLogprob.schema.js';
 export const LogprobSchema = z.object({
   token: z.string().optional(),
   logprob: z.number().optional(),
-  bytes: z.array(z.number()).optional(),
+  bytes: z.array(z.number().int()).optional(),
   top_logprobs: z.array(TokenLogprobSchema).optional(),
 });

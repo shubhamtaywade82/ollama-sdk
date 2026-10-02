@@ -6,10 +6,9 @@ import { z } from 'zod';
 import { SystemOneConfidenceSchema } from './SystemOneConfidence.schema.js';
 import { SystemOneProbabilitiesSchema } from './SystemOneProbabilities.schema.js';
 
-/** Answer to a choice question. */
 export const SystemOneChoiceAnswerSchema = z.object({
   type: z.enum(['choice']),
   choice: z.string(),
-  probabilities: SystemOneProbabilitiesSchema.optional(),
-  confidence: SystemOneConfidenceSchema.optional(),
+  probabilities: SystemOneProbabilitiesSchema,
+  confidence: SystemOneConfidenceSchema,
 });

@@ -4,9 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** Probability distribution over criteria (choice/noul answers).
-Keys are criterion labels; values are probabilities (0–1).
- */
+/** Probabilities normalized over the supplied candidates, summing to 1 subject to floating-point precision. */
 export type SystemOneProbabilities = {
   [key: string]: number;
 };

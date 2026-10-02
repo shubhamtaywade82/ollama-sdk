@@ -9,7 +9,7 @@ export const EmbedRequestSchema = z.object({
   model: z.string(),
   input: z.union([z.string(), z.array(z.string())]),
   truncate: z.boolean().optional(),
-  dimensions: z.number().optional(),
+  dimensions: z.number().int().optional(),
   keep_alive: z.string().optional(),
   options: ModelOptionsSchema.optional(),
 });

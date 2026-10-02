@@ -6,11 +6,10 @@
 
 import type { SystemOneConfidence, SystemOneProbabilities } from './index.js';
 
-/** Answer to a choice question. */
 export interface SystemOneChoiceAnswer {
   readonly type: 'choice';
-  /** The selected criterion key. */
+  /** Option key with the highest probability. Ties follow the model's option order. */
   readonly choice: string;
-  readonly probabilities?: SystemOneProbabilities | undefined;
-  readonly confidence?: SystemOneConfidence | undefined;
+  readonly probabilities: SystemOneProbabilities;
+  readonly confidence: SystemOneConfidence;
 }
