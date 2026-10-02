@@ -23,6 +23,9 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
+      - name: Verify contract (schema, compatibility, endpoint discovery)
+        run: npm run contract:validate
+
       - name: Verify IR is not stale (overlay edited but IR not re-committed)
         run: npm run contract:diff
 

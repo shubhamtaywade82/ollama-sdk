@@ -77,6 +77,28 @@ function emitOperation(op: OperationContract): string {
       ? `[${op.notes.map((n) => literal(n)).join(', ')}]`
       : 'undefined';
 
+  // Wave 15 (P0): emit parameters array if the operation has structural
+  // path/query/header parameters. Each parameter is a plain object
+  // matching the OperationParameter interface in operation-definition.ts.
+  const params =
+    op.parameters && op.parameters.length > 0
+      ? `[${op.parameters
+          .map(
+            (p) => {
+              const schemaType =
+                p.schema?.type !== undefined
+                  ? typeof p.schema.type === 'string'
+                    ? p.schema.type
+                    : Array.isArray(p.schema.type)
+                      ? p.schema.type[0] ?? 'string'
+                      : 'string'
+                  : undefined;
+              return `{ name: ${literal(p.name)}, in: ${literal(p.in)}, required: ${literal(p.required)}${schemaType !== undefined ? `, schema: { type: ${literal(schemaType)} }` : ''}${p.description !== undefined ? `, description: ${literal(p.description)}` : ''} }`;
+            },
+          )
+          .join(', ')}]`
+      : undefined;
+
   return [
     `export const ${constName} = {`,
     `  operationId: ${literal(op.id)},`,
@@ -86,6 +108,7 @@ function emitOperation(op: OperationContract): string {
     ...(op.response ? [`  response: ${response},`] : []),
     `  environment: ${env},`,
     ...(op.host ? [`  host: ${literal(op.host)},`] : []),
+    ...(params ? [`  parameters: ${params},`] : []),
     `  transport: ${transport},`,
     `  capabilities: { ${caps} },`,
     ...(op.constraints ? [`  constraints: ${constraints},`] : []),

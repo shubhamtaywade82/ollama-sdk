@@ -136,9 +136,40 @@ export async function callGeneratedOllamaTool(
   }
 
   try {
+    // Wave 15 (P0): split path/query/header parameters from the request
+    // body. The MCP input schema may declare path parameters (e.g. `model`
+    // for /v1/models/{model}) — those must be passed as `pathParams` to
+    // the runtime, not put in the request body. The operation's
+    // `parameters` field tells us which args are path/query/header vs body.
+    const opParams = operation.parameters ?? [];
+    const pathParams: Record<string, string> = {};
+    const queryParams: Record<string, string> = {};
+    const headerParams: Record<string, string> = {};
+    const bodyArgs: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(args)) {
+      const paramDef = opParams.find((p) => p.name === key);
+      if (paramDef) {
+        if (paramDef.in === 'path') {
+          pathParams[key] = String(value);
+        } else if (paramDef.in === 'query') {
+          queryParams[key] = String(value);
+        } else if (paramDef.in === 'header') {
+          headerParams[key] = String(value);
+        }
+      } else {
+        // Not a declared parameter → goes in the request body.
+        bodyArgs[key] = value;
+      }
+    }
+
+    const hasBody = Object.keys(bodyArgs).length > 0;
     const result = await runtime.invoke<unknown>({
       operation,
-      body: args,
+      body: hasBody ? bodyArgs : undefined,
+      ...(Object.keys(pathParams).length > 0 ? { pathParams } : {}),
+      ...(Object.keys(queryParams).length > 0 ? { queryParams } : {}),
+      ...(Object.keys(headerParams).length > 0 ? { headerParams } : {}),
       ...(options?.signal !== undefined ? { signal: options.signal } : {}),
     });
     return {

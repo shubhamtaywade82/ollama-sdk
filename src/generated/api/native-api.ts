@@ -51,10 +51,11 @@ import {
 export class NativeApi {
   constructor(private readonly runtime: OllamaRuntime) {}
 
-  blobs(options?: { signal?: AbortSignal }): Promise<unknown> {
+  blobs(digest: string, options?: { signal?: AbortSignal }): Promise<unknown> {
     return this.runtime.invoke({
       operation: blobsOp,
       body: undefined,
+      pathParams: { digest },
       ...(options?.signal !== undefined ? { signal: options.signal } : {}),
     });
   }
