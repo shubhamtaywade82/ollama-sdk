@@ -429,3 +429,13 @@ export {
   type SystemOneConfidence,
   type SystemOneUsage,
 } from './system-one.js';
+
+// Higher-level decision helpers (Wave 14B)
+export {
+  createDecision,
+  type Decision,
+  type ChoiceDecision,
+  type NoulDecision,
+  type ScoreDecision,
+  type RankResult,
+} from './decision.js';

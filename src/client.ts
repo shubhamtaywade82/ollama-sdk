@@ -40,6 +40,7 @@ import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { OllamaRuntime } from './generated/runtime/runtime.js';
 import { NativeApi } from './generated/api/native-api.js';
 import { FailoverHttpClient } from './failover-http-client.js';
+import { createDecision, type Decision } from './decision.js';
 import type {
   SystemOneRequest as SystemOneRequestBase,
   SystemOneResponse as SystemOneResponseBase,
@@ -233,6 +234,36 @@ export class OllamaClient {
     return this._nativeApi;
   }
   private _nativeApi: NativeApi | undefined;
+
+  /**
+   * Higher-level System One decision helpers (Wave 14B).
+   *
+   * Ergonomic wrappers around `systemOne()` for the six most common
+   * decision patterns: `choice()`, `noul()`, `score()`, `route()`,
+   * `verify()`, `rank()`. Each constructs a single-question request
+   * and extracts the typed answer.
+   *
+   * ```ts
+   * const result = await client.decision.choice({
+   *   model: 'tev1:4b',
+   *   state: 'Customer was charged twice',
+   *   instructions: 'What is the primary intent?',
+   *   criteria: {
+   *     refund: 'Customer wants a refund',
+   *     duplicate_charge: 'Customer reports multiple charges',
+   *   },
+   * });
+   * console.log(result.choice); // 'duplicate_charge'
+   * console.log(result.confidence); // 0.89
+   * ```
+   */
+  get decision(): Decision {
+    if (this._decision === undefined) {
+      this._decision = createDecision(this);
+    }
+    return this._decision;
+  }
+  private _decision: Decision | undefined;
 
   /**
    * Fail-fast guard for `format` (structured output) requests: throws before any network
