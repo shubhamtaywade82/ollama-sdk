@@ -230,7 +230,16 @@ export function emitDomainApi(
   // runtime bound to the local Ollama server. Callers must use
   // OllamaClient.webSearch / OllamaClient.webFetch instead, which spin
   // up a dedicated cloud HttpClient pointed at the right host.
-  const domainOps = operations.filter((op) => op.domain === domain && !op.host);
+  //
+  // Wave 15: also skip operations that take a binary body (e.g.
+  // createBlob — POST /api/blobs/{digest} with application/octet-stream).
+  // The generated runtime JSON-encodes request bodies, so binary-body
+  // operations are handled by the hand-written OllamaClient methods.
+  // They're in the IR for endpoint-discovery completeness only.
+  const BINARY_BODY_OPS = new Set(['createBlob']);
+  const domainOps = operations.filter(
+    (op) => op.domain === domain && !op.host && !BINARY_BODY_OPS.has(op.id),
+  );
   if (domainOps.length === 0) return undefined;
 
   const className = `${pascal(domain)}Api`;

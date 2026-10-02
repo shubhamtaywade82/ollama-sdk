@@ -18,7 +18,7 @@ describe('Wave 5: parity blocks migrated into overlays', () => {
     // never in the legacy manifest (`systemOne`, `blobs`, `webSearch`,
     // `webFetch` — the cloud-hosted capability endpoints brought into the
     // IR by Wave 12 P1 #7).
-    const newOps = new Set(['systemOne', 'blobs', 'webSearch', 'webFetch']);
+    const newOps = new Set(['systemOne', 'blobs', 'createBlob', 'webSearch', 'webFetch']);
     for (const op of nativeOps) {
       if (newOps.has(op.id)) {
         expect(op.parity).toBeUndefined();
