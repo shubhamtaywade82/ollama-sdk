@@ -46,6 +46,17 @@ export interface OperationDefinition {
     readonly local: boolean;
     readonly cloud: boolean;
   };
+  /**
+   * Wave 12 (P1 #7): host this operation targets, when different from
+   * the runtime's default HttpClient base URL. Cloud-hosted capability
+   * endpoints (web search, web fetch) live at `https://ollama.com/api/...`
+   * rather than the local Ollama server. The runtime rejects operations
+   * with a non-default host when the runtime's HttpClient isn't
+   * configured for that host — callers must use OllamaClient.webSearch /
+   * OllamaClient.webFetch (which spin up a dedicated cloud HttpClient)
+   * for these operations.
+   */
+  readonly host?: string;
   readonly transport: {
     readonly mode: TransportMode;
     readonly streaming: boolean;

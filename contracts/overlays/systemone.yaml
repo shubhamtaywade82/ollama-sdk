@@ -51,8 +51,153 @@ operations:
     status:
       documented: true
       experimental: true
+    # Wave 12 (P0 #4): point at the inline schemas declared below. This
+    # makes the generated NativeApi.systemOne method typed —
+    # `systemOne(request: SystemOneRequest): Promise<SystemOneResponse>`
+    # instead of `Record<string, unknown> → Promise<unknown>`.
+    requestSchema: SystemOneRequest
+    responseSchema: SystemOneResponse
     notes:
       - 'Local-only; Ollama Cloud rejects /v1/systemone.'
       - 'Hard 64 KiB request body limit enforced by the server.'
       - 'No images, no tools, no generation controls (temperature, top_p, etc.).'
       - 'Experimental: behavioral surface may change between Ollama releases.'
+
+# Wave 12 (P0 #4): inline schemas for /v1/systemone. These mirror the
+# official Ollama documentation: the request carries a model, opaque
+# state, and a map of typed questions; the response carries a matching
+# map of typed answers and a usage block. The discriminated `question`
+# union captures the three documented question kinds (choice, yes/no,
+# score). The same definitions feed the generated TypeScript models,
+# Zod schemas, and the MCP tool input schema.
+schemas:
+  SystemOneRequest:
+    type: object
+    description: 'Request body for POST /v1/systemone.'
+    additionalProperties: false
+    required:
+      - model
+      - state
+      - questions
+    properties:
+      model:
+        type: string
+        description: 'Model name (e.g. "systemone-v1").'
+      state:
+        description: 'Opaque conversation state — any JSON value the caller round-trips.'
+      questions:
+        type: object
+        description: 'Map of question id → question descriptor.'
+        additionalProperties:
+          $ref: '#/schemas/SystemOneQuestion'
+      keep_alive:
+        description: 'How long to keep the model loaded after this call. String ("5m") or number (seconds).'
+
+  SystemOneQuestion:
+    description: 'Discriminated union of the three documented question kinds.'
+    oneOf:
+      - $ref: '#/schemas/SystemOneChoiceQuestion'
+      - $ref: '#/schemas/SystemOneYesNoQuestion'
+      - $ref: '#/schemas/SystemOneScoreQuestion'
+
+  SystemOneChoiceQuestion:
+    type: object
+    description: 'A multiple-choice question.'
+    additionalProperties: false
+    required:
+      - type
+      - prompt
+      - choices
+    properties:
+      type:
+        type: string
+        enum: ['choice']
+      prompt:
+        type: string
+      choices:
+        type: array
+        items:
+          type: string
+
+  SystemOneYesNoQuestion:
+    type: object
+    description: 'A yes/no question.'
+    additionalProperties: false
+    required:
+      - type
+      - prompt
+    properties:
+      type:
+        type: string
+        enum: ['yes_no']
+      prompt:
+        type: string
+
+  SystemOneScoreQuestion:
+    type: object
+    description: 'A 0–10 score question.'
+    additionalProperties: false
+    required:
+      - type
+      - prompt
+    properties:
+      type:
+        type: string
+        enum: ['score']
+      prompt:
+        type: string
+
+  SystemOneResponse:
+    type: object
+    description: 'Response body for POST /v1/systemone.'
+    additionalProperties: false
+    required:
+      - model
+      - answers
+      - usage
+    properties:
+      model:
+        type: string
+      answers:
+        type: object
+        description: 'Map of question id → answer descriptor.'
+        additionalProperties:
+          $ref: '#/schemas/SystemOneAnswer'
+      usage:
+        $ref: '#/schemas/SystemOneUsage'
+
+  SystemOneAnswer:
+    type: object
+    description: 'Answer to a single System One question.'
+    additionalProperties: false
+    required:
+      - type
+    properties:
+      type:
+        type: string
+        enum: ['choice', 'yes_no', 'score']
+      choice:
+        type: string
+        description: 'Present when type=choice — the selected choice.'
+      yes_no:
+        type: boolean
+        description: 'Present when type=yes_no.'
+      score:
+        type: number
+        description: 'Present when type=score — 0 through 10.'
+
+  SystemOneUsage:
+    type: object
+    description: 'Token usage for a System One call.'
+    additionalProperties: false
+    required:
+      - prompt_tokens
+      - completion_tokens
+      - total_tokens
+    properties:
+      prompt_tokens:
+        type: integer
+      completion_tokens:
+        type: integer
+      total_tokens:
+        type: integer

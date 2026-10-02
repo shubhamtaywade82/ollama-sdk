@@ -55,10 +55,76 @@ function schemaTypeFromRef(ref: string | undefined): string | undefined {
   return segments.map((seg) => seg.charAt(0).toUpperCase() + seg.slice(1)).join('');
 }
 
+/**
+ * Wave 12 (P0 #1): explicit type map for OpenAI/Anthropic compatibility
+ * operations whose request/response/streaming types are richer than
+ * anything the OpenAPI snapshot currently models. The IR has no schema
+ * refs for these operations, so the generator previously fell back to
+ * `Record<string, unknown>` / `Promise<unknown>` — losing all type
+ * information at the generated surface.
+ *
+ * Each entry points at the hand-written types already exported from
+ * `src/integrations/{openai,anthropic}.ts`. The import path is relative
+ * to the generated file's directory (`src/generated/api/`), so it points
+ * at `../../integrations/index.js`.
+ *
+ * When the IR eventually grows schema refs for these operations (Wave 12
+ * P1 #8 — enrich the canonical IR with structural fields), this map can
+ * shrink and the generator can fall back to schemaTypeFromRef(). For now
+ * it's the explicit, honest source of truth.
+ */
+interface CompatTypeBinding {
+  readonly request: string;
+  readonly response: string;
+  /** Used for the streaming overload's `AsyncGenerator<...>` element type. */
+  readonly streamChunk: string;
+}
+
+const COMPAT_TYPE_MAP: Readonly<Record<string, CompatTypeBinding>> = {
+  openaiChatCompletions: {
+    request: 'OpenAIChatCompletionRequest',
+    response: 'OpenAIChatCompletionResponse',
+    streamChunk: 'OpenAIChatCompletionChunk',
+  },
+  openaiCompletions: {
+    request: 'OpenAICompletionRequest',
+    response: 'OpenAICompletionResponse',
+    streamChunk: 'OpenAICompletionChunk',
+  },
+  openaiEmbeddings: {
+    request: 'OpenAIEmbeddingRequest',
+    response: 'OpenAIEmbeddingResponse',
+    streamChunk: 'never',
+  },
+  openaiModels: {
+    request: 'void',
+    response: 'OpenAIListModelsResponse',
+    streamChunk: 'never',
+  },
+  openaiModelsGetOne: {
+    request: 'void',
+    response: 'OpenAIModelItem',
+    streamChunk: 'never',
+  },
+  openaiResponses: {
+    request: 'OpenAIResponsesRequest',
+    response: 'OpenAIResponsesResponse',
+    streamChunk: 'OpenAIResponsesStreamEvent',
+  },
+  anthropicMessages: {
+    request: 'AnthropicMessagesRequest',
+    response: 'AnthropicMessagesResponse',
+    streamChunk: 'AnthropicMessageStreamEvent',
+  },
+};
+
 /** Emit a single method for one operation. */
 function emitMethod(op: OperationContract): string {
-  const reqType = schemaTypeFromRef(op.request?.$ref) ?? 'Record<string, unknown>';
-  const resType = schemaTypeFromRef(op.response?.$ref) ?? 'unknown';
+  const compat = COMPAT_TYPE_MAP[op.id];
+  const reqType =
+    compat?.request ?? schemaTypeFromRef(op.request?.$ref) ?? 'Record<string, unknown>';
+  const resType = compat?.response ?? schemaTypeFromRef(op.response?.$ref) ?? 'unknown';
+  const streamChunkType = compat?.streamChunk ?? resType;
   const methodName = op.id;
   const streaming = op.transport.streaming;
   const streamingDefault = op.transport.streamingDefault ?? false;
@@ -67,18 +133,23 @@ function emitMethod(op: OperationContract): string {
 
   const lines: string[] = [];
 
-  // Overload 1: explicit non-streaming
+  // Wave 12 (P0 #1): streaming overload now uses the streamChunk type
+  // (e.g. OpenAIChatCompletionChunk, AnthropicMessageStreamEvent) instead
+  // of the response type. The non-streaming overload still returns the
+  // final response type. For native operations where streamChunk ===
+  // resType (no compat binding), this collapses to the same shape as
+  // before — no behavior change.
   if (streaming) {
     lines.push(`  ${methodName}(request: ${reqType} & { stream?: false }): Promise<${resType}>;`);
     // Overload 2: explicit streaming
     lines.push(
-      `  ${methodName}(request: ${reqType} & { stream: true }): Promise<AsyncGenerator<${resType}, void, undefined>>;`,
+      `  ${methodName}(request: ${reqType} & { stream: true }): Promise<AsyncGenerator<${streamChunkType}, void, undefined>>;`,
     );
   }
 
   // Implementation signature
   const implReturn = streaming
-    ? `Promise<${resType} | AsyncGenerator<${resType}, void, undefined>>`
+    ? `Promise<${resType} | AsyncGenerator<${streamChunkType}, void, undefined>>`
     : `Promise<${resType}>`;
 
   // GET/HEAD methods don't take a request body — accept an optional
@@ -120,7 +191,15 @@ export function emitDomainApi(
   domain: 'native' | 'openai' | 'anthropic',
   operations: readonly OperationContract[],
 ): EmittedFile | undefined {
-  const domainOps = operations.filter((op) => op.domain === domain);
+  // Wave 12 (P1 #7): skip operations that target a different host (web
+  // search, web fetch — they live at https://ollama.com, not the local
+  // Ollama server). These operations are declared in the IR for
+  // visibility and MCP generation, but they cannot be invoked through
+  // the generated NativeApi class because that class delegates to a
+  // runtime bound to the local Ollama server. Callers must use
+  // OllamaClient.webSearch / OllamaClient.webFetch instead, which spin
+  // up a dedicated cloud HttpClient pointed at the right host.
+  const domainOps = operations.filter((op) => op.domain === domain && !op.host);
   if (domainOps.length === 0) return undefined;
 
   const className = `${pascal(domain)}Api`;
@@ -144,10 +223,28 @@ export function emitDomainApi(
       ? `import type { ${[...referencedTypes].sort().join(', ')} } from '../models/index.js';`
       : '// No model types referenced.';
 
+  // Wave 12 (P0 #1): collect compat type imports (from src/integrations/).
+  // These are the rich hand-written types for OpenAI/Anthropic operations
+  // whose IR schema refs are still missing. Each compat binding contributes
+  // its request, response, and stream chunk type names.
+  const compatTypes = new Set<string>();
+  for (const op of domainOps) {
+    const binding = COMPAT_TYPE_MAP[op.id];
+    if (!binding) continue;
+    if (binding.request !== 'void') compatTypes.add(binding.request);
+    if (binding.response !== 'never') compatTypes.add(binding.response);
+    if (binding.streamChunk !== 'never') compatTypes.add(binding.streamChunk);
+  }
+  const compatImports =
+    compatTypes.size > 0
+      ? `import type { ${[...compatTypes].sort().join(', ')} } from '../../integrations/index.js';`
+      : '';
+
   const content =
     `${HEADER}\n` +
     `import type { OllamaRuntime } from '../runtime/runtime.js';\n` +
     `${modelImports}\n` +
+    (compatImports ? `${compatImports}\n` : '') +
     `import { ${importSpecs} } from './operations.js';\n\n` +
     `/**\n * Generated API surface for Ollama's ${domain} domain.\n * Each method delegates to {@link OllamaRuntime.invoke}.\n */\n` +
     `export class ${className} {\n` +

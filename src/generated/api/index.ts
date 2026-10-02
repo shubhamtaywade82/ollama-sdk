@@ -25,6 +25,8 @@ export { showOp as show } from './operations.js';
 export { systemOneOp as systemOne } from './operations.js';
 export { tagsOp as tags } from './operations.js';
 export { versionOp as version } from './operations.js';
+export { webFetchOp as webFetch } from './operations.js';
+export { webSearchOp as webSearch } from './operations.js';
 export { openaiChatCompletionsOp as openaiChatCompletions } from './operations.js';
 export { openaiCompletionsOp as openaiCompletions } from './operations.js';
 export { openaiEmbeddingsOp as openaiEmbeddings } from './operations.js';

@@ -26,6 +26,7 @@ import { emitModels } from './emitters/typescript/models.js';
 import { emitZodSchemas } from './emitters/typescript/zod.js';
 import { emitApi } from './emitters/typescript/api.js';
 import { emitOperations } from './emitters/typescript/operations.js';
+import { emitSchemaRegistry } from './emitters/typescript/schema-registry.js';
 import { emitMetadata } from './emitters/metadata/metadata.js';
 import { emitMcpTools } from './emitters/mcp/tools.js';
 import { detectTypeDrift, formatDriftReport } from './emitters/typescript/drift-detector.js';
@@ -142,6 +143,11 @@ function cmdGenerate(): void {
   const opsFiles = [
     emitOperations('src/generated/api', contract.operations),
   ];
+  // Wave 12 (P1 #6): generate the runtime schema-registry from the IR
+  // rather than hand-maintaining it. Every operation whose IR entry
+  // carries a request.$ref gets an entry; the runtime consults this
+  // map when `validateRequests: true` is set.
+  const schemaRegistryFile = emitSchemaRegistry('src/generated/runtime', contract.operations);
   const metadataFile = emitMetadata('src/generated/metadata', contract.operations);
   const mcpToolsFile = emitMcpTools('src/generated/mcp', contract.operations, contract.schemas);
 
@@ -150,6 +156,7 @@ function cmdGenerate(): void {
     ...zodSchemaFiles,
     ...apiFiles,
     ...opsFiles,
+    schemaRegistryFile,
     metadataFile,
     mcpToolsFile,
   ];
@@ -192,11 +199,18 @@ function cmdInfo(): void {
     return acc;
   }, {});
   console.log(`Ollama contract IR v${contract.contractVersion}`);
-  if (contract.observedOllamaVersion) {
-    console.log(`  observed ollama version: ${contract.observedOllamaVersion}`);
+  // Wave 12 (P1): prefer sourceVersion; fall back to the deprecated
+  // observedOllamaVersion for IRs produced by older normalizers.
+  const sourceVersion = contract.sourceVersion ?? contract.observedOllamaVersion;
+  if (sourceVersion) {
+    console.log(`  source version (OpenAPI info.version): ${sourceVersion}`);
   }
   console.log(`  source hash: ${contract.sourceHash}`);
-  console.log(`  generated at: ${contract.generatedAt}`);
+  // Wave 12 (P1): generatedAt is optional now (the normalizer no longer
+  // emits it; older committed IRs may still carry it).
+  if (contract.generatedAt) {
+    console.log(`  generated at: ${contract.generatedAt}`);
+  }
   console.log(`  operations (${contract.operations.length}):`);
   for (const [domain, count] of Object.entries(byDomain)) {
     console.log(`    ${domain}: ${count}`);

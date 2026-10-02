@@ -26,6 +26,7 @@ import * as yaml from 'js-yaml';
 import type {
   HttpMethod,
   OperationContract,
+  OperationParameter,
   OllamaContract,
   SchemaContract,
   TransportMode,
@@ -116,6 +117,31 @@ function lookupOpenApiOperation(
   return structural.find((op) => op.path === target);
 }
 
+/**
+ * Wave 12 (P1 #8): auto-derive path parameters from a path template.
+ *
+ * Every `{name}` segment becomes a path parameter with type `string` and
+ * `required: true`. This is the minimum structural information the IR
+ * needs for path-templated operations like `/v1/models/{model}` and
+ * `/api/blobs/{digest}` — previously the IR said "GET /v1/models/{model}"
+ * but didn't expose the `model` parameter structurally, so generated
+ * code couldn't tell what to substitute.
+ */
+function derivePathParameters(path: string): readonly OperationParameter[] {
+  const matches = path.matchAll(/\{([^}]+)\}/g);
+  const out: OperationParameter[] = [];
+  for (const m of matches) {
+    if (!m[1]) continue;
+    out.push({
+      name: m[1],
+      in: 'path',
+      required: true,
+      schema: { type: 'string' },
+    });
+  }
+  return out;
+}
+
 function buildOperationContract(
   overlayKey: string,
   overlay: OverlayOperation,
@@ -132,10 +158,22 @@ function buildOperationContract(
   }
   const domain = overlay.domain ?? parentDomain;
 
-  const requestRef = match?.requestBodyRef
-    ? { $ref: `#/schemas/${match.requestBodyRef}` }
-    : undefined;
-  const responseRef = match?.responseRef ? { $ref: `#/schemas/${match.responseRef}` } : undefined;
+  // Wave 12 (P0 #4): overlay-declared schema names win over OpenAPI refs.
+  // This lets operations like /v1/systemone — which are absent from the
+  // pinned OpenAPI snapshot — point at schemas declared in the overlay's
+  // `schemas:` block. When neither overlay nor OpenAPI supplies a ref,
+  // the operation remains untyped (the generated API uses Record<string,
+  // unknown> as before).
+  const requestRef = overlay.requestSchema
+    ? { $ref: `#/schemas/${overlay.requestSchema}` }
+    : match?.requestBodyRef
+      ? { $ref: `#/schemas/${match.requestBodyRef}` }
+      : undefined;
+  const responseRef = overlay.responseSchema
+    ? { $ref: `#/schemas/${overlay.responseSchema}` }
+    : match?.responseRef
+      ? { $ref: `#/schemas/${match.responseRef}` }
+      : undefined;
 
   const env = overlay.environment;
   const local = boolFromSupport(env?.local ?? 'supported');
@@ -193,6 +231,13 @@ function buildOperationContract(
     ...(constraints ? { constraints } : {}),
     status,
     domain,
+    ...(overlay.host ? { host: overlay.host } : {}),
+    // Wave 12 (P1 #8): always derive path parameters from the path
+    // template. Operations without `{...}` segments get an empty array
+    // (omitted from the IR for compactness).
+    ...(derivePathParameters(path).length > 0
+      ? { parameters: derivePathParameters(path) }
+      : {}),
     ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
     ...(overlay.parity ? { parity: normalizeParity(overlay.parity) } : {}),
   };
@@ -227,8 +272,13 @@ function normalizeFieldParity(
   };
 }
 
-function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaContract[] {
+function buildSchemas(
+  structural: readonly ParsedOpenApi[],
+  overlays: readonly OverlayFile[],
+): readonly SchemaContract[] {
   const byName = new Map<string, SchemaContract>();
+  // First: OpenAPI-sourced schemas (structural truth for everything the
+  // pinned snapshot actually models).
   for (const spec of structural) {
     for (const parsed of spec.schemas) {
       const existing = byName.get(parsed.name);
@@ -238,6 +288,22 @@ function buildSchemas(structural: readonly ParsedOpenApi[]): readonly SchemaCont
         source: { openapi: `#/components/schemas/${parsed.name}` },
         ...(parsed.schema.description ? { description: parsed.schema.description } : {}),
         definition: parsed.schema,
+      });
+    }
+  }
+  // Wave 12 (P0 #4): then merge in overlay-declared inline schemas. These
+  // cover operations the OpenAPI snapshot doesn't model (e.g. System One).
+  // Overlay schemas take precedence over OpenAPI when names collide — the
+  // overlay is the authoritative behavioral source when present.
+  for (const file of overlays) {
+    const inline = file.domain.schemas;
+    if (!inline) continue;
+    for (const [name, definition] of Object.entries(inline)) {
+      byName.set(name, {
+        name,
+        source: { overlay: file.name },
+        ...(definition.description ? { description: definition.description } : {}),
+        definition,
       });
     }
   }
@@ -328,14 +394,25 @@ export function normalizeContract(
     return a.id.localeCompare(b.id);
   });
 
-  const schemas = buildSchemas([parsed]);
+  const schemas = buildSchemas([parsed], overlays);
   const overlayBridges = overlays.map((file) => file.domain.parityBridge ?? {});
   const parityBridge = buildParityBridge(operations, legacy.byEndpoint, overlayBridges);
 
   const contract: OllamaContract = {
     contractVersion: 1,
-    ...(parsed.info.version ? { observedOllamaVersion: parsed.info.version } : {}),
-    generatedAt: new Date().toISOString(),
+    // Wave 12 (P1): renamed from observedOllamaVersion. The OpenAPI
+    // info.version is a source-tracking artifact, NOT the Ollama server
+    // version. We emit both fields during the migration window so older
+    // readers don't break; new readers should prefer sourceVersion.
+    ...(parsed.info.version
+      ? { sourceVersion: parsed.info.version, observedOllamaVersion: parsed.info.version }
+      : {}),
+    // Wave 12 (P1): generatedAt is intentionally OMITTED from the
+    // committed IR. The field made the IR non-deterministic — re-running
+    // `contract:normalize` produced a diff just because of the timestamp,
+    // even when nothing else changed. The sourceHash field already
+    // provides reproducibility. Build metadata (including generation
+    // timestamp) belongs in CI artifacts, not the canonical contract.
     sourceHash: sourceHash([readFileSync(openapiPath, 'utf8'), ...overlayContents]),
     operations,
     schemas,

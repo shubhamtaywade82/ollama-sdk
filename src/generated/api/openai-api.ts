@@ -7,6 +7,21 @@
 
 import type { OllamaRuntime } from '../runtime/runtime.js';
 // No model types referenced.
+import type {
+  OpenAIChatCompletionChunk,
+  OpenAIChatCompletionRequest,
+  OpenAIChatCompletionResponse,
+  OpenAICompletionChunk,
+  OpenAICompletionRequest,
+  OpenAICompletionResponse,
+  OpenAIEmbeddingRequest,
+  OpenAIEmbeddingResponse,
+  OpenAIListModelsResponse,
+  OpenAIModelItem,
+  OpenAIResponsesRequest,
+  OpenAIResponsesResponse,
+  OpenAIResponsesStreamEvent,
+} from '../../integrations/index.js';
 import {
   openaiChatCompletionsOp,
   openaiCompletionsOp,
@@ -23,40 +38,46 @@ import {
 export class OpenAIApi {
   constructor(private readonly runtime: OllamaRuntime) {}
 
-  openaiChatCompletions(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
   openaiChatCompletions(
-    request: Record<string, unknown> & { stream: true },
-  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+    request: OpenAIChatCompletionRequest & { stream?: false },
+  ): Promise<OpenAIChatCompletionResponse>;
   openaiChatCompletions(
-    request: Record<string, unknown>,
-  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+    request: OpenAIChatCompletionRequest & { stream: true },
+  ): Promise<AsyncGenerator<OpenAIChatCompletionChunk, void, undefined>>;
+  openaiChatCompletions(
+    request: OpenAIChatCompletionRequest,
+  ): Promise<
+    OpenAIChatCompletionResponse | AsyncGenerator<OpenAIChatCompletionChunk, void, undefined>
+  > {
     return this.runtime.invoke({
       operation: openaiChatCompletionsOp,
       body: request,
     });
   }
 
-  openaiCompletions(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
   openaiCompletions(
-    request: Record<string, unknown> & { stream: true },
-  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+    request: OpenAICompletionRequest & { stream?: false },
+  ): Promise<OpenAICompletionResponse>;
   openaiCompletions(
-    request: Record<string, unknown>,
-  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+    request: OpenAICompletionRequest & { stream: true },
+  ): Promise<AsyncGenerator<OpenAICompletionChunk, void, undefined>>;
+  openaiCompletions(
+    request: OpenAICompletionRequest,
+  ): Promise<OpenAICompletionResponse | AsyncGenerator<OpenAICompletionChunk, void, undefined>> {
     return this.runtime.invoke({
       operation: openaiCompletionsOp,
       body: request,
     });
   }
 
-  openaiEmbeddings(request: Record<string, unknown>): Promise<unknown> {
+  openaiEmbeddings(request: OpenAIEmbeddingRequest): Promise<OpenAIEmbeddingResponse> {
     return this.runtime.invoke({
       operation: openaiEmbeddingsOp,
       body: request,
     });
   }
 
-  openaiModels(options?: { signal?: AbortSignal }): Promise<unknown> {
+  openaiModels(options?: { signal?: AbortSignal }): Promise<OpenAIListModelsResponse> {
     return this.runtime.invoke({
       operation: openaiModelsOp,
       body: undefined,
@@ -64,7 +85,7 @@ export class OpenAIApi {
     });
   }
 
-  openaiModelsGetOne(options?: { signal?: AbortSignal }): Promise<unknown> {
+  openaiModelsGetOne(options?: { signal?: AbortSignal }): Promise<OpenAIModelItem> {
     return this.runtime.invoke({
       operation: openaiModelsGetOneOp,
       body: undefined,
@@ -72,13 +93,17 @@ export class OpenAIApi {
     });
   }
 
-  openaiResponses(request: Record<string, unknown> & { stream?: false }): Promise<unknown>;
   openaiResponses(
-    request: Record<string, unknown> & { stream: true },
-  ): Promise<AsyncGenerator<unknown, void, undefined>>;
+    request: OpenAIResponsesRequest & { stream?: false },
+  ): Promise<OpenAIResponsesResponse>;
   openaiResponses(
-    request: Record<string, unknown>,
-  ): Promise<unknown | AsyncGenerator<unknown, void, undefined>> {
+    request: OpenAIResponsesRequest & { stream: true },
+  ): Promise<AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined>>;
+  openaiResponses(
+    request: OpenAIResponsesRequest,
+  ): Promise<
+    OpenAIResponsesResponse | AsyncGenerator<OpenAIResponsesStreamEvent, void, undefined>
+  > {
     return this.runtime.invoke({
       operation: openaiResponsesOp,
       body: request,

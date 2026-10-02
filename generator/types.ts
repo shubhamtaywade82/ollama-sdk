@@ -132,6 +132,29 @@ export interface OperationContract {
     readonly cloud: boolean;
   };
 
+  /**
+   * Wave 12 (P1 #7): host this operation targets, when different from the
+   * default Ollama server. Cloud-hosted capability endpoints (web search,
+   * web fetch) live at `https://ollama.com/api/...` rather than the local
+   * Ollama server. Operations without an explicit `host` use whatever
+   * base URL the runtime is configured with.
+   */
+  readonly host?: string;
+
+  /**
+   * Wave 12 (P1 #8): structural parameters derived from the path template
+   * (and, when the OpenAPI snapshot declares them, query/header parameters
+   * too). The MCP emitter, the API emitter, and any future runtime
+   * path-substitution logic consume this list so generated code can tell
+   * what to substitute for `{model}` in `/v1/models/{model}`, etc.
+   *
+   * Auto-derivation: any `{name}` segment in {@link path} becomes a
+   * `path` parameter with type `string` and `required: true`. The
+   * OpenAPI parser can layer in richer declarations (query/header
+   * params, integer types) when present in the source spec.
+   */
+  readonly parameters?: readonly OperationParameter[];
+
   readonly transport: {
     readonly mode: TransportMode;
     readonly streaming: boolean;
@@ -178,6 +201,22 @@ export interface OperationContract {
 }
 
 /**
+ * Wave 12 (P1 #8): a single structural parameter on an operation.
+ *
+ * Auto-derived from the path template (`{name}` segments) for `in: 'path'`,
+ * and extensible to query/header parameters when the OpenAPI snapshot
+ * declares them.
+ */
+export interface OperationParameter {
+  readonly name: string;
+  readonly in: 'path' | 'query' | 'header';
+  readonly required: boolean;
+  /** JSON Schema for the parameter value (defaults to `{ type: 'string' }`). */
+  readonly schema?: JsonSchemaNode;
+  readonly description?: string;
+}
+
+/**
  * Backwards-compatible bridge to the legacy {@link docs/api-parity.json}
  * surface id (`native-chat`, `openai-responses`, etc.). Wave 1 keeps both
  * worlds in sync; later waves retire the legacy manifest.
@@ -191,8 +230,35 @@ export interface ParitySurfaceMapping {
 /** Top-level canonical IR. */
 export interface OllamaContract {
   readonly contractVersion: number;
+  /**
+   * Wave 12 (P1): renamed from `observedOllamaVersion`. The previous name
+   * was misleading — this field carries the OpenAPI source document's
+   * `info.version` (currently "0.1.0"), NOT the Ollama server version.
+   * The two concepts are unrelated: the OpenAPI doc version is a
+   * source-tracking artifact; the Ollama server version is what
+   * `constraints.minOllamaVersion` is checked against (obtained at
+   * runtime via `GET /api/version`, cached on `OllamaRuntime`).
+   *
+   * Kept as `sourceVersion` for backwards-compat readers; aliased to
+   * `openApiVersion` semantically. The `observedOllamaVersion` field
+   * name is gone.
+   */
+  readonly sourceVersion?: string;
+  /** @deprecated Use {@link sourceVersion} instead. Kept for compat. */
   readonly observedOllamaVersion?: string;
-  readonly generatedAt: string;
+  /**
+   * @deprecated Wave 12 (P1): the committed IR no longer carries a
+   * `generatedAt` timestamp. The field made the IR non-deterministic —
+   * re-running `contract:normalize` produced a diff just because of
+   * the timestamp, even when nothing else changed. The `sourceHash`
+   * field already provides reproducibility. Build metadata (including
+   * generation timestamp) belongs in CI artifacts, not the canonical
+   * contract.
+   *
+   * The field is kept on the type for backwards-compat readers (older
+   * normalizers may still emit it), but the current normalizer omits it.
+   */
+  readonly generatedAt?: string;
   readonly sourceHash: string;
   readonly operations: readonly OperationContract[];
   readonly schemas: readonly SchemaContract[];

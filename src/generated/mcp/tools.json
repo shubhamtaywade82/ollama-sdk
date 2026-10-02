@@ -7,12 +7,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "prompt": {
+          "digest": {
             "type": "string",
-            "description": "Input for blobs"
+            "description": "path parameter: digest"
           }
         },
-        "additionalProperties": true
+        "required": ["digest"],
+        "additionalProperties": false,
+        "description": "HEAD /api/blobs/{digest} — 1 parameter."
       },
       "annotations": {
         "title": "blobs (Ollama)",
@@ -678,13 +680,9 @@
       "description": "Ollama GET /api/ps (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for ps"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/ps takes no request body."
       },
       "annotations": {
         "title": "ps (Ollama)",
@@ -788,13 +786,81 @@
       "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- Hard 64 KiB request body limit enforced by the server.\n- No images, no tools, no generation controls (temperature, top_p, etc.).\n- Experimental: behavioral surface may change between Ollama releases.",
       "inputSchema": {
         "type": "object",
+        "description": "Request body for POST /v1/systemone.",
+        "additionalProperties": false,
+        "required": ["model", "state", "questions"],
         "properties": {
-          "prompt": {
+          "model": {
             "type": "string",
-            "description": "Input for systemOne"
+            "description": "Model name (e.g. \"systemone-v1\")."
+          },
+          "state": {
+            "description": "Opaque conversation state — any JSON value the caller round-trips."
+          },
+          "questions": {
+            "type": "object",
+            "description": "Map of question id → question descriptor.",
+            "additionalProperties": {
+              "description": "Discriminated union of the three documented question kinds.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "A multiple-choice question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt", "choices"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["choice"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "A yes/no question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["yes_no"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "A 0–10 score question.",
+                  "additionalProperties": false,
+                  "required": ["type", "prompt"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["score"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "keep_alive": {
+            "description": "How long to keep the model loaded after this call. String (\"5m\") or number (seconds)."
           }
-        },
-        "additionalProperties": true
+        }
       },
       "annotations": {
         "title": "systemOne (Ollama)",
@@ -810,13 +876,9 @@
       "description": "Ollama GET /api/tags (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for tags"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/tags takes no request body."
       },
       "annotations": {
         "title": "tags (Ollama)",
@@ -832,13 +894,9 @@
       "description": "Ollama GET /api/version (native domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for version"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /api/version takes no request body."
       },
       "annotations": {
         "title": "version (Ollama)",
@@ -850,17 +908,65 @@
       "_operationId": "version"
     },
     {
+      "name": "ollama_webFetch",
+      "description": "Ollama POST /api/web_fetch (native domain)\n\n- Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.\n- Requires an Ollama Cloud API key (set via OllamaClient credentials).\n- Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to fetch"
+          }
+        }
+      },
+      "annotations": {
+        "title": "webFetch (Ollama)",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_operationId": "webFetch"
+    },
+    {
+      "name": "ollama_webSearch",
+      "description": "Ollama POST /api/web_search (native domain)\n\n- Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.\n- Requires an Ollama Cloud API key (set via OllamaClient credentials).\n- Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query string"
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5,
+            "description": "Maximum number of results to return"
+          }
+        }
+      },
+      "annotations": {
+        "title": "webSearch (Ollama)",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_operationId": "webSearch"
+    },
+    {
       "name": "ollama_openaiChatCompletions",
       "description": "Ollama POST /v1/chat/completions (openai domain)\n\n- Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiChatCompletions"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/chat/completions takes no request body."
       },
       "annotations": {
         "title": "openaiChatCompletions (Ollama)",
@@ -876,13 +982,9 @@
       "description": "Ollama POST /v1/completions (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiCompletions"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/completions takes no request body."
       },
       "annotations": {
         "title": "openaiCompletions (Ollama)",
@@ -898,13 +1000,9 @@
       "description": "Ollama POST /v1/embeddings (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiEmbeddings"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/embeddings takes no request body."
       },
       "annotations": {
         "title": "openaiEmbeddings (Ollama)",
@@ -920,13 +1018,9 @@
       "description": "Ollama GET /v1/models (openai domain)",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiModels"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "GET /v1/models takes no request body."
       },
       "annotations": {
         "title": "openaiModels (Ollama)",
@@ -943,12 +1037,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "prompt": {
+          "model": {
             "type": "string",
-            "description": "Input for openaiModelsGetOne"
+            "description": "path parameter: model"
           }
         },
-        "additionalProperties": true
+        "required": ["model"],
+        "additionalProperties": false,
+        "description": "GET /v1/models/{model} — 1 parameter."
       },
       "annotations": {
         "title": "openaiModelsGetOne (Ollama)",
@@ -964,13 +1060,9 @@
       "description": "Ollama POST /v1/responses (openai domain)\n\n- Ollama implements a subset of the OpenAI Responses API; previous_response_id and conversation are explicitly unsupported.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for openaiResponses"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/responses takes no request body."
       },
       "annotations": {
         "title": "openaiResponses (Ollama)",
@@ -986,13 +1078,9 @@
       "description": "Ollama POST /v1/messages (anthropic domain)\n\n- tool_choice and metadata are explicitly unsupported by Ollama's Anthropic compat layer.\n- Nested cache_control fields under messages[].content[].cache_control are unsupported.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "Input for anthropicMessages"
-          }
-        },
-        "additionalProperties": true
+        "properties": {},
+        "additionalProperties": false,
+        "description": "POST /v1/messages takes no request body."
       },
       "annotations": {
         "title": "anthropicMessages (Ollama)",

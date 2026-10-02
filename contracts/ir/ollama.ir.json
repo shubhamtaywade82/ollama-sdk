@@ -1,8 +1,8 @@
 {
   "contractVersion": 1,
+  "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "generatedAt": "2026-10-01T04:57:29.985Z",
-  "sourceHash": "b15dd9adb5694a74",
+  "sourceHash": "143d6fec9698d9d2",
   "operations": [
     {
       "id": "blobs",
@@ -21,6 +21,16 @@
         "documented": true
       },
       "domain": "native",
+      "parameters": [
+        {
+          "name": "digest",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "notes": [
         "HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest."
       ]
@@ -77,7 +87,11 @@
             "top_logprobs"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["width", "height", "steps"],
+          "sdkOnlyFields": [
+            "width",
+            "height",
+            "steps"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -135,7 +149,10 @@
         "docsUrl": "https://docs.ollama.com/api/copy",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["source", "destination"],
+          "fields": [
+            "source",
+            "destination"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -173,7 +190,9 @@
         "documented": true
       },
       "domain": "native",
-      "notes": ["Model creation is local-only; Ollama Cloud does not support it."],
+      "notes": [
+        "Model creation is local-only; Ollama Cloud does not support it."
+      ],
       "parity": {
         "legacySurfaceId": "native-create",
         "docsUrl": "https://docs.ollama.com/api/create",
@@ -196,7 +215,10 @@
             "requires"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["adapters", "modelfile"],
+          "sdkOnlyFields": [
+            "adapters",
+            "modelfile"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -204,7 +226,9 @@
           "sourceFile": "src/types.ts"
         },
         "response": {
-          "fields": ["status"],
+          "fields": [
+            "status"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -240,7 +264,9 @@
         "docsUrl": "https://docs.ollama.com/api/delete",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["model"],
+          "fields": [
+            "model"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -281,7 +307,14 @@
         "docsUrl": "https://docs.ollama.com/api/embed",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["model", "input", "truncate", "dimensions", "keep_alive", "options"],
+          "fields": [
+            "model",
+            "input",
+            "truncate",
+            "dimensions",
+            "keep_alive",
+            "options"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -291,7 +324,13 @@
           "sourceFile": "src/types.ts"
         },
         "response": {
-          "fields": ["model", "embeddings", "total_duration", "load_duration", "prompt_eval_count"],
+          "fields": [
+            "model",
+            "embeddings",
+            "total_duration",
+            "load_duration",
+            "prompt_eval_count"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -352,7 +391,13 @@
             "top_logprobs"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["context", "width", "height", "steps", "template"],
+          "sdkOnlyFields": [
+            "context",
+            "width",
+            "height",
+            "steps",
+            "template"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -377,7 +422,12 @@
             "logprobs"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["completed", "context", "image", "total"],
+          "sdkOnlyFields": [
+            "completed",
+            "context",
+            "image",
+            "total"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -419,7 +469,9 @@
           "featureAliases": {}
         },
         "response": {
-          "fields": ["models"],
+          "fields": [
+            "models"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -459,7 +511,11 @@
         "docsUrl": "https://docs.ollama.com/api/pull",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["model", "insecure", "stream"],
+          "fields": [
+            "model",
+            "insecure",
+            "stream"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -469,7 +525,9 @@
           "sourceFile": "src/types.ts"
         },
         "response": {
-          "fields": ["status"],
+          "fields": [
+            "status"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -509,7 +567,11 @@
         "docsUrl": "https://docs.ollama.com/api/push",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["model", "insecure", "stream"],
+          "fields": [
+            "model",
+            "insecure",
+            "stream"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -519,7 +581,9 @@
           "sourceFile": "src/types.ts"
         },
         "response": {
-          "fields": ["status"],
+          "fields": [
+            "status"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -561,9 +625,15 @@
         "docsUrl": "https://docs.ollama.com/api-reference/show-model-details",
         "fallbackDocsFile": "docs/upstream/ollama-openapi.yaml",
         "request": {
-          "fields": ["model", "verbose"],
+          "fields": [
+            "model",
+            "verbose"
+          ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["system", "template"],
+          "sdkOnlyFields": [
+            "system",
+            "template"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -582,7 +652,11 @@
             "thinking"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["messages", "modelfile", "system"],
+          "sdkOnlyFields": [
+            "messages",
+            "modelfile",
+            "system"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -595,6 +669,12 @@
       "id": "systemOne",
       "method": "POST",
       "path": "/v1/systemone",
+      "request": {
+        "$ref": "#/schemas/SystemOneRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/SystemOneResponse"
+      },
       "environment": {
         "local": true,
         "cloud": false
@@ -660,7 +740,9 @@
           "featureAliases": {}
         },
         "response": {
-          "fields": ["models"],
+          "fields": [
+            "models"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -704,7 +786,9 @@
           "featureAliases": {}
         },
         "response": {
-          "fields": ["version"],
+          "fields": [
+            "version"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
@@ -714,6 +798,66 @@
           "sourceFile": "src/types.ts"
         }
       }
+    },
+    {
+      "id": "webFetch",
+      "method": "POST",
+      "path": "/api/web_fetch",
+      "request": {
+        "$ref": "#/schemas/WebFetchRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/WebFetchResponse"
+      },
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "host": "https://ollama.com",
+      "notes": [
+        "Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Use OllamaClient.webFetch() — the generated NativeApi class does not expose this operation."
+      ]
+    },
+    {
+      "id": "webSearch",
+      "method": "POST",
+      "path": "/api/web_search",
+      "request": {
+        "$ref": "#/schemas/WebSearchRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/WebSearchResponse"
+      },
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "host": "https://ollama.com",
+      "notes": [
+        "Cloud-only capability endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation."
+      ]
     },
     {
       "id": "openaiChatCompletions",
@@ -770,11 +914,15 @@
             "logprobs"
           ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["parallel_tool_calls"],
+          "sdkOnlyFields": [
+            "parallel_tool_calls"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {
-            "logprobs": ["Logprobs"]
+            "logprobs": [
+              "Logprobs"
+            ]
           },
           "interfaceName": "OpenAIChatCompletionRequest",
           "sourceFile": "src/integrations/openai.ts"
@@ -831,7 +979,9 @@
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {
-            "logprobs": ["Logprobs"]
+            "logprobs": [
+              "Logprobs"
+            ]
           },
           "interfaceName": "OpenAICompletionRequest",
           "sourceFile": "src/integrations/openai.ts"
@@ -862,12 +1012,21 @@
         "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
         "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
         "request": {
-          "fields": ["model", "input", "encoding_format", "dimensions", "user"],
+          "fields": [
+            "model",
+            "input",
+            "encoding_format",
+            "dimensions",
+            "user"
+          ],
           "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
           "docAliases": {
-            "encoding_format": ["encoding_format", "encoding format"]
+            "encoding_format": [
+              "encoding_format",
+              "encoding format"
+            ]
           },
           "featureAliases": {},
           "interfaceName": "OpenAIEmbeddingRequest",
@@ -910,7 +1069,19 @@
         "documented": true
       },
       "domain": "openai",
-      "notes": ["Returns metadata for a single OpenAI-compat model by id."]
+      "parameters": [
+        {
+          "name": "model",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "notes": [
+        "Returns metadata for a single OpenAI-compat model by id."
+      ]
     },
     {
       "id": "openaiResponses",
@@ -954,8 +1125,13 @@
             "reasoning",
             "think"
           ],
-          "unsupportedFields": ["previous_response_id", "conversation"],
-          "sdkOnlyFields": ["parallel_tool_calls"],
+          "unsupportedFields": [
+            "previous_response_id",
+            "conversation"
+          ],
+          "sdkOnlyFields": [
+            "parallel_tool_calls"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -1035,7 +1211,10 @@
             "thinking",
             "output_config"
           ],
-          "unsupportedFields": ["tool_choice", "metadata"],
+          "unsupportedFields": [
+            "tool_choice",
+            "metadata"
+          ],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [
             "messages[].content[].cache_control",
@@ -1048,9 +1227,19 @@
           "sourceFile": "src/integrations/anthropic.ts"
         },
         "response": {
-          "fields": ["id", "type", "role", "model", "content", "stop_reason", "usage"],
+          "fields": [
+            "id",
+            "type",
+            "role",
+            "model",
+            "content",
+            "stop_reason",
+            "usage"
+          ],
           "unsupportedFields": [],
-          "sdkOnlyFields": ["stop_sequence"],
+          "sdkOnlyFields": [
+            "stop_sequence"
+          ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
           "featureAliases": {},
@@ -1091,11 +1280,19 @@
       },
       "definition": {
         "type": "object",
-        "required": ["role", "content"],
+        "required": [
+          "role",
+          "content"
+        ],
         "properties": {
           "role": {
             "type": "string",
-            "enum": ["system", "user", "assistant", "tool"],
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ],
             "description": "Author of the message."
           },
           "content": {
@@ -1127,7 +1324,10 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model", "messages"],
+        "required": [
+          "model",
+          "messages"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -1151,7 +1351,9 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": ["json"]
+                "enum": [
+                  "json"
+                ]
               },
               {
                 "type": "object"
@@ -1213,7 +1415,9 @@
             "properties": {
               "role": {
                 "type": "string",
-                "enum": ["assistant"],
+                "enum": [
+                  "assistant"
+                ],
                 "description": "Always `assistant` for model responses"
               },
               "content": {
@@ -1348,7 +1552,10 @@
       },
       "definition": {
         "type": "object",
-        "required": ["source", "destination"],
+        "required": [
+          "source",
+          "destination"
+        ],
         "properties": {
           "source": {
             "type": "string",
@@ -1368,7 +1575,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -1460,7 +1669,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -1476,7 +1687,10 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model", "input"],
+        "required": [
+          "model",
+          "input"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -1574,7 +1788,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -2029,7 +2245,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -2054,7 +2272,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -2079,7 +2299,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["model"],
+        "required": [
+          "model"
+        ],
         "properties": {
           "model": {
             "type": "string",
@@ -2180,6 +2402,248 @@
       }
     },
     {
+      "name": "SystemOneAnswer",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "Answer to a single System One question.",
+      "definition": {
+        "type": "object",
+        "description": "Answer to a single System One question.",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "yes_no",
+              "score"
+            ]
+          },
+          "choice": {
+            "type": "string",
+            "description": "Present when type=choice — the selected choice."
+          },
+          "yes_no": {
+            "type": "boolean",
+            "description": "Present when type=yes_no."
+          },
+          "score": {
+            "type": "number",
+            "description": "Present when type=score — 0 through 10."
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneChoiceQuestion",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "A multiple-choice question.",
+      "definition": {
+        "type": "object",
+        "description": "A multiple-choice question.",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "prompt",
+          "choices"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "choice"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneQuestion",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "Discriminated union of the three documented question kinds.",
+      "definition": {
+        "description": "Discriminated union of the three documented question kinds.",
+        "oneOf": [
+          {
+            "$ref": "#/schemas/SystemOneChoiceQuestion"
+          },
+          {
+            "$ref": "#/schemas/SystemOneYesNoQuestion"
+          },
+          {
+            "$ref": "#/schemas/SystemOneScoreQuestion"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SystemOneRequest",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "Request body for POST /v1/systemone.",
+      "definition": {
+        "type": "object",
+        "description": "Request body for POST /v1/systemone.",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "state",
+          "questions"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model name (e.g. \"systemone-v1\")."
+          },
+          "state": {
+            "description": "Opaque conversation state — any JSON value the caller round-trips."
+          },
+          "questions": {
+            "type": "object",
+            "description": "Map of question id → question descriptor.",
+            "additionalProperties": {
+              "$ref": "#/schemas/SystemOneQuestion"
+            }
+          },
+          "keep_alive": {
+            "description": "How long to keep the model loaded after this call. String (\"5m\") or number (seconds)."
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneResponse",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "Response body for POST /v1/systemone.",
+      "definition": {
+        "type": "object",
+        "description": "Response body for POST /v1/systemone.",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "answers",
+          "usage"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "description": "Map of question id → answer descriptor.",
+            "additionalProperties": {
+              "$ref": "#/schemas/SystemOneAnswer"
+            }
+          },
+          "usage": {
+            "$ref": "#/schemas/SystemOneUsage"
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneScoreQuestion",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "A 0–10 score question.",
+      "definition": {
+        "type": "object",
+        "description": "A 0–10 score question.",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "prompt"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "score"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneUsage",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "Token usage for a System One call.",
+      "definition": {
+        "type": "object",
+        "description": "Token usage for a System One call.",
+        "additionalProperties": false,
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens"
+        ],
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "name": "SystemOneYesNoQuestion",
+      "source": {
+        "overlay": "systemone"
+      },
+      "description": "A yes/no question.",
+      "definition": {
+        "type": "object",
+        "description": "A yes/no question.",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "prompt"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "yes_no"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
       "name": "Thinking",
       "source": {
         "openapi": "#/components/schemas/Thinking"
@@ -2187,7 +2651,10 @@
       "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
       "definition": {
         "type": "object",
-        "required": ["values", "default"],
+        "required": [
+          "values",
+          "default"
+        ],
         "description": "Thinking controls advertised by a model. Models without thinking metadata omit this field.",
         "properties": {
           "values": {
@@ -2277,7 +2744,9 @@
         "properties": {
           "function": {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -2303,16 +2772,24 @@
       },
       "definition": {
         "type": "object",
-        "required": ["type", "function"],
+        "required": [
+          "type",
+          "function"
+        ],
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["function"],
+            "enum": [
+              "function"
+            ],
             "description": "Type of tool (always `function`)"
           },
           "function": {
             "type": "object",
-            "required": ["name", "parameters"],
+            "required": [
+              "name",
+              "parameters"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -2353,7 +2830,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["url"],
+        "required": [
+          "url"
+        ],
         "properties": {
           "url": {
             "type": "string",
@@ -2397,7 +2876,9 @@
       },
       "definition": {
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "properties": {
           "query": {
             "type": "string",

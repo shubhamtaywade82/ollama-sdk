@@ -23,6 +23,8 @@ import type {
   ShowRequest,
   ShowResponse,
   StatusResponse,
+  SystemOneRequest,
+  SystemOneResponse,
   VersionResponse,
 } from '../models/index.js';
 import {
@@ -163,7 +165,7 @@ export class NativeApi {
     });
   }
 
-  systemOne(request: Record<string, unknown>): Promise<unknown> {
+  systemOne(request: SystemOneRequest): Promise<SystemOneResponse> {
     return this.runtime.invoke({
       operation: systemOneOp,
       body: request,

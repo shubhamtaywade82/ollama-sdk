@@ -17,7 +17,7 @@
  * (delegating to `OllamaRuntime.invoke`) is wired by the hand-written
  * `GeneratedOllamaTools` adapter in `src/mcp/generated-bridge.ts`.
  */
-import type { JsonSchemaNode, OperationContract, SchemaContract } from '../../types.js';
+import type { JsonSchemaNode, OperationContract, OperationParameter, SchemaContract } from '../../types.js';
 import type { EmittedFile } from '../typescript/models.js';
 
 const HEADER = '';
@@ -59,15 +59,83 @@ export function emitMcpTools(
   };
 }
 
-/** A minimal input schema for operations without an OpenAPI request schema. */
-function fallbackInputSchema(op: OperationContract): Record<string, unknown> {
+/**
+ * Wave 12 (P1 #5 + #8): derive an MCP input schema for operations that
+ * don't have a request body schema. Previously the emitter fell back to
+ * `{ prompt: string, additionalProperties: true }` — a fabricated,
+ * non-contract-shaped schema that misled MCP consumers into thinking
+ * every such operation takes a free-form prompt.
+ *
+ * The new fallback is structurally derived from the operation's
+ * declared parameters (Wave 12 P1 #8 added these to the IR):
+ *   - Path parameters become required string fields.
+ *   - Operations with no parameters and no body (e.g. /api/version,
+ *     /api/tags, /api/ps) get an empty object schema.
+ *
+ * Example: GET /v1/models/{model} →
+ *   { type: 'object', properties: { model: { type: 'string' } },
+ *     required: ['model'], additionalProperties: false }
+ *
+ * Example: GET /api/version →
+ *   { type: 'object', properties: {}, additionalProperties: false }
+ *
+ * This is honest about what the operation actually accepts — the MCP
+ * consumer can call the tool with the right shape immediately, without
+ * having to read the Ollama docs to discover that the "prompt" field the
+ * generator invented doesn't actually exist.
+ *
+ * Wave 12 P1 #8: the IR now carries `parameters` structurally. We
+ * prefer that field when present (it's the canonical source) and fall
+ * back to extracting from the path template for backwards compat with
+ * any operation the normalizer hasn't yet enriched.
+ */
+function deriveInputSchemaFromPath(op: OperationContract): Record<string, unknown> {
+  // Prefer the IR's structural parameters field when present.
+  const params: readonly OperationParameter[] =
+    op.parameters && op.parameters.length > 0
+      ? op.parameters
+      : extractPathParams(op.path).map(
+          (name): OperationParameter => ({
+            name,
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          }),
+        );
+  if (params.length === 0) {
+    return {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+      description: `${op.method} ${op.path} takes no request body.`,
+    };
+  }
+  const properties: Record<string, unknown> = {};
+  const required: string[] = [];
+  for (const p of params) {
+    properties[p.name] = {
+      ...(p.schema ?? { type: 'string' }),
+      ...(p.description ? { description: p.description } : { description: `${p.in} parameter: ${p.name}` }),
+    };
+    if (p.required) required.push(p.name);
+  }
   return {
     type: 'object',
-    properties: {
-      prompt: { type: 'string', description: `Input for ${op.id}` },
-    },
-    additionalProperties: true,
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+    additionalProperties: false,
+    description: `${op.method} ${op.path} — ${params.length} parameter${params.length === 1 ? '' : 's'}.`,
   };
+}
+
+/** Extract `{name}` segments from a path template like `/v1/models/{model}`. */
+function extractPathParams(path: string): string[] {
+  const matches = path.matchAll(/\{([^}]+)\}/g);
+  const out: string[] = [];
+  for (const m of matches) {
+    if (m[1]) out.push(m[1]);
+  }
+  return out;
 }
 
 /** Convert an IR schema definition into an MCP inputSchema (JSON Schema object). */
@@ -161,7 +229,12 @@ export function buildToolDescriptors(
         ?.replace(/^#\/schemas\//, '')
         .replace(/^#\/components\/schemas\//, '');
       const reqSchema = reqRef ? lookup.get(reqRef) : undefined;
-      const inputSchema = schemaToInputSchema(reqSchema, lookup) ?? fallbackInputSchema(op);
+      // Wave 12 (P1 #5): when the operation has no request body schema,
+      // derive the MCP input schema from the path (path params become
+      // required string fields; parameterless GET/HEAD gets an empty
+      // object). The previous `{ prompt: string }` fallback fabricated a
+      // field the actual API doesn't accept.
+      const inputSchema = schemaToInputSchema(reqSchema, lookup) ?? deriveInputSchemaFromPath(op);
       const annotations = annotationsFor(op);
       return {
         name: `ollama_${op.id}`,
