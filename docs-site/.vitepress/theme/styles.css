@@ -1,0 +1,58 @@
+/* Ollama SDK docs — teal/emerald accent palette overriding the default theme.
+   VitePress exposes these as CSS variables consumed by the default theme. */
+
+:root {
+  /* Primary accent — emerald 500. */
+  --vp-c-brand-1: #10b981;
+  /* Hover/active — emerald 600. */
+  --vp-c-brand-2: #059669;
+  /* Soft accent — emerald 400, used for chips and subtle borders. */
+  --vp-c-brand-3: #34d399;
+  /* Brand text — slightly deeper teal for headings on light backgrounds. */
+  --vp-c-brand: #0d9488;
+
+  --vp-c-brand-light: #34d399;
+  --vp-c-brand-lighter: #6ee7b7;
+  --vp-c-brand-dark: #059669;
+  --vp-c-brand-darker: #047857;
+
+  /* Tinted backgrounds for hero/code blocks. */
+  --vp-c-bg-soft-up: #f0fdf4;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #10b981 30%, #0d9488);
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at 50% 50%,
+    rgba(16, 185, 129, 0.18),
+    transparent 60%
+  );
+  --vp-home-hero-image-filter: blur(44px);
+
+  --vp-button-brand-bg: #10b981;
+  --vp-button-brand-hover-bg: #059669;
+  --vp-button-brand-active-bg: #047857;
+}
+
+.dark {
+  --vp-c-brand-1: #34d399;
+  --vp-c-brand-2: #10b981;
+  --vp-c-brand-3: #6ee7b7;
+  --vp-c-brand: #34d399;
+
+  --vp-c-brand-light: #10b981;
+  --vp-c-brand-lighter: #34d399;
+  --vp-c-brand-dark: #6ee7b7;
+  --vp-c-brand-darker: #a7f3d0;
+
+  --vp-home-hero-name-background: linear-gradient(120deg, #34d399 30%, #0d9488);
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at 50% 50%,
+    rgba(52, 211, 153, 0.22),
+    transparent 60%
+  );
+}
+
+/* Tidy up code block contrast against the emerald accent. */
+:root {
+  --vp-code-line-highlight-color: rgba(16, 185, 129, 0.10);
+  --vp-code-line-number-color: #94a3b8;
+}

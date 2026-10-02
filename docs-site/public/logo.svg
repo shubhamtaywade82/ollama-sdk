@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Ollama SDK">
+  <rect width="32" height="32" rx="7" fill="#0d9488"/>
+  <path d="M9 11.5c0-1.4 1.1-2.5 2.5-2.5h9C21.9 9 23 10.1 23 11.5v9c0 1.4-1.1 2.5-2.5 2.5h-9C10.1 23 9 21.9 9 20.5v-9z" fill="#fff" opacity="0.92"/>
+  <circle cx="13" cy="15" r="1.4" fill="#0d9488"/>
+  <circle cx="19" cy="15" r="1.4" fill="#0d9488"/>
+  <path d="M12.5 18.5c1 1.1 2.3 1.7 3.5 1.7s2.5-.6 3.5-1.7" stroke="#0d9488" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+</svg>
