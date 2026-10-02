@@ -4,13 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** Answer to a single System One question. */
-export interface SystemOneAnswer {
-  readonly type: 'choice' | 'yes_no' | 'score';
-  /** Present when type=choice — the selected choice. */
-  readonly choice?: string | undefined;
-  /** Present when type=yes_no. */
-  readonly yes_no?: boolean | undefined;
-  /** Present when type=score — 0 through 10. */
-  readonly score?: number | undefined;
-}
+import type { SystemOneChoiceAnswer, SystemOneNoulAnswer, SystemOneScoreAnswer } from './index.js';
+
+/** Discriminated union of the three answer kinds. */
+export type SystemOneAnswer = SystemOneChoiceAnswer | SystemOneNoulAnswer | SystemOneScoreAnswer;

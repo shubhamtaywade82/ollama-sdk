@@ -5,9 +5,14 @@
 import { z } from 'zod';
 import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-/** A scored question with 2–26 ordered criteria (rubric). */
-export const SystemOneScoreQuestionSchema = z.object({
-  type: z.enum(['score']),
+/** A yes/no (noul) question returning a boolean + probability. */
+export const SystemOneNoulQuestionSchema = z.object({
+  type: z.enum(['noul']),
   instructions: SystemOneContentSchema,
-  criteria: z.array(z.string()),
+  criteria: z
+    .object({
+      true: z.string().optional(),
+      false: z.string().optional(),
+    })
+    .optional(),
 });

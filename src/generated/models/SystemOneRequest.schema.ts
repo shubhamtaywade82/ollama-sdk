@@ -3,12 +3,14 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
+import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 import { SystemOneQuestionSchema } from './SystemOneQuestion.schema.js';
 
 /** Request body for POST /v1/systemone. */
 export const SystemOneRequestSchema = z.object({
   model: z.string(),
-  state: z.unknown(),
+  state: SystemOneContentSchema,
+  images: z.array(z.string()).optional(),
   questions: z.object({}).catchall(SystemOneQuestionSchema),
-  keep_alive: z.unknown().optional(),
+  keep_alive: z.union([z.string(), z.number()]).optional(),
 });

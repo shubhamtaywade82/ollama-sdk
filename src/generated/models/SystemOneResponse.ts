@@ -9,7 +9,7 @@ import type { SystemOneAnswer, SystemOneUsage } from './index.js';
 /** Response body for POST /v1/systemone. */
 export interface SystemOneResponse {
   readonly model: string;
-  /** Map of question id → answer descriptor. */
+  /** Map of question id → typed answer. */
   readonly answers: {
     [key: string]: SystemOneAnswer;
   };

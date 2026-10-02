@@ -173,6 +173,13 @@ export interface OperationContract {
   readonly constraints?: {
     readonly minOllamaVersion?: string;
     readonly maxRequestBytes?: number;
+    /**
+     * Wave 13: request size limit when the body contains images.
+     * System One allows 32 MiB when images are present (vs 64 KiB
+     * without). The runtime checks the body for an `images` array
+     * and applies the higher limit when it's non-empty.
+     */
+    readonly maxRequestBytesWithImages?: number;
   };
 
   readonly status: {

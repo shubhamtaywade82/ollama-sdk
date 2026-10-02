@@ -4,8 +4,9 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** A yes/no question. */
-export interface SystemOneYesNoQuestion {
-  readonly type: 'yes_no';
-  readonly prompt: string;
-}
+/** Probability distribution over criteria (choice/noul answers).
+Keys are criterion labels; values are probabilities (0–1).
+ */
+export type SystemOneProbabilities = {
+  [key: string]: number;
+};

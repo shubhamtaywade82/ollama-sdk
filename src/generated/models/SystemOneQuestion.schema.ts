@@ -4,12 +4,12 @@
 
 import { z } from 'zod';
 import { SystemOneChoiceQuestionSchema } from './SystemOneChoiceQuestion.schema.js';
+import { SystemOneNoulQuestionSchema } from './SystemOneNoulQuestion.schema.js';
 import { SystemOneScoreQuestionSchema } from './SystemOneScoreQuestion.schema.js';
-import { SystemOneYesNoQuestionSchema } from './SystemOneYesNoQuestion.schema.js';
 
-/** Discriminated union of the three documented question kinds. */
+/** Discriminated union of the three question kinds. */
 export const SystemOneQuestionSchema = z.union([
   SystemOneChoiceQuestionSchema,
-  SystemOneYesNoQuestionSchema,
+  SystemOneNoulQuestionSchema,
   SystemOneScoreQuestionSchema,
 ]);

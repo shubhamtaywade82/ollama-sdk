@@ -200,6 +200,9 @@ function buildOperationContract(
           ...(limits?.maxRequestBytes !== undefined
             ? { maxRequestBytes: limits.maxRequestBytes }
             : {}),
+          ...(limits?.maxRequestBytesWithImages !== undefined
+            ? { maxRequestBytesWithImages: limits.maxRequestBytesWithImages }
+            : {}),
         }
       : undefined;
 

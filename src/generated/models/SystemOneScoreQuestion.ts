@@ -4,8 +4,12 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-/** A 0–10 score question. */
+import type { SystemOneContent } from './index.js';
+
+/** A scored question with 2–26 ordered criteria (rubric). */
 export interface SystemOneScoreQuestion {
   readonly type: 'score';
-  readonly prompt: string;
+  readonly instructions: SystemOneContent;
+  /** Ordered list of 2–26 rubric levels (low → high). */
+  readonly criteria: readonly string[];
 }

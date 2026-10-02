@@ -6,7 +6,6 @@ import { z } from 'zod';
 
 /** Token usage for a System One call. */
 export const SystemOneUsageSchema = z.object({
-  prompt_tokens: z.number(),
-  completion_tokens: z.number(),
-  total_tokens: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
 });

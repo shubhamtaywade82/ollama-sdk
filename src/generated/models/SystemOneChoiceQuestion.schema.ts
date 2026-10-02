@@ -3,10 +3,11 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
+import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 
-/** A multiple-choice question. */
+/** A multiple-choice question with 2–26 named criteria. */
 export const SystemOneChoiceQuestionSchema = z.object({
   type: z.enum(['choice']),
-  prompt: z.string(),
-  choices: z.array(z.string()),
+  instructions: SystemOneContentSchema,
+  criteria: z.object({}).catchall(z.union([z.string(), z.null()])),
 });

@@ -3,13 +3,6 @@
   "version": 1,
   "endpoints": [
     {
-      "path": "/v1/systemone",
-      "method": "POST",
-      "upstream": "https://docs.ollama.com/api",
-      "introducedIn": "0.35.0",
-      "rationale": "Documented on the rendered native API index page; not yet present in the pinned OpenAPI snapshot (86fc5e9) or any compat MDX."
-    },
-    {
       "path": "/api/web_search",
       "method": "POST",
       "upstream": "https://docs.ollama.com/api#web-search",

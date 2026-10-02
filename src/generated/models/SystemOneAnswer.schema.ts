@@ -3,11 +3,13 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
+import { SystemOneChoiceAnswerSchema } from './SystemOneChoiceAnswer.schema.js';
+import { SystemOneNoulAnswerSchema } from './SystemOneNoulAnswer.schema.js';
+import { SystemOneScoreAnswerSchema } from './SystemOneScoreAnswer.schema.js';
 
-/** Answer to a single System One question. */
-export const SystemOneAnswerSchema = z.object({
-  type: z.enum(['choice', 'yes_no', 'score']),
-  choice: z.string().optional(),
-  yes_no: z.boolean().optional(),
-  score: z.number().optional(),
-});
+/** Discriminated union of the three answer kinds. */
+export const SystemOneAnswerSchema = z.union([
+  SystemOneChoiceAnswerSchema,
+  SystemOneNoulAnswerSchema,
+  SystemOneScoreAnswerSchema,
+]);

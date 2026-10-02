@@ -210,25 +210,33 @@ export class OllamaRuntime {
       }
     }
 
-    // Wave 12 (P0 #5): enforce `constraints.maxRequestBytes` BEFORE the
-    // request is sent. The Ollama server returns 413 for oversized bodies;
-    // failing fast client-side avoids the round-trip and gives the caller a
-    // structured error rather than a generic 413 from the server. The
-    // check is unconditional (not opt-in) because the contract explicitly
-    // declares the limit — there's no reason to ever send a body the
-    // contract says is too large.
-    const maxBytes = req.operation.constraints?.maxRequestBytes;
-    if (maxBytes !== undefined && body !== undefined) {
+    // Wave 12 (P0 #5) + Wave 13: enforce request size limits BEFORE
+    // the request is sent. The Ollama server returns 413 for oversized
+    // bodies; failing fast client-side avoids the round-trip.
+    //
+    // Wave 13 adds conditional limits: when the operation declares
+    // `maxRequestBytesWithImages` AND the body contains a non-empty
+    // `images` array, the higher limit applies (e.g. System One allows
+    // 32 MiB with images vs 64 KiB without). When images are absent
+    // or the operation doesn't declare a separate images limit, the
+    // base `maxRequestBytes` applies.
+    if (body !== undefined) {
       const serialized = serializeForByteCount(body);
-      if (serialized.byteLength > maxBytes) {
+      const hasImages = bodyHasImages(body);
+      const maxBytesWithImages = req.operation.constraints?.maxRequestBytesWithImages;
+      const maxBytesBase = req.operation.constraints?.maxRequestBytes;
+      const applicableLimit =
+        hasImages && maxBytesWithImages !== undefined ? maxBytesWithImages : maxBytesBase;
+      if (applicableLimit !== undefined && serialized.byteLength > applicableLimit) {
         throw new OllamaRequestTooLargeError(
           `Operation ${req.operation.operationId} (${req.operation.method} ` +
             `${req.operation.path}) request body is ${serialized.byteLength} bytes, ` +
-            `exceeding the contract limit of ${maxBytes} bytes.`,
+            `exceeding the contract limit of ${applicableLimit} bytes` +
+            (hasImages ? ' (images limit).' : '.'),
           {
             operationId: req.operation.operationId,
             actualBytes: serialized.byteLength,
-            maxBytes,
+            maxBytes: applicableLimit,
             request: { method: req.operation.method, url: req.operation.path },
           },
         );
@@ -417,4 +425,21 @@ function serializeForByteCount(body: unknown): Uint8Array {
   // HttpClient calls JSON.stringify on the body before sending — match that.
   const json = JSON.stringify(body);
   return new TextEncoder().encode(json);
+}
+
+/**
+ * Wave 13: detect whether a request body carries a non-empty `images`
+ * array. Used by the request-size guard to select between the base
+ * `maxRequestBytes` limit and the higher `maxRequestBytesWithImages`
+ * limit (e.g. System One: 64 KiB without images, 32 MiB with).
+ *
+ * Returns true only when the body is an object with an `images` property
+ * that is a non-empty array. Falsy/absent/empty images → false (base
+ * limit applies).
+ */
+function bodyHasImages(body: unknown): boolean {
+  if (typeof body !== 'object' || body === null) return false;
+  const obj = body as Record<string, unknown>;
+  const images = obj.images;
+  return Array.isArray(images) && images.length > 0;
 }

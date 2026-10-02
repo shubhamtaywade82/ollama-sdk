@@ -4,18 +4,28 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { SystemOneQuestion } from './index.js';
+import type { SystemOneContent, SystemOneQuestion } from './index.js';
 
 /** Request body for POST /v1/systemone. */
 export interface SystemOneRequest {
-  /** Model name (e.g. "systemone-v1"). */
+  /** Model name (e.g. "tev1:4b"). */
   readonly model: string;
-  /** Opaque conversation state — any JSON value the caller round-trips. */
-  readonly state: unknown;
-  /** Map of question id → question descriptor. */
+  readonly state: SystemOneContent;
+  /** Base64-encoded images for vision-compatible models. Only
+supported by models with vision weights (e.g. Clef/Clef
+Flash). When images are present, the request size limit
+increases from 64 KiB to 32 MiB.
+ */
+  readonly images?: readonly string[] | undefined;
+  /** Map of question id → question descriptor. 1–64 questions
+per request. Each question is one of three discriminated
+types: choice, noul, or score.
+ */
   readonly questions: {
     [key: string]: SystemOneQuestion;
   };
-  /** How long to keep the model loaded after this call. String ("5m") or number (seconds). */
-  readonly keep_alive?: unknown | undefined;
+  /** How long to keep the model loaded after this call. String
+(e.g. "5m") or number (seconds).
+ */
+  readonly keep_alive?: string | number | undefined;
 }

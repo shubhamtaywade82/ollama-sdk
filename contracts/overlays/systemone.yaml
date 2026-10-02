@@ -1,23 +1,26 @@
 # System One overlay.
 #
-# Ollama's /v1/systemone endpoint is the canonical example of an operation
-# that the legacy `docs/api-parity.json` manifest silently missed: it was
-# added to the official Ollama documentation but never declared in the
-# parity manifest, and the legacy verifier had no opinion about that because
-# it only checked `manifest -> docs`, never `docs -> manifest`.
+# Wave 13: /v1/systemone is now declared in the OpenAPI source
+# (contracts/sources/ollama.openapi.yaml) with the full SystemOne*
+# schema family. This overlay now provides ONLY behavioral metadata
+# that OpenAPI cannot express — the structural schemas (request,
+# response, question/answer discriminated unions, usage, content,
+# probabilities, confidence) are all sourced from OpenAPI.
 #
-# This overlay declares every behavioral constraint the OpenAPI spec cannot
-# express:
+# Wave 12 originally synthesized this operation from the overlay alone
+# (path: + method: + inline schemas) because the pinned OpenAPI
+# snapshot didn't contain it. Wave 13 refreshes the OpenAPI source to
+# match upstream Ollama, making the workaround obsolete.
 #
+# Behavioral constraints declared here:
 #   - local-only (Ollama Cloud does not support it)
 #   - requires Ollama >= 0.35.0
 #   - no streaming
-#   - no images, no tools, no generation controls
-#   - hard 64 KiB request size limit
-#
-# Once this overlay is in place, the bidirectional discovery validator
-# (generator/validators/endpoint-validator.ts) will catch any future drift
-# in either direction.
+#   - no tools, no thinking, no structured output, no logprobs, no embeddings
+#   - vision is model-dependent (Clef/Clef Flash support images; text-only
+#     models do not)
+#   - 64 KiB request limit without images, 32 MiB with images
+#   - experimental: behavioral surface may change between Ollama releases
 
 version: 1
 service: ollama
@@ -25,12 +28,10 @@ domain: native
 
 operations:
   systemOne:
-    # /v1/systemone is documented by Ollama but absent from the pinned
-    # OpenAPI snapshot (contracts/sources/ollama.openapi.yaml). Declaring
-    # it via `path:` + `method:` (instead of `openapi:`) tells the
-    # normalizer to synthesize the operation from this overlay alone.
-    path: /v1/systemone
-    method: POST
+    # Wave 13: reference the OpenAPI path directly. The normalizer
+    # inherits method, path, request schema ref, and response schema
+    # ref from the OpenAPI operation — no more path:/method: workaround.
+    openapi: /v1/systemone
     runtime:
       streaming: unsupported
       transport: json
@@ -41,9 +42,10 @@ operations:
       minVersion: 0.35.0
     limits:
       maxRequestBytes: 65536
+      maxRequestBytesWithImages: 33554432
     capabilities:
       tools: unsupported
-      vision: unsupported
+      vision: model-dependent
       thinking: unsupported
       structuredOutput: unsupported
       logprobs: unsupported
@@ -51,153 +53,9 @@ operations:
     status:
       documented: true
       experimental: true
-    # Wave 12 (P0 #4): point at the inline schemas declared below. This
-    # makes the generated NativeApi.systemOne method typed —
-    # `systemOne(request: SystemOneRequest): Promise<SystemOneResponse>`
-    # instead of `Record<string, unknown> → Promise<unknown>`.
-    requestSchema: SystemOneRequest
-    responseSchema: SystemOneResponse
     notes:
       - 'Local-only; Ollama Cloud rejects /v1/systemone.'
-      - 'Hard 64 KiB request body limit enforced by the server.'
-      - 'No images, no tools, no generation controls (temperature, top_p, etc.).'
+      - '64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).'
+      - 'No tools, no generation controls (temperature, top_p, etc.).'
+      - 'Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.'
       - 'Experimental: behavioral surface may change between Ollama releases.'
-
-# Wave 12 (P0 #4): inline schemas for /v1/systemone. These mirror the
-# official Ollama documentation: the request carries a model, opaque
-# state, and a map of typed questions; the response carries a matching
-# map of typed answers and a usage block. The discriminated `question`
-# union captures the three documented question kinds (choice, yes/no,
-# score). The same definitions feed the generated TypeScript models,
-# Zod schemas, and the MCP tool input schema.
-schemas:
-  SystemOneRequest:
-    type: object
-    description: 'Request body for POST /v1/systemone.'
-    additionalProperties: false
-    required:
-      - model
-      - state
-      - questions
-    properties:
-      model:
-        type: string
-        description: 'Model name (e.g. "systemone-v1").'
-      state:
-        description: 'Opaque conversation state — any JSON value the caller round-trips.'
-      questions:
-        type: object
-        description: 'Map of question id → question descriptor.'
-        additionalProperties:
-          $ref: '#/schemas/SystemOneQuestion'
-      keep_alive:
-        description: 'How long to keep the model loaded after this call. String ("5m") or number (seconds).'
-
-  SystemOneQuestion:
-    description: 'Discriminated union of the three documented question kinds.'
-    oneOf:
-      - $ref: '#/schemas/SystemOneChoiceQuestion'
-      - $ref: '#/schemas/SystemOneYesNoQuestion'
-      - $ref: '#/schemas/SystemOneScoreQuestion'
-
-  SystemOneChoiceQuestion:
-    type: object
-    description: 'A multiple-choice question.'
-    additionalProperties: false
-    required:
-      - type
-      - prompt
-      - choices
-    properties:
-      type:
-        type: string
-        enum: ['choice']
-      prompt:
-        type: string
-      choices:
-        type: array
-        items:
-          type: string
-
-  SystemOneYesNoQuestion:
-    type: object
-    description: 'A yes/no question.'
-    additionalProperties: false
-    required:
-      - type
-      - prompt
-    properties:
-      type:
-        type: string
-        enum: ['yes_no']
-      prompt:
-        type: string
-
-  SystemOneScoreQuestion:
-    type: object
-    description: 'A 0–10 score question.'
-    additionalProperties: false
-    required:
-      - type
-      - prompt
-    properties:
-      type:
-        type: string
-        enum: ['score']
-      prompt:
-        type: string
-
-  SystemOneResponse:
-    type: object
-    description: 'Response body for POST /v1/systemone.'
-    additionalProperties: false
-    required:
-      - model
-      - answers
-      - usage
-    properties:
-      model:
-        type: string
-      answers:
-        type: object
-        description: 'Map of question id → answer descriptor.'
-        additionalProperties:
-          $ref: '#/schemas/SystemOneAnswer'
-      usage:
-        $ref: '#/schemas/SystemOneUsage'
-
-  SystemOneAnswer:
-    type: object
-    description: 'Answer to a single System One question.'
-    additionalProperties: false
-    required:
-      - type
-    properties:
-      type:
-        type: string
-        enum: ['choice', 'yes_no', 'score']
-      choice:
-        type: string
-        description: 'Present when type=choice — the selected choice.'
-      yes_no:
-        type: boolean
-        description: 'Present when type=yes_no.'
-      score:
-        type: number
-        description: 'Present when type=score — 0 through 10.'
-
-  SystemOneUsage:
-    type: object
-    description: 'Token usage for a System One call.'
-    additionalProperties: false
-    required:
-      - prompt_tokens
-      - completion_tokens
-      - total_tokens
-    properties:
-      prompt_tokens:
-        type: integer
-      completion_tokens:
-        type: integer
-      total_tokens:
-        type: integer

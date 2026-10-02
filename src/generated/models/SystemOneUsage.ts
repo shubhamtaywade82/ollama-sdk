@@ -6,7 +6,6 @@
 
 /** Token usage for a System One call. */
 export interface SystemOneUsage {
-  readonly prompt_tokens: number;
-  readonly completion_tokens: number;
-  readonly total_tokens: number;
+  readonly input_tokens: number;
+  readonly output_tokens: number;
 }
