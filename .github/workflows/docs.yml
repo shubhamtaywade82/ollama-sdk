@@ -1,0 +1,68 @@
+# Build and deploy the VitePress docs site to GitHub Pages.
+#
+# This workflow runs on every push to main that touches docs-site/ or
+# this workflow file. It builds the VitePress site and deploys it to
+# https://shubhamtaywade82.github.io/ollama-sdk/
+#
+# Prerequisites (one-time setup in the repo settings):
+#   1. Go to Settings → Pages
+#   2. Under "Build and deployment" → "Source", select "GitHub Actions"
+#   3. That's it — this workflow handles the rest.
+#
+# The site is served from the gh-pages environment. The first deployment
+# will take ~1 minute; subsequent deployments are faster (incremental
+# cache).
+
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-site/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install docs-site dependencies
+        run: cd docs-site && npm ci
+
+      - name: Build VitePress site
+        run: cd docs-site && npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/.vitepress/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
