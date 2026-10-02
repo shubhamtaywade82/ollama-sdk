@@ -102,6 +102,7 @@ describe('contract IR: bidirectional endpoint discovery', () => {
       discovered: ['/v1/future-endpoint'],
       missingDeclared: [],
       undeclaredDiscovered: ['/v1/future-endpoint'],
+      missingOperations: [],
     };
     expect(() => assertNoDiscoveryDrift(report)).toThrow(/missing from contract IR/);
     // Reference fakeSources to satisfy noUnusedLocals — this branch is only

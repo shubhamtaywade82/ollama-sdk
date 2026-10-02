@@ -15,6 +15,7 @@ export { blobsOp as blobs } from './operations.js';
 export { chatOp as chat } from './operations.js';
 export { copyOp as copy } from './operations.js';
 export { createOp as create } from './operations.js';
+export { createBlobOp as createBlob } from './operations.js';
 export { deleteOp as delete } from './operations.js';
 export { embedOp as embed } from './operations.js';
 export { generateOp as generate } from './operations.js';

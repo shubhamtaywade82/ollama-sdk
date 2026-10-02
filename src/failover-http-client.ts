@@ -71,28 +71,29 @@ export class FailoverHttpClient implements RuntimeHttpClient {
    *   - Fails over to the next candidate on retryable errors
    *   - Reports success/failure to the endpoint health tracker
    *
+   * Wave 15 (P1): the model is extracted from the request body by the
+   * runtime and passed via the `model` field on the options. This lets
+   * the failover layer filter endpoints by `OllamaEndpoint.models`
+   * (credential-scoped routing). If no model is provided, all endpoints
+   * are considered.
+   *
    * The `raw` option (for streaming responses) is passed through
    * unchanged — executeWithFailover returns whatever the operation
    * callback returns, including raw Response objects.
    */
-  async request<T>(options: HttpRequestOptions): Promise<T> {
+  async request<T>(options: HttpRequestOptions & { model?: string }): Promise<T> {
+    const { model, ...httpOptions } = options;
     return this.client.executeWithFailover(
       async (http, signal) => {
-        // Merge the caller's signal with the failover timeout signal.
-        // The failover signal is the authoritative timeout; the caller's
-        // signal is for per-call abort. If either fires, the request is
-        // aborted.
         const mergedOptions: HttpRequestOptions = {
-          ...options,
-          ...(options.signal !== undefined ? { signal } : { signal }),
+          ...httpOptions,
+          ...(httpOptions.signal !== undefined ? { signal } : { signal }),
         };
         return http.request<T>(mergedOptions);
       },
       {
-        // Don't restrict to a single endpoint — the generated runtime
-        // benefits from full failover just like the hand-written
-        // OllamaClient methods do.
         singleEndpoint: false,
+        ...(model !== undefined ? { model } : {}),
       },
     );
   }

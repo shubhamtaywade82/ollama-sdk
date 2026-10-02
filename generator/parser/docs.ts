@@ -34,6 +34,14 @@ export interface DocsSource {
 export interface DiscoveredEndpoints {
   readonly endpoints: readonly string[];
   readonly bySource: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Wave 15: operation-level discovery — (method, path) pairs from the
+   * OpenAPI source. Path-only sources (MDX, documented-endpoints.json)
+   * contribute all methods (GET/POST/DELETE/PUT/PATCH/HEAD) for their
+   * paths. This lets the validator detect missing HTTP methods on paths
+   * that are already declared.
+   */
+  readonly operations: readonly { readonly method: string; readonly path: string }[];
 }
 
 const DOCS_SOURCES: readonly DocsSource[] = [
@@ -59,14 +67,47 @@ const DOCS_SOURCES: readonly DocsSource[] = [
   },
 ];
 
-interface OpenApiPathList {
-  readonly paths?: Readonly<Record<string, unknown>>;
+interface OpenApiPathItem {
+  readonly get?: unknown;
+  readonly post?: unknown;
+  readonly delete?: unknown;
+  readonly put?: unknown;
+  readonly patch?: unknown;
+  readonly head?: unknown;
 }
+
+interface OpenApiPathList {
+  readonly paths?: Readonly<Record<string, OpenApiPathItem>>;
+}
+
+const HTTP_METHODS = ['get', 'post', 'delete', 'put', 'patch', 'head'] as const;
 
 function discoverFromOpenApi(absolutePath: string): readonly string[] {
   const raw = readFileSync(absolutePath, 'utf8');
   const doc = yaml.load(raw) as OpenApiPathList;
   return Object.keys(doc.paths ?? {});
+}
+
+/**
+ * Wave 15: discover (method, path) operation pairs from the OpenAPI source.
+ * This lets the validator detect missing HTTP methods on already-declared
+ * paths (e.g. if the IR has HEAD /api/blobs/{digest} but not POST).
+ */
+function discoverOperationsFromOpenApi(
+  absolutePath: string,
+): readonly { readonly method: string; readonly path: string }[] {
+  const raw = readFileSync(absolutePath, 'utf8');
+  const doc = yaml.load(raw) as OpenApiPathList;
+  const operations: { method: string; path: string }[] = [];
+  for (const [path, item] of Object.entries(doc.paths ?? {})) {
+    if (!item || typeof item !== 'object') continue;
+    for (const method of HTTP_METHODS) {
+      if (method in (item as Record<string, unknown>)) {
+        operations.push({ method: method.toUpperCase(), path });
+      }
+    }
+  }
+  return operations;
 }
 
 /**
@@ -116,12 +157,17 @@ export function discoverEndpoints(
 ): DiscoveredEndpoints {
   const all = new Set<string>();
   const bySource: Record<string, readonly string[]> = {};
+  const allOperations: { method: string; path: string }[] = [];
 
   for (const source of sources) {
     const absolute = resolve(projectRoot, source.path);
     let discovered: readonly string[];
     if (source.format === 'openapi-yaml') {
       discovered = discoverFromOpenApi(absolute);
+      // Wave 15: also collect operation-level (method, path) pairs from
+      // the OpenAPI source. Path-only sources (MDX, JSON) don't carry
+      // method information, so only OpenAPI contributes operations.
+      allOperations.push(...discoverOperationsFromOpenApi(absolute));
     } else if (source.format === 'documented-endpoints-json') {
       discovered = discoverFromDocumentedEndpoints(absolute);
     } else {
@@ -134,6 +180,7 @@ export function discoverEndpoints(
   return {
     endpoints: [...all].sort(),
     bySource,
+    operations: allOperations,
   };
 }
 

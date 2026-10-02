@@ -35,6 +35,20 @@ export interface SchemaRef {
   readonly $ref: string;
 }
 
+/**
+ * Wave 15 (P0): structural parameter on an operation. Mirrors
+ * {@link OperationParameter} from the canonical IR. Path parameters
+ * are substituted into the operation's path template at runtime;
+ * query and header parameters are attached to the HTTP request.
+ */
+export interface OperationParameter {
+  readonly name: string;
+  readonly in: 'path' | 'query' | 'header';
+  readonly required: boolean;
+  readonly schema?: { readonly type?: string };
+  readonly description?: string;
+}
+
 /** Behavioral contract a generated operation carries into the runtime. */
 export interface OperationDefinition {
   readonly operationId: string;
@@ -57,6 +71,14 @@ export interface OperationDefinition {
    * for these operations.
    */
   readonly host?: string;
+  /**
+   * Wave 15 (P0): structural parameters derived from the path template
+   * and OpenAPI declarations. Path parameters are substituted into the
+   * URL at runtime; query and header parameters are attached to the
+   * HTTP request. The runtime uses this to URI-encode and substitute
+   * `{name}` segments in the path.
+   */
+  readonly parameters?: readonly OperationParameter[];
   readonly transport: {
     readonly mode: TransportMode;
     readonly streaming: boolean;
@@ -99,4 +121,26 @@ export interface InvokeRequest {
    * doesn't explicitly set `stream`.
    */
   readonly streamingDefault?: boolean;
+  /**
+   * Wave 15 (P0): path parameter values keyed by parameter name. The
+   * runtime substitutes these into the operation's path template
+   * (e.g. `{model}` → `gpt-4`) with URI encoding.
+   */
+  readonly pathParams?: Readonly<Record<string, string>>;
+  /**
+   * Wave 15 (P0): query parameter values keyed by parameter name.
+   * The runtime attaches these to the HTTP request URL.
+   */
+  readonly queryParams?: Readonly<Record<string, string>>;
+  /**
+   * Wave 15 (P0): header parameter values keyed by header name.
+   * The runtime attaches these to the HTTP request headers.
+   */
+  readonly headerParams?: Readonly<Record<string, string>>;
+  /**
+   * Wave 15 (P1): model name for routing. Extracted from the request
+   * body when possible; used by the failover layer to filter endpoints
+   * by `OllamaEndpoint.models` (credential-scoped routing).
+   */
+  readonly model?: string;
 }

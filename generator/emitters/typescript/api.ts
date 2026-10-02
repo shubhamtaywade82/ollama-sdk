@@ -131,20 +131,33 @@ function emitMethod(op: OperationContract): string {
   const hasBody =
     op.method === 'POST' || op.method === 'PUT' || op.method === 'PATCH' || op.method === 'DELETE';
 
+  // Wave 15 (P0): extract path parameters from the operation's parameters
+  // list. These become explicit method arguments before the request body
+  // or options object.
+  const pathParams = (op.parameters ?? []).filter((p) => p.in === 'path');
+  const pathParamArgs = pathParams.map((p) => `${p.name}: string`);
+  const pathParamObj =
+    pathParams.length > 0 ? `{ ${pathParams.map((p) => p.name).join(', ')} }` : undefined;
+
   const lines: string[] = [];
 
-  // Wave 12 (P0 #1): streaming overload now uses the streamChunk type
-  // (e.g. OpenAIChatCompletionChunk, AnthropicMessageStreamEvent) instead
-  // of the response type. The non-streaming overload still returns the
-  // final response type. For native operations where streamChunk ===
-  // resType (no compat binding), this collapses to the same shape as
-  // before — no behavior change.
+  // Wave 12 (P0 #1): streaming overload now uses the streamChunk type.
+  // Wave 15 (P0): if the operation has path parameters, they become
+  // explicit arguments before the request body.
   if (streaming) {
-    lines.push(`  ${methodName}(request: ${reqType} & { stream?: false }): Promise<${resType}>;`);
-    // Overload 2: explicit streaming
-    lines.push(
-      `  ${methodName}(request: ${reqType} & { stream: true }): Promise<AsyncGenerator<${streamChunkType}, void, undefined>>;`,
-    );
+    if (pathParamArgs.length > 0) {
+      lines.push(
+        `  ${methodName}(${pathParamArgs.join(', ')}, request: ${reqType} & { stream?: false }): Promise<${resType}>;`,
+      );
+      lines.push(
+        `  ${methodName}(${pathParamArgs.join(', ')}, request: ${reqType} & { stream: true }): Promise<AsyncGenerator<${streamChunkType}, void, undefined>>;`,
+      );
+    } else {
+      lines.push(`  ${methodName}(request: ${reqType} & { stream?: false }): Promise<${resType}>;`);
+      lines.push(
+        `  ${methodName}(request: ${reqType} & { stream: true }): Promise<AsyncGenerator<${streamChunkType}, void, undefined>>;`,
+      );
+    }
   }
 
   // Implementation signature
@@ -153,26 +166,44 @@ function emitMethod(op: OperationContract): string {
     : `Promise<${resType}>`;
 
   // GET/HEAD methods don't take a request body — accept an optional
-  // per-call options object instead.
+  // per-call options object instead. Wave 15: if the operation has path
+  // parameters, they become explicit arguments before the options object.
   if (!hasBody) {
-    lines.push(`  ${methodName}(options?: { signal?: AbortSignal }): ${implReturn} {`);
-    lines.push(`    return this.runtime.invoke({`);
-    lines.push(`      operation: ${op.id}Op,`);
-    lines.push(`      body: undefined,`);
-    lines.push(`      ...(options?.signal !== undefined ? { signal: options.signal } : {}),`);
-    lines.push(`    });`);
-    lines.push(`  }`);
+    if (pathParamArgs.length > 0) {
+      lines.push(
+        `  ${methodName}(${pathParamArgs.join(', ')}, options?: { signal?: AbortSignal }): ${implReturn} {`,
+      );
+      lines.push(`    return this.runtime.invoke({`);
+      lines.push(`      operation: ${op.id}Op,`);
+      lines.push(`      body: undefined,`);
+      lines.push(`      pathParams: ${pathParamObj},`);
+      lines.push(`      ...(options?.signal !== undefined ? { signal: options.signal } : {}),`);
+      lines.push(`    });`);
+      lines.push(`  }`);
+    } else {
+      lines.push(`  ${methodName}(options?: { signal?: AbortSignal }): ${implReturn} {`);
+      lines.push(`    return this.runtime.invoke({`);
+      lines.push(`      operation: ${op.id}Op,`);
+      lines.push(`      body: undefined,`);
+      lines.push(`      ...(options?.signal !== undefined ? { signal: options.signal } : {}),`);
+      lines.push(`    });`);
+      lines.push(`  }`);
+    }
     return lines.join('\n');
   }
 
-  lines.push(`  ${methodName}(request: ${reqType}): ${implReturn} {`);
-  lines.push(`    return this.runtime.invoke({`);
-  lines.push(`      operation: ${op.id}Op,`);
-  // If streaming is supported and the docs say the default is to stream,
-  // leave the request's own `stream` field alone — the user can override
-  // explicitly. We do NOT force `{ stream: true, ...request }` here because
-  // that would silently clobber the user's choice. The runtime applies the
-  // default when neither the request nor the overlay specifies one.
+  // POST/PUT/PATCH/DELETE with body. Wave 15: if the operation has path
+  // parameters, they become explicit arguments before the request body.
+  if (pathParamArgs.length > 0) {
+    lines.push(`  ${methodName}(${pathParamArgs.join(', ')}, request: ${reqType}): ${implReturn} {`);
+    lines.push(`    return this.runtime.invoke({`);
+    lines.push(`      operation: ${op.id}Op,`);
+    lines.push(`      pathParams: ${pathParamObj},`);
+  } else {
+    lines.push(`  ${methodName}(request: ${reqType}): ${implReturn} {`);
+    lines.push(`    return this.runtime.invoke({`);
+    lines.push(`      operation: ${op.id}Op,`);
+  }
   if (streaming && streamingDefault) {
     lines.push(`      body: request,`);
     lines.push(`      streamingDefault: true,`);
@@ -199,7 +230,16 @@ export function emitDomainApi(
   // runtime bound to the local Ollama server. Callers must use
   // OllamaClient.webSearch / OllamaClient.webFetch instead, which spin
   // up a dedicated cloud HttpClient pointed at the right host.
-  const domainOps = operations.filter((op) => op.domain === domain && !op.host);
+  //
+  // Wave 15: also skip operations that take a binary body (e.g.
+  // createBlob — POST /api/blobs/{digest} with application/octet-stream).
+  // The generated runtime JSON-encodes request bodies, so binary-body
+  // operations are handled by the hand-written OllamaClient methods.
+  // They're in the IR for endpoint-discovery completeness only.
+  const BINARY_BODY_OPS = new Set(['createBlob']);
+  const domainOps = operations.filter(
+    (op) => op.domain === domain && !op.host && !BINARY_BODY_OPS.has(op.id),
+  );
   if (domainOps.length === 0) return undefined;
 
   const className = `${pascal(domain)}Api`;

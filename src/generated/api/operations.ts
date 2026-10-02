@@ -12,6 +12,7 @@ export const blobsOp = {
   method: 'HEAD',
   path: '/api/blobs/{digest}',
   environment: { local: true, cloud: false },
+  parameters: [{ name: 'digest', in: 'path', required: true, schema: { type: 'string' } }],
   transport: { mode: 'json', streaming: false },
   capabilities: {},
   status: { documented: true },
@@ -68,6 +69,22 @@ export const createOp = {
   status: { documented: true },
   domain: 'native',
   notes: ['Model creation is local-only; Ollama Cloud does not support it.'],
+} as const satisfies OperationDefinition;
+
+export const createBlobOp = {
+  operationId: 'createBlob',
+  method: 'POST',
+  path: '/api/blobs/{digest}',
+  environment: { local: true, cloud: false },
+  parameters: [{ name: 'digest', in: 'path', required: true, schema: { type: 'string' } }],
+  transport: { mode: 'json', streaming: false },
+  capabilities: {},
+  status: { documented: true },
+  domain: 'native',
+  notes: [
+    'POST endpoint for blob creation; takes a binary body (application/octet-stream).',
+    'Handled by OllamaClient.createBlob() — the generated NativeApi does not expose this operation because the runtime JSON-encodes request bodies.',
+  ],
 } as const satisfies OperationDefinition;
 
 export const deleteOp = {
@@ -319,6 +336,7 @@ export const openaiModelsGetOneOp = {
   method: 'GET',
   path: '/v1/models/{model}',
   environment: { local: true, cloud: true },
+  parameters: [{ name: 'model', in: 'path', required: true, schema: { type: 'string' } }],
   transport: { mode: 'json', streaming: false },
   capabilities: {},
   status: { documented: true },
@@ -360,6 +378,7 @@ export const allOperations = [
   chatOp,
   copyOp,
   createOp,
+  createBlobOp,
   deleteOp,
   embedOp,
   generateOp,

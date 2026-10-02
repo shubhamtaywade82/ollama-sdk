@@ -417,6 +417,25 @@ operations:
     notes:
       - 'HEAD-only endpoint for blob existence checks; declared in OpenAPI but not in the legacy parity manifest.'
 
+  # Wave 15: POST /api/blobs/{digest} is the blob creation endpoint. It
+  # takes a binary body (application/octet-stream), not JSON, so the
+  # generated NativeApi cannot handle it through the standard invoke()
+  # path. The hand-written OllamaClient.createBlob() owns this operation.
+  # It's declared here for endpoint-discovery completeness (the operation-
+  # level validator checks (method, path) pairs, not just paths).
+  createBlob:
+    openapi: /api/blobs/{digest}
+    method: POST
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: unsupported
+    notes:
+      - 'POST endpoint for blob creation; takes a binary body (application/octet-stream).'
+      - 'Handled by OllamaClient.createBlob() — the generated NativeApi does not expose this operation because the runtime JSON-encodes request bodies.'
+
 # Bridge to the legacy docs/api-parity.json surface ids. Adding an entry here
 # makes the normalizer emit a ParitySurfaceMapping entry, which keeps
 # verify-api-parity.ts and the new contract system in lock-step during the

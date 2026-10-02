@@ -99,6 +99,29 @@
       "notes": ["Model creation is local-only; Ollama Cloud does not support it."]
     },
     {
+      "operationId": "createBlob",
+      "method": "POST",
+      "path": "/api/blobs/{digest}",
+      "domain": "native",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {},
+      "status": {
+        "documented": true
+      },
+      "notes": [
+        "POST endpoint for blob creation; takes a binary body (application/octet-stream).",
+        "Handled by OllamaClient.createBlob() — the generated NativeApi does not expose this operation because the runtime JSON-encodes request bodies."
+      ]
+    },
+    {
       "operationId": "delete",
       "method": "DELETE",
       "path": "/api/delete",

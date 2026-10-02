@@ -85,10 +85,11 @@ export class OpenAIApi {
     });
   }
 
-  openaiModelsGetOne(options?: { signal?: AbortSignal }): Promise<OpenAIModelItem> {
+  openaiModelsGetOne(model: string, options?: { signal?: AbortSignal }): Promise<OpenAIModelItem> {
     return this.runtime.invoke({
       operation: openaiModelsGetOneOp,
       body: undefined,
+      pathParams: { model },
       ...(options?.signal !== undefined ? { signal: options.signal } : {}),
     });
   }

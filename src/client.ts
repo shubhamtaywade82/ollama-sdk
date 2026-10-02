@@ -211,8 +211,23 @@ export class OllamaClient {
       const endpoint = candidates[0];
       const baseUrl = endpoint?.baseUrl ?? 'http://localhost:11434';
       const http = new FailoverHttpClient(this, baseUrl);
+      // Wave 15 (P0): provide a cloud HTTP backend for operations that
+      // declare a non-default host (web search, web fetch). This lets
+      // the generated runtime route host-bearing operations to
+      // https://ollama.com with the configured API key, rather than
+      // silently sending them to the local Ollama server.
+      const cloudHttp = new HttpClient({
+        baseUrl: OLLAMA_CLOUD_BASE_URL,
+        ...(this.cloudApiKey !== undefined ? { apiKey: this.cloudApiKey } : {}),
+        fetch: this.fetchImpl,
+        ...(this.middleware !== undefined ? { middleware: this.middleware } : {}),
+        ...(this.onLifecycleEvent !== undefined
+          ? { onLifecycleEvent: this.onLifecycleEvent }
+          : {}),
+      });
       this._runtime = new OllamaRuntime({
         http,
+        cloudHttp,
         localMode: inferRuntimeMode(baseUrl) === 'local',
       });
     }

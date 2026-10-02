@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "ff49dc8b4f4bfac8",
+  "sourceHash": "f0bfcec5685b5a8e",
   "operations": [
     {
       "id": "blobs",
@@ -238,6 +238,38 @@
           "sourceFile": "src/types.ts"
         }
       }
+    },
+    {
+      "id": "createBlob",
+      "method": "POST",
+      "path": "/api/blobs/{digest}",
+      "environment": {
+        "local": true,
+        "cloud": false
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "parameters": [
+        {
+          "name": "digest",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "notes": [
+        "POST endpoint for blob creation; takes a binary body (application/octet-stream).",
+        "Handled by OllamaClient.createBlob() — the generated NativeApi does not expose this operation because the runtime JSON-encodes request bodies."
+      ]
     },
     {
       "id": "delete",
