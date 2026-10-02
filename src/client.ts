@@ -39,6 +39,7 @@ import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { OllamaRuntime } from './generated/runtime/runtime.js';
 import { NativeApi } from './generated/api/native-api.js';
+import { FailoverHttpClient } from './failover-http-client.js';
 import type {
   SystemOneRequest as SystemOneRequestBase,
   SystemOneResponse as SystemOneResponseBase,
@@ -189,38 +190,26 @@ export class OllamaClient {
    * API with the generated `NativeApi` / `OpenAIApi` / `AnthropicApi`
    * surface without configuring two separate HttpClient instances.
    *
-   * The returned runtime is bound to the registry's first candidate
-   * endpoint (or the resolved single-endpoint config if no `endpoints`
-   * array was provided). For multi-endpoint configs that need per-call
-   * routing, prefer constructing `OllamaRuntime` directly with a
-   * specific HttpClient:
-   *
-   * ```ts
-   * const http = new HttpClient({ baseUrl: 'http://host-a:11434' });
-   * const runtime = new OllamaRuntime({ http });
-   * const api = new NativeApi(runtime);
-   * ```
+   * Wave 14: the runtime now participates in multi-endpoint failover.
+   * Each request is routed through this client's `executeWithFailover`
+   * machinery via a {@link FailoverHttpClient} wrapper. If the first
+   * candidate endpoint is down, requests automatically fail over to
+   * the next healthy candidate — matching the behavior of the
+   * hand-written OllamaClient methods (chat, generate, etc.).
    *
    * The runtime is cached on first call — subsequent calls return the
-   * same instance.
+   * same instance. The `FailoverHttpClient` holds a reference to this
+   * client, so it always sees the current endpoint registry state.
    */
   get runtime(): OllamaRuntime {
     if (this._runtime === undefined) {
-      // Pick the first candidate endpoint to bind the runtime to. The
-      // generated surface doesn't currently support multi-endpoint
-      // failover; callers needing that should keep using OllamaClient
-      // (or construct OllamaRuntime per-call with the desired endpoint).
+      // Use the first candidate's baseUrl for inferRuntimeMode() — the
+      // actual request routing picks the best healthy endpoint per call
+      // via executeWithFailover.
       const candidates = this.registry.candidates();
       const endpoint = candidates[0];
       const baseUrl = endpoint?.baseUrl ?? 'http://localhost:11434';
-      const http = new HttpClient({
-        baseUrl,
-        ...(endpoint?.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
-        ...(endpoint?.headers !== undefined ? { headers: endpoint.headers } : {}),
-        fetch: this.fetchImpl,
-        ...(this.middleware !== undefined ? { middleware: this.middleware } : {}),
-        ...(this.onLifecycleEvent !== undefined ? { onLifecycleEvent: this.onLifecycleEvent } : {}),
-      });
+      const http = new FailoverHttpClient(this, baseUrl);
       this._runtime = new OllamaRuntime({
         http,
         localMode: inferRuntimeMode(baseUrl) === 'local',
