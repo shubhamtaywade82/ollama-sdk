@@ -116,19 +116,29 @@ export function describeConformance(name: string, fn: () => void): void {
  * (vitest's runtime skip) — the test runner reports it as skipped
  * rather than passed, making the conformance suite's intent visible
  * in CI output.
+ *
+ * Conformance tests hit a REAL Ollama server, which means the first
+ * request to each model triggers a model load (downloading weights
+ * into memory). On CI this can take 10–60s for small models. The
+ * default vitest test timeout (5s) is far too short — we use 120s
+ * to match the functional test suite (see test/functional-models-blobs.test.ts).
  */
 export function itConformance(
   name: string,
   fn: (ctx: { skip: () => never }) => Promise<void>,
 ): void {
-  it(name, async (ctx) => {
-    const baseUrl = conformanceBaseUrl();
-    if (!baseUrl) {
-      ctx.skip();
-    }
-    if (!(await isOllamaReachable(baseUrl!))) {
-      ctx.skip();
-    }
-    await fn(ctx as { skip: () => never });
-  });
+  it(
+    name,
+    async (ctx) => {
+      const baseUrl = conformanceBaseUrl();
+      if (!baseUrl) {
+        ctx.skip();
+      }
+      if (!(await isOllamaReachable(baseUrl!))) {
+        ctx.skip();
+      }
+      await fn(ctx as { skip: () => never });
+    },
+    120_000,
+  );
 }
