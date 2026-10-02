@@ -171,7 +171,9 @@ export interface Decision {
 
   /**
    * Verify whether a claim is supported by evidence. Convenience
-   * wrapper around `noul()` that returns a boolean + confidence.
+   * wrapper around `noul()` that returns a boolean + the probability
+   * of true (not System One's confidence score — noul answers don't
+   * carry a separate confidence field).
    *
    * Use for: evidence verification, safety gates, prompt-injection
    * detection, compliance checks — any "is this claim true given
@@ -184,7 +186,7 @@ export interface Decision {
     instructions?: SystemOneContent;
     images?: string[];
     keepAlive?: string | number;
-  }): Promise<{ readonly verified: boolean; readonly confidence: number }>;
+  }): Promise<{ readonly verified: boolean; readonly probability: number }>;
 
   /**
    * Rank candidates by score. Sends one System One call per candidate
@@ -295,6 +297,12 @@ export function createDecision(client: OllamaClient): Decision {
         ...(params.keepAlive !== undefined ? { keep_alive: params.keepAlive } : {}),
       });
       const answer = response.answers.decision as SystemOneChoiceAnswer;
+      // `answer.choice` is one of the criteria keys (T extends string).
+      // TypeScript can't prove this relationship because createDecision()
+      // is not generic — the generic <T> lives on the Decision interface's
+      // route() method, not on the factory. The cast is safe because the
+      // caller's criteria keys define T, and the server's response choice
+      // is guaranteed by the contract to be one of those keys.
       return {
         route: answer.choice as never,
         confidence: answer.confidence,
@@ -321,7 +329,7 @@ export function createDecision(client: OllamaClient): Decision {
       const answer = response.answers.decision as SystemOneNoulAnswer;
       return {
         verified: answer.noul >= 0.5,
-        confidence: answer.noul,
+        probability: answer.noul,
       };
     },
 
@@ -349,10 +357,12 @@ export function createDecision(client: OllamaClient): Decision {
       });
       const results = await Promise.all(promises);
       // Sort by score descending (highest first). Cast through unknown to
-      // RankResult<T> — the runtime shape is correct, TypeScript just can't
-      // prove that `string` (from candidate.id) is assignable to `T`.
-      return results
-        .sort((a, b) => b.score - a.score) as unknown as ReadonlyArray<RankResult<never>>;
+      // RankResult<T>[] — same pattern as route(): the generic <T> lives
+      // on the Decision interface, not on the factory. The candidate IDs
+      // come from the caller's typed array, so the runtime shape is
+      // RankResult<T>[], but TypeScript can't prove it through the
+      // non-generic createDecision factory.
+      return results.sort((a, b) => b.score - a.score) as unknown as ReadonlyArray<RankResult<never>>;
     },
   };
 }
