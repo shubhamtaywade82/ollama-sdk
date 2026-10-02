@@ -19,5 +19,5 @@ export const GenerateRequestSchema = z.object({
   keep_alive: z.union([z.string(), z.number()]).optional(),
   options: ModelOptionsSchema.optional(),
   logprobs: z.boolean().optional(),
-  top_logprobs: z.number().int().optional(),
+  top_logprobs: z.number().optional(),
 });

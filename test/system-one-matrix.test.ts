@@ -143,14 +143,17 @@ describe('Wave 13: System One — valid requests', () => {
 });
 
 describe('Wave 13: System One — response parsing', () => {
-  it('choice answer with confidence', async () => {
+  it('choice answer with confidence (correct upstream wire format)', async () => {
+    // Wave 13 correction: confidence is a bare number (not { score }),
+    // and probabilities is required.
     const mockResponse: SystemOneResponse = {
       model: 'tev1:4b',
       answers: {
         intent: {
           type: 'choice',
           choice: 'duplicate_charge',
-          confidence: { score: 0.92 },
+          probabilities: { refund: 0.05, duplicate_charge: 0.9, cancellation: 0.05 },
+          confidence: 0.92,
         },
       },
       usage: { input_tokens: 142, output_tokens: 8 },
@@ -176,22 +179,23 @@ describe('Wave 13: System One — response parsing', () => {
     expect(result.answers.intent.type).toBe('choice');
     if (result.answers.intent.type === 'choice') {
       expect(result.answers.intent.choice).toBe('duplicate_charge');
-      expect(result.answers.intent.confidence?.score).toBe(0.92);
+      expect(result.answers.intent.confidence).toBe(0.92);
+      expect(result.answers.intent.probabilities).toBeDefined();
     }
     // Verify the request was sent correctly.
     const body = getLastBody() as { model: string; questions: unknown };
     expect(body.model).toBe('tev1:4b');
   });
 
-  it('noul answer with probability', async () => {
+  it('noul answer with probability (correct upstream wire format)', async () => {
+    // Wave 13 correction: noul answer has `noul: number` (probability of
+    // true), NOT `bool: boolean` + `probability?: number`.
     const mockResponse: SystemOneResponse = {
       model: 'tev1:4b',
       answers: {
         urgent: {
           type: 'noul',
-          bool: true,
-          probability: 0.87,
-          confidence: { score: 0.85 },
+          noul: 0.87,
         },
       },
       usage: { input_tokens: 50, output_tokens: 4 },
@@ -209,21 +213,23 @@ describe('Wave 13: System One — response parsing', () => {
 
     expect(result.answers.urgent.type).toBe('noul');
     if (result.answers.urgent.type === 'noul') {
-      expect(result.answers.urgent.bool).toBe(true);
-      expect(result.answers.urgent.probability).toBe(0.87);
+      expect(result.answers.urgent.noul).toBe(0.87);
     }
   });
 
-  it('score answer with legend and probabilities', async () => {
+  it('score answer with legend and probabilities (correct upstream wire format)', async () => {
+    // Wave 13 correction: score is a probability-weighted average (number),
+    // legend is Record<string, string>, probabilities is Record<string, number>,
+    // confidence is a bare number. All fields required.
     const mockResponse: SystemOneResponse = {
       model: 'tev1:4b',
       answers: {
         difficulty: {
           type: 'score',
-          score: 3,
-          legend: 'complex',
-          probabilities: [0.05, 0.1, 0.2, 0.55, 0.1],
-          confidence: { score: 0.78 },
+          score: 2.73,
+          legend: { '0': 'trivial', '1': 'simple', '2': 'moderate', '3': 'complex', '4': 'very_complex' },
+          probabilities: { '0': 0.05, '1': 0.1, '2': 0.2, '3': 0.55, '4': 0.1 },
+          confidence: 0.78,
         },
       },
       usage: { input_tokens: 80, output_tokens: 6 },
@@ -247,16 +253,17 @@ describe('Wave 13: System One — response parsing', () => {
 
     expect(result.answers.difficulty.type).toBe('score');
     if (result.answers.difficulty.type === 'score') {
-      expect(result.answers.difficulty.score).toBe(3);
-      expect(result.answers.difficulty.legend).toBe('complex');
-      expect(result.answers.difficulty.probabilities).toHaveLength(5);
+      expect(result.answers.difficulty.score).toBe(2.73);
+      expect(result.answers.difficulty.legend['3']).toBe('complex');
+      expect(Object.keys(result.answers.difficulty.probabilities)).toHaveLength(5);
+      expect(result.answers.difficulty.confidence).toBe(0.78);
     }
   });
 
   it('usage carries input_tokens/output_tokens (not prompt_tokens)', async () => {
     const mockResponse: SystemOneResponse = {
       model: 'tev1:4b',
-      answers: { q: { type: 'noul', bool: true } },
+      answers: { q: { type: 'noul', noul: 0.99 } },
       usage: { input_tokens: 142, output_tokens: 8 },
     };
     const client = new OllamaClient({
@@ -360,7 +367,7 @@ describe('Wave 13: System One — request size limits', () => {
       return new Response(
         JSON.stringify({
           model: 'clef:4b',
-          answers: { q: { type: 'noul', bool: true } },
+          answers: { q: { type: 'noul', noul: 0.95 } },
           usage: { input_tokens: 10, output_tokens: 2 },
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
@@ -413,7 +420,12 @@ describe('Wave 13: System One — OllamaClient.systemOne() ergonomic method', ()
     const mockResponse: SystemOneResponse = {
       model: 'tev1:4b',
       answers: {
-        intent: { type: 'choice', choice: 'refund', confidence: { score: 0.9 } },
+        intent: {
+          type: 'choice',
+          choice: 'refund',
+          probabilities: { refund: 0.9, other: 0.1 },
+          confidence: 0.9,
+        },
       },
       usage: { input_tokens: 50, output_tokens: 4 },
     };

@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "044d1da05f32a783",
+  "sourceHash": "ff49dc8b4f4bfac8",
   "operations": [
     {
       "id": "blobs",
@@ -2716,9 +2716,6 @@
                 "description": "Tokens generated internally for scoring, including prefix preparation and retries. May exceed the question count; not the length of the JSON response."
               }
             }
-          },
-          "output_tokens": {
-            "type": "integer"
           }
         }
       }

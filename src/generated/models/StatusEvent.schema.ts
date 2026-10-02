@@ -7,6 +7,6 @@ import { z } from 'zod';
 export const StatusEventSchema = z.object({
   status: z.string().optional(),
   digest: z.string().optional(),
-  total: z.number().int().optional(),
-  completed: z.number().int().optional(),
+  total: z.number().optional(),
+  completed: z.number().optional(),
 });

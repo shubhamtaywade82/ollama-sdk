@@ -109,6 +109,10 @@ export interface JsonSchemaNode {
   /** JSON Schema numeric constraints. */
   readonly minimum?: number;
   readonly maximum?: number;
+  /** JSON Schema string constraints. */
+  readonly pattern?: string;
+  readonly minLength?: number;
+  readonly maxLength?: number;
   readonly [keyword: string]: unknown;
 }
 

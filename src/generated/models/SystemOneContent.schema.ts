@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 /** A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input. */
 export const SystemOneContentSchema = z.union([
-  z.string(),
+  z.string().regex(new RegExp('\\S')),
   z.object({}).catchall(z.unknown()),
   z.array(z.unknown()),
 ]);

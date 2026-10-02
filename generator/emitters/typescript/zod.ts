@@ -109,14 +109,16 @@ function emitZod(node: JsonSchemaNode | undefined, ctx: EmissionContext): string
   }
 
   switch (type) {
-    case 'string':
-      return 'z.string()';
-    case 'integer': {
-      let expr = 'z.number().int()';
-      if (typeof node.minimum === 'number') expr += `.min(${node.minimum})`;
-      if (typeof node.maximum === 'number') expr += `.max(${node.maximum})`;
+    case 'string': {
+      let expr = 'z.string()';
+      if (typeof node.minLength === 'number') expr += `.min(${node.minLength})`;
+      if (typeof node.maxLength === 'number') expr += `.max(${node.maxLength})`;
+      if (typeof node.pattern === 'string') {
+        expr += `.regex(new RegExp(${JSON.stringify(node.pattern)}))`;
+      }
       return expr;
     }
+    case 'integer':
     case 'number': {
       let expr = 'z.number()';
       if (typeof node.minimum === 'number') expr += `.min(${node.minimum})`;

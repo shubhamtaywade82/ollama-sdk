@@ -11,7 +11,7 @@ export const ModelSummarySchema = z.object({
   remote_model: z.string().optional(),
   remote_host: z.string().optional(),
   modified_at: z.string().optional(),
-  size: z.number().int().optional(),
+  size: z.number().optional(),
   digest: z.string().optional(),
   details: z
     .object({

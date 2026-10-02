@@ -1020,8 +1020,6 @@ components:
               type: integer
               minimum: 0
               description: Tokens generated internally for scoring, including prefix preparation and retries. May exceed the question count; not the length of the JSON response.
-        output_tokens:
-          type: integer
 paths:
   /api/generate:
     post:

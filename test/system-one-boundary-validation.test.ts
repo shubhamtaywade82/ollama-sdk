@@ -218,6 +218,82 @@ describe('Wave 13: System One boundary validation — property names', () => {
   });
 });
 
+describe('Wave 13: System One boundary validation — string pattern (\\S)', () => {
+  // The upstream OpenAPI declares `pattern: '\S'` on model, state (when
+  // string), and instructions (when string). This means empty strings
+  // and whitespace-only strings are rejected. The generated Zod schemas
+  // must enforce this via .regex(new RegExp('\\S')).
+
+  it('rejects empty model (pattern: \\S)', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: '',
+      state: 'test',
+      questions: { q1: makeNoulQuestion() },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects whitespace-only model (pattern: \\S)', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: '   ',
+      state: 'test',
+      questions: { q1: makeNoulQuestion() },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty state when state is a string (pattern: \\S)', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: '',
+      questions: { q1: makeNoulQuestion() },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects whitespace-only state when state is a string', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: '   ',
+      questions: { q1: makeNoulQuestion() },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty instructions when instructions is a string', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: 'test',
+      questions: {
+        q1: { type: 'noul', instructions: '' },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects whitespace-only instructions when instructions is a string', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: 'test',
+      questions: {
+        q1: { type: 'noul', instructions: '   ' },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts non-empty model, state, and instructions', () => {
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: 'A real state',
+      questions: {
+        q1: { type: 'noul', instructions: 'A real question' },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('Wave 13: System One response validation — correct wire format', () => {
   it('accepts a real upstream choice response (confidence is a number, not an object)', () => {
     const result = SystemOneResponseSchema.safeParse({

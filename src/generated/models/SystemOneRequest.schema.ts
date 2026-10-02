@@ -9,7 +9,7 @@ import { SystemOneNoulQuestionSchema } from './SystemOneNoulQuestion.schema.js';
 import { SystemOneScoreQuestionSchema } from './SystemOneScoreQuestion.schema.js';
 
 export const SystemOneRequestSchema = z.object({
-  model: z.string(),
+  model: z.string().regex(new RegExp('\\S')),
   state: SystemOneContentSchema,
   images: z.array(z.string()).optional(),
   questions: z

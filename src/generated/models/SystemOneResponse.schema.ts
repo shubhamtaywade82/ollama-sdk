@@ -15,8 +15,7 @@ export const SystemOneResponseSchema = z.object({
       z.union([SystemOneChoiceAnswerSchema, SystemOneNoulAnswerSchema, SystemOneScoreAnswerSchema]),
     ),
   usage: z.object({
-    input_tokens: z.number().int().min(0),
-    output_tokens: z.number().int().min(0),
+    input_tokens: z.number().min(0),
+    output_tokens: z.number().min(0),
   }),
-  output_tokens: z.number().int().optional(),
 });

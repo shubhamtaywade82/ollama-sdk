@@ -37,6 +37,15 @@ export const CONFORMANCE_MODEL = process.env.OLLAMA_CONFORMANCE_MODEL ?? 'qwen3:
 export const CONFORMANCE_EMBED_MODEL =
   process.env.OLLAMA_CONFORMANCE_EMBED_MODEL ?? 'nomic-embed-text:latest';
 
+/**
+ * A System One-compatible decision model for the systemOne conformance
+ * tests. Wave 13: System One requires a dedicated decision model (not a
+ * general LLM). The default is `tev1:0.8b` (smallest System One model);
+ * override via OLLAMA_CONFORMANCE_SYSTEMONE_MODEL.
+ */
+export const CONFORMANCE_SYSTEMONE_MODEL =
+  process.env.OLLAMA_CONFORMANCE_SYSTEMONE_MODEL ?? 'tev1:0.8b';
+
 let reachable: boolean | undefined;
 
 /** Probe the server once; cache the result for the duration of the run. */

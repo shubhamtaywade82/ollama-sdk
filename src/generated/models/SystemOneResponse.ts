@@ -19,5 +19,4 @@ export interface SystemOneResponse {
     /** Tokens generated internally for scoring, including prefix preparation and retries. May exceed the question count; not the length of the JSON response. */
     readonly output_tokens: number;
   };
-  readonly output_tokens?: number | undefined;
 }
