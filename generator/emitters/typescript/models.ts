@@ -154,20 +154,17 @@ function emitInlineObject(node: JsonSchemaNode, ctx: EmissionContext): string {
   for (const [propName, propSchema] of Object.entries(props)) {
     const isRequired = required.has(propName);
     let baseType = emitType(propSchema, ctx);
-    // Wrap array types in `readonly`. emitType may return a bare `T[]` or
-    // a union like `boolean | string[]` (when items has a oneOf). We need
-    // to wrap the entire union in `readonly (...)[]`. The simplest robust
-    // approach: if the property is an array schema, wrap the union in
-    // parentheses before appending `[]`.
-    if (propSchema.type === 'array' || (!propSchema.type && propSchema.items)) {
-      // The emitType call above returns `T[]` for the array case. We need
-      // to instead return `readonly T[]`. To do that, recompute the item
-      // type and re-wrap.
+    const isArrayType =
+      propSchema.type === 'array' ||
+      (!propSchema.type && Boolean(propSchema.items)) ||
+      (Array.isArray(propSchema.type) && propSchema.type.includes('array'));
+    if (isArrayType) {
       const itemType = propSchema.items ? emitType(propSchema.items, ctx) : 'unknown';
-      // Wrap union item types in parens so `boolean | string` becomes
-      // `readonly (boolean | string)[]`, not `readonly boolean | string[]`.
       const needsParens = itemType.includes(' | ') || itemType.includes(' & ');
-      baseType = `readonly ${needsParens ? `(${itemType})` : itemType}[]`;
+      const arrayType = `readonly ${needsParens ? `(${itemType})` : itemType}[]`;
+      baseType = Array.isArray(propSchema.type)
+        ? [arrayType, ...propSchema.type.filter((t) => t !== 'array')].join(' | ')
+        : arrayType;
     }
     const type = isRequired ? baseType : `${baseType} | undefined`;
     const desc = propSchema.description;

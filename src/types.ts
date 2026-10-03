@@ -280,7 +280,7 @@ export interface ModelDetails {
   readonly parent_model?: string | undefined;
   readonly format: string;
   readonly family: string;
-  readonly families?: readonly string[] | undefined;
+  readonly families?: readonly string[] | null | undefined;
   readonly parameter_size: string;
   readonly quantization_level: string;
 }

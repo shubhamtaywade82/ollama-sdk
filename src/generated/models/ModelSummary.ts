@@ -28,7 +28,7 @@ export interface ModelSummary {
         /** Primary model family (for example `llama`) */
         readonly family?: string | undefined;
         /** All families the model belongs to, when applicable */
-        readonly families?: readonly string[] | undefined;
+        readonly families?: readonly string[] | null | undefined;
         /** Approximate parameter count label (for example `7B`, `13B`) */
         readonly parameter_size?: string | undefined;
         /** Quantization level used (for example `Q4_0`) */

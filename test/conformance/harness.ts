@@ -62,10 +62,49 @@ export async function isOllamaReachable(baseUrl: string): Promise<boolean> {
   return reachable;
 }
 
+let cachedModel: string | undefined;
+
+async function resolveModel(baseUrl: string): Promise<string> {
+  if (process.env.OLLAMA_CONFORMANCE_MODEL) {
+    return process.env.OLLAMA_CONFORMANCE_MODEL;
+  }
+  if (cachedModel !== undefined) return cachedModel;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, {
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        models?: Array<{ name?: string; remote_host?: string }>;
+      };
+      const models = data.models ?? [];
+      const hasDefault = models.some((m) => m.name === CONFORMANCE_MODEL);
+      const fallback =
+        models.find(
+          (m) =>
+            m.name && /qwen|llama/i.test(m.name) && !m.name.includes('embed') && !m.remote_host,
+        ) ??
+        models.find(
+          (m) => m.name && !m.name.includes('embed') && !m.name.startsWith('tev') && !m.remote_host,
+        ) ??
+        models.find((m) => m.name && !m.name.includes('embed') && !m.remote_host);
+      cachedModel = hasDefault ? CONFORMANCE_MODEL : (fallback?.name ?? CONFORMANCE_MODEL);
+      return cachedModel;
+    }
+  } catch {
+    // Tags endpoint failed; fall back to configured default
+  }
+
+  cachedModel = CONFORMANCE_MODEL;
+  return cachedModel;
+}
+
 export interface ConformanceSetup {
   readonly client: OllamaClient;
   readonly api: NativeApi;
   readonly baseUrl: string;
+  readonly model: string;
 }
 
 /**
@@ -77,11 +116,12 @@ export async function setupConformance(): Promise<ConformanceSetup | undefined> 
   const baseUrl = conformanceBaseUrl();
   if (!baseUrl) return undefined;
   if (!(await isOllamaReachable(baseUrl))) return undefined;
+  const model = await resolveModel(baseUrl);
   const client = new OllamaClient({ baseUrl });
   const http = new HttpClient({ baseUrl });
   const runtime = new OllamaRuntime({ http });
   const api = new NativeApi(runtime);
-  return { client, api, baseUrl };
+  return { client, api, baseUrl, model };
 }
 
 /**

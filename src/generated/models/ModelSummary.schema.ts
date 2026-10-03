@@ -17,7 +17,7 @@ export const ModelSummarySchema = z.object({
     .object({
       format: z.string().optional(),
       family: z.string().optional(),
-      families: z.array(z.string()).optional(),
+      families: z.union([z.array(z.string()), z.null()]).optional(),
       parameter_size: z.string().optional(),
       quantization_level: z.string().optional(),
     })

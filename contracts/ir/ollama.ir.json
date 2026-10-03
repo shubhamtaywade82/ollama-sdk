@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "3782fe027c0a1c01",
+  "sourceHash": "22fa3fefbf471724",
   "operations": [
     {
       "id": "blobs",
@@ -2199,7 +2199,10 @@
                 "description": "Primary model family (for example `llama`)"
               },
               "families": {
-                "type": "array",
+                "type": [
+                  "array",
+                  "null"
+                ],
                 "items": {
                   "type": "string"
                 },
