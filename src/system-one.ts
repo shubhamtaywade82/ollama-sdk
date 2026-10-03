@@ -36,30 +36,43 @@
 
 // Re-export the concrete generated types that the OpenAPI source defines
 // as named schemas.
+//
+// Each type is imported directly from its own model file (NOT the
+// `./generated/models/index.js` barrel) to avoid the circular chunk
+// dependency Rollup warned about during `tsup` builds (the barrel
+// `index.js` re-exports the same files this module imports, so going
+// through it makes `system-one.ts` and `generated/models/index.ts`
+// mutually dependent). The barrel still exists for downstream
+// consumers; this internal-only import path sidesteps the cycle
+// without changing the public surface.
+export type { SystemOneContent } from './generated/models/SystemOneContent.js';
 export type {
-  SystemOneContent,
   SystemOneRequest as SystemOneRequestBase,
+} from './generated/models/SystemOneRequest.js';
+export type {
   SystemOneResponse as SystemOneResponseBase,
-  SystemOneChoiceQuestion,
-  SystemOneNoulQuestion,
-  SystemOneScoreQuestion,
-  SystemOneChoiceAnswer,
-  SystemOneNoulAnswer,
-  SystemOneScoreAnswer,
-  SystemOneProbabilities,
-  SystemOneConfidence,
-} from './generated/models/index.js';
+} from './generated/models/SystemOneResponse.js';
+export type { SystemOneChoiceQuestion } from './generated/models/SystemOneChoiceQuestion.js';
+export type { SystemOneNoulQuestion } from './generated/models/SystemOneNoulQuestion.js';
+export type { SystemOneScoreQuestion } from './generated/models/SystemOneScoreQuestion.js';
+export type { SystemOneChoiceAnswer } from './generated/models/SystemOneChoiceAnswer.js';
+export type { SystemOneNoulAnswer } from './generated/models/SystemOneNoulAnswer.js';
+export type { SystemOneScoreAnswer } from './generated/models/SystemOneScoreAnswer.js';
+export type { SystemOneProbabilities } from './generated/models/SystemOneProbabilities.js';
+export type { SystemOneConfidence } from './generated/models/SystemOneConfidence.js';
 
+import type { SystemOneChoiceQuestion } from './generated/models/SystemOneChoiceQuestion.js';
+import type { SystemOneNoulQuestion } from './generated/models/SystemOneNoulQuestion.js';
+import type { SystemOneScoreQuestion } from './generated/models/SystemOneScoreQuestion.js';
+import type { SystemOneChoiceAnswer } from './generated/models/SystemOneChoiceAnswer.js';
+import type { SystemOneNoulAnswer } from './generated/models/SystemOneNoulAnswer.js';
+import type { SystemOneScoreAnswer } from './generated/models/SystemOneScoreAnswer.js';
 import type {
-  SystemOneChoiceQuestion,
-  SystemOneNoulQuestion,
-  SystemOneScoreQuestion,
-  SystemOneChoiceAnswer,
-  SystemOneNoulAnswer,
-  SystemOneScoreAnswer,
   SystemOneRequest as SystemOneRequestBase,
+} from './generated/models/SystemOneRequest.js';
+import type {
   SystemOneResponse as SystemOneResponseBase,
-} from './generated/models/index.js';
+} from './generated/models/SystemOneResponse.js';
 
 /**
  * Discriminated union of the three question kinds. The upstream OpenAPI
