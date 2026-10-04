@@ -107,6 +107,28 @@ export type { RequestRunner } from './transport/runner.js';
 export { calculateBackoff, DEFAULT_BACKOFF, type BackoffOptions } from './transport/backoff.js';
 export { withRetry, DEFAULT_RETRY_CONFIG, type RetryConfig } from './transport/retry.js';
 export { createTimeoutSignal, type TimeoutSignal } from './transport/timeout.js';
+export {
+  fetchWithBackoff,
+  RETRYABLE_STATUS_CODES,
+  DEFAULT_FETCH_BACKOFF_CONFIG,
+  type FetchWithBackoffConfig,
+} from './transport/fetch-with-backoff.js';
+
+// VRAM lifecycle primitives (keep_alive ergonomics)
+export {
+  normalizeKeepAlive,
+  isKeepAliveSugar,
+  KEEP_ALIVE_UNLOAD,
+  KEEP_ALIVE_INDEFINITE,
+  type KeepAlive,
+} from './keep-alive.js';
+
+// Response decoder helpers — `done_reason` type narrowing
+export {
+  isKnownDoneReason,
+  KNOWN_DONE_REASONS,
+  type KnownDoneReason,
+} from './done-reason.js';
 
 // Middleware
 export {
@@ -429,6 +451,9 @@ export {
   type SystemOneProbabilities,
   type SystemOneConfidence,
   type SystemOneUsage,
+  MAX_SYSTEM_ONE_REQUEST_BYTES,
+  MAX_SYSTEM_ONE_IMAGES_BYTES,
+  estimateSystemOneRequestBytes,
 } from './system-one.js';
 
 // Higher-level decision helpers (Wave 14B)

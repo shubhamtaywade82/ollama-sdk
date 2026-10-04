@@ -668,6 +668,18 @@ export class OllamaClient {
   readonly version = () => this.models.version();
   readonly createBlob = (digest: string, data: BinaryBody) => this.models.createBlob(digest, data);
   readonly checkBlob = (digest: string) => this.models.checkBlob(digest);
+  /**
+   * Immediately unloads `model` from VRAM. Convenience alias for
+   * {@link ModelsClient.unload} — see that method for the full
+   * lifecycle contract.
+   */
+  readonly unloadModel = (model: string) => this.models.unload(model);
+  /**
+   * Pre-loads and pins `model` into VRAM indefinitely. Convenience
+   * alias for {@link ModelsClient.pin} — see that method for the
+   * full lifecycle contract.
+   */
+  readonly pinModel = (model: string) => this.models.pin(model);
 
   // --- System One (Wave 13) ---
   /**

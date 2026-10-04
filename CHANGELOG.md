@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+- **VRAM lifecycle primitives.** Added ergonomic helpers for explicit GPU memory management, addressing the upstream `keep_alive` semantics documented in the Ollama FAQ:
+  - `KeepAlive` type union (`string | number | 'unload' | 'indefinite'`) and `normalizeKeepAlive()` helper map the SDK-level sugar literals `'unload'` and `'indefinite'` to the wire-level `0` and `-1` sentinels.
+  - `ModelsClient.unload(model)` issues an empty `/api/generate` request with `keep_alive: 0` to evict a model from VRAM immediately, freeing GPU memory for subsequent pipelines.
+  - `ModelsClient.pin(model)` issues an empty `/api/generate` request with `keep_alive: -1` to pre-load and pin a model indefinitely for hot-loop inference.
+  - `OllamaClient.unloadModel(model)` and `OllamaClient.pinModel(model)` convenience aliases mirror the existing `listModels` / `pullModel` pattern.
+  - `KEEP_ALIVE_UNLOAD` and `KEEP_ALIVE_INDEFINITE` exported constants for callers who want the raw sentinel values directly.
+
+- **Overload resiliency for HTTP 503 / 429.** New standalone `fetchWithBackoff()` helper wraps any fetch-shaped function with jittered exponential backoff for transient saturation responses. Mirrors the SDK's internal transport retry policy (`maxRetries: 3`, `initialDelayMs: 500`, `maxDelayMs: 30_000`, full-jitter strategy) so consumers see identical retry behavior whether they go through `OllamaClient` or call the helper directly. Useful for raw HTTP traffic to Ollama's compatibility bridges (Anthropic / OpenAI) or sibling Ollama instances outside the configured endpoint registry. `RETRYABLE_STATUS_CODES` and `DEFAULT_FETCH_BACKOFF_CONFIG` exported for downstream tooling.
+
+- **System One image support ergonomics.** The generated `SystemOneRequest.images?: readonly string[]` field (already on the wire) is now backed by:
+  - `MAX_SYSTEM_ONE_REQUEST_BYTES` (64 KiB) and `MAX_SYSTEM_ONE_IMAGES_BYTES` (32 MiB) constants documenting the conditional server-side size limits.
+  - `estimateSystemOneRequestBytes(request)` helper for pre-flight size validation before sending a multi-image batch — the runtime enforces the limit too, but the early check avoids the round-trip when the caller already knows the payload is too large.
+
+- **Response decoder hardening (Wave 13 conformance fix).** Added `KnownDoneReason` literal type (`'stop' | 'length' | 'load' | 'unload'`) and `isKnownDoneReason()` type guard so callers can narrow `done_reason` from `string | undefined` without risking `TypeError` on undefined access — the failure mode flagged in CI run #36962280416. The `done_reason` field on `ChatResponse` / `GenerateResponse` remains `string | undefined` for forward-compat with future upstream additions; the type guard provides opt-in narrowing.
+
 ## [1.8.0] - 2026-10-02
 
 - **Contract execution completion (Waves 12-16).** The SDK's contract-first architecture is now fully executable: every operation in the canonical IR is represented, generated, typed, and runtime-enforced with no `Record<string, unknown>` escape hatches on the generated surface.
