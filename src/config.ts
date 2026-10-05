@@ -5,6 +5,7 @@
 import type { Logger, RequestLifecycleHook } from './logger.js';
 import type { Middleware } from './middleware.js';
 import type { RetryConfig } from './transport/retry.js';
+import { isEnvApiKeyHost, normalizeBaseUrl } from './transport/host.js';
 import type { FetchLike } from './transport/http.js';
 import type { EndpointRegistryOptions, OllamaEndpoint } from './providers/endpoint-registry.js';
 
@@ -32,7 +33,7 @@ function readEnv(name: string): string | undefined {
  * read) before `DEFAULT_BASE_URL`. Explicit `config.baseUrl` always wins.
  */
 export function resolveBaseUrl(configBaseUrl?: string | undefined): string {
-  return configBaseUrl ?? readEnv('OLLAMA_HOST') ?? DEFAULT_BASE_URL;
+  return normalizeBaseUrl(configBaseUrl ?? readEnv('OLLAMA_HOST') ?? DEFAULT_BASE_URL);
 }
 
 /**
@@ -41,6 +42,21 @@ export function resolveBaseUrl(configBaseUrl?: string | undefined): string {
  */
 export function resolveApiKey(configApiKey?: string | undefined): string | undefined {
   return configApiKey ?? readEnv('OLLAMA_API_KEY');
+}
+
+/**
+ * Like {@link resolveApiKey}, but scoped to the endpoint it will be sent to. An explicit
+ * `config.apiKey` is always honored. The `OLLAMA_API_KEY` fallback applies only when
+ * `baseUrl` is Ollama Cloud or a loopback host, so an ambient env var is never forwarded
+ * to an arbitrary third-party server.
+ */
+export function resolveEndpointApiKey(
+  configApiKey: string | undefined,
+  baseUrl: string,
+): string | undefined {
+  if (configApiKey !== undefined) return configApiKey;
+  const envKey = readEnv('OLLAMA_API_KEY');
+  return envKey !== undefined && isEnvApiKeyHost(baseUrl) ? envKey : undefined;
 }
 
 /** One named credential for the `credentials`/`modelBindings` config shape. */
@@ -67,7 +83,10 @@ export interface OllamaCredentialConfig {
  * that has.
  */
 export function resolveCredentialEndpoints(
-  config: Pick<OllamaClientConfig, 'credentials' | 'modelBindings' | 'defaultCredential' | 'baseUrl'>,
+  config: Pick<
+    OllamaClientConfig,
+    'credentials' | 'modelBindings' | 'defaultCredential' | 'baseUrl'
+  >,
 ): readonly OllamaEndpoint[] {
   if (config.credentials === undefined) return [];
 

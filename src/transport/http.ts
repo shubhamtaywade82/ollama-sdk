@@ -2,6 +2,7 @@
  * Native fetch HTTP transport client for Ollama API.
  */
 
+import { normalizeBaseUrl } from './host.js';
 import { mapError } from '../errors.js';
 import { composeMiddleware, type Middleware, type RequestContext } from '../middleware.js';
 import type { RequestLifecycleHook } from '../logger.js';
@@ -98,7 +99,7 @@ export class HttpClient {
   private readonly requestId?: string | undefined;
 
   constructor(options: HttpClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+    this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.apiKey = options.apiKey;
     this.defaultHeaders = options.headers ?? {};
     this.fetchImpl = options.fetch ?? globalThis.fetch;

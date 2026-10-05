@@ -61,4 +61,53 @@ describe('OLLAMA_HOST / OLLAMA_API_KEY environment fallback', () => {
 
     expect(client.registry.list()[0]?.baseUrl).toBe('http://explicit-endpoint:1111');
   });
+
+  it('normalizes a bare host:port OLLAMA_HOST into a full base URL', () => {
+    process.env['OLLAMA_HOST'] = '127.0.0.1:11434';
+    delete process.env['OLLAMA_API_KEY'];
+
+    expect(new OllamaClient().registry.list()[0]?.baseUrl).toBe('http://127.0.0.1:11434');
+  });
+
+  it('sends requests to the normalized URL for a bare host:port baseUrl', async () => {
+    delete process.env['OLLAMA_HOST'];
+    delete process.env['OLLAMA_API_KEY'];
+    const urls: string[] = [];
+    const client = new OllamaClient({
+      baseUrl: 'myhost:8080',
+      retries: 0,
+      fetch: (async (url: string | URL | Request) => {
+        urls.push(String(url));
+        return new Response(JSON.stringify({ models: [] }), { status: 200 });
+      }) as typeof fetch,
+    });
+
+    await client.modelsClient.list().catch(() => undefined);
+
+    expect(urls[0]).toMatch(/^http:\/\/myhost:8080\/api\//);
+  });
+
+  it('applies OLLAMA_API_KEY to loopback and Ollama Cloud hosts', () => {
+    process.env['OLLAMA_API_KEY'] = 'env-secret';
+
+    for (const baseUrl of ['localhost:11434', 'https://ollama.com']) {
+      expect(new OllamaClient({ baseUrl }).registry.list()[0]?.apiKey).toBe('env-secret');
+    }
+  });
+
+  it('does not forward OLLAMA_API_KEY to an arbitrary third-party host', () => {
+    process.env['OLLAMA_API_KEY'] = 'env-secret';
+
+    for (const baseUrl of ['https://api.third-party.example', 'http://192.168.1.10:11434']) {
+      expect(new OllamaClient({ baseUrl }).registry.list()[0]?.apiKey).toBeUndefined();
+    }
+  });
+
+  it('still forwards an explicit apiKey to any host', () => {
+    process.env['OLLAMA_API_KEY'] = 'env-secret';
+
+    const client = new OllamaClient({ baseUrl: 'https://api.third-party.example', apiKey: 'mine' });
+
+    expect(client.registry.list()[0]?.apiKey).toBe('mine');
+  });
 });
