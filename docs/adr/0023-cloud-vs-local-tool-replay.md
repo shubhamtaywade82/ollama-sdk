@@ -1,6 +1,6 @@
 # ADR 0023: Cloud-vs-Local Tool-Replay Behavior
 
-**Status:** Proposed
+**Status:** Accepted (parallelToolCalls field implemented)
 **Date:** 2026-10-05
 **Deciders:** SDK maintainers
 **Supersedes:** None
@@ -29,16 +29,16 @@ The SDK's `ToolRegistry` already handles both cases — it executes whatever cal
 
 ## Decision
 
-**Document the behavior; do not attempt to normalize it.**
+**Document the behavior; expose a heuristic capability field; do not attempt to normalize it.**
 
 The SDK will:
 
 1. **Preserve the existing runtime semantics verbatim.** The `chat()` and `chatStream()` methods return whatever `tool_calls` array the server emits, with no SDK-side batching/unbatching. This matches the OpenAI and Anthropic SDK conventions and keeps the SDK a thin transport.
 
-2. **Add a `ModelCapabilities.parallelToolCalls` field** (see `src/capabilities/capabilities.ts`) reporting whether the configured model is known to emit parallel tool calls. This is a heuristic, derived from:
-   - The model family (e.g. `qwen2.5` is known to emit one tool call per turn; `gpt-4o` via the OpenAI-compat bridge is known to emit parallel tool calls freely).
-   - The runtime mode (local vs cloud — see `inferRuntimeMode()`).
-   - The `/api/show` `capabilities` array if the server reports a `tools` capability.
+2. **Add a `ModelCapabilities.parallelToolCalls` field** (implemented in `src/capabilities/capabilities.ts`) reporting whether the configured model is known to emit parallel tool calls. The field is a `ParallelToolCallBehavior` union of `'yes' | 'no' | 'unknown'`, derived from:
+   - The model family (extracted from `/api/show`'s `model_info.*.architecture`, with fallback to `details.family` then `details.families[0]`). Families known to ship with parallel-tool-call training: `qwen2`, `qwen2.5`, `qwen3`, `llama3.1`, `llama3.2`, `llama3.3`, `llama4`, `mistral`, `mixtral`, `hermes`, `command-r`, `command-r-plus`.
+   - The model name (full string including `:tag`) — substring matches against `tool-use`, `tooluse`, `function-call`, `functioncall`, `instruct`, `hermes`, `command-r` catch fine-tunes whose base family isn't in the list but whose name advertises tool-use capabilities.
+   - The runtime mode (local vs cloud — see `inferRuntimeMode()`). Cloud-mode + `supportsTools === true` → `'yes'` (the OpenAI/Anthropic compat bridges proxy to proprietary models that freely emit parallel tool calls). Cloud-mode + no tools capability → `'unknown'` (an embedding-only model on a cloud endpoint shouldn't claim parallel tool calls).
 
 3. **Document the heuristic in the agent docs** (`docs-site/guide/agents.md`) so agent authors know to:
    - Default `maxConcurrency` on their `ToolRegistry` to `1` if they need strict sequential execution (regardless of what the model emits).
@@ -51,24 +51,30 @@ The SDK will:
 
 ### Positive
 
-- **No new code paths.** The `ToolRegistry` already handles arbitrary-length `tool_calls` arrays. No new abstractions are needed.
+- **Predictable, low-cost heuristic.** The `parallelToolCalls` field is computed from data already fetched by `detectModelCapabilities()` — no extra HTTP round-trip.
 - **Cloud and local models behave identically at the SDK boundary.** A `chat()` call returns the same shape whether the underlying model is local Llama or cloud GPT-4o — only the array length differs.
 - **Agents stay simple.** The `for await (const event of stream)` pattern already yields each `tool_call` event separately (see `src/streaming/normalize.ts`'s `mapChatChunk`), so consumers see one event per tool call regardless of whether they were emitted in parallel or sequentially.
+- **Caller has the choice.** The field is advisory — callers can ignore it entirely and let the `ToolRegistry` execute whatever calls the model emits, or branch on it to set `maxConcurrency` upfront.
 
 ### Negative
 
-- **Predicting parallel-tool-call behavior requires a heuristic.** The `ModelCapabilities.parallelToolCalls` field is best-effort — it's `true`/`false`/`unknown`, and `unknown` is a legitimate answer for newly-published models. Agent authors who need hard guarantees must enforce them on their side via `maxConcurrency`.
+- **Predicting parallel-tool-call behavior requires a heuristic.** The `ModelCapabilities.parallelToolCalls` field is best-effort — it's `'yes'`/`'no'`/`'unknown'`, and `'unknown'` is a legitimate answer for newly-published models. Agent authors who need hard guarantees must enforce them on their side via `maxConcurrency`.
 - **Cloud-mode behavior depends on the cloud provider.** OpenAI-compat's tool-call batching follows OpenAI's conventions; Anthropic-compat's follows Anthropic's. The SDK does not normalize between them — callers using `client.openai.chatCompletion()` and `client.anthropic.createMessage()` may see different batching for "the same" prompt.
+- **Conservative known-list.** Only families with a documented track record of parallel tool calls are in the `'yes'` list. New models default to `'unknown'` until someone adds them — this is intentional to avoid over-promising concurrency.
 
 ### Neutral
 
-- **The SDK's contract is "transparent passthrough of `tool_calls`".** This ADR codifies what was already the de-facto behavior since Wave 1; no breaking changes are introduced.
+- **The SDK's contract is "transparent passthrough of `tool_calls`".** This ADR codifies what was already the de-facto behavior since Wave 1; the new `parallelToolCalls` field is purely additive — no breaking changes are introduced.
 
 ## Implementation Notes
 
-- `ModelCapabilities.parallelToolCalls` is **not yet implemented** as of this ADR. It will land in a follow-up PR once the capability-detection matrix is finalized. The current `detectModelCapabilities()` in `src/capabilities/capabilities.ts` already returns a `ModelCapabilities` object; the new field will be added there.
+- `ModelCapabilities.parallelToolCalls` is **implemented** as of commit on this PR branch. The field is part of the `ModelCapabilities` interface in `src/capabilities/capabilities.ts`.
+- The detection matrix lives in two functions in `src/capabilities/capabilities.ts`:
+  - `inferCloudParallelToolCalls(supportsTools)` — `'yes'` for tool-capable cloud models, `'unknown'` otherwise.
+  - `inferLocalParallelToolCalls(model, family)` — `'yes'` if family is in `PARALLEL_TOOL_CALL_LOCAL_FAMILIES` OR the full model name (including `:tag`) contains any `PARALLEL_TOOL_CALL_NAME_HINTS` substring; `'unknown'` otherwise.
 - The `ToolRegistry.executeToolCalls` method already supports a `maxConcurrency` option (see `src/tools/registry.ts`); agent authors can use it today to enforce sequential execution regardless of model behavior.
 - The streaming pipeline in `src/streaming/normalize.ts`'s `mapChatChunk` already emits one `tool_call` event per call, so consumers see parallel calls as N separate events in a single chunk — see the `tool_call` event type in `src/streaming/types.ts`.
+- `ParallelToolCallBehavior` is exported from the SDK's public entry point (`src/index.ts`).
 
 ## Alternatives Considered
 
@@ -78,9 +84,9 @@ The SDK will:
 
 ## References
 
+- `src/capabilities/capabilities.ts` — `detectModelCapabilities`, `inferLocalParallelToolCalls`, `inferCloudParallelToolCalls`, `ParallelToolCallBehavior`
 - `src/tools/registry.ts` — `ToolRegistry.executeToolCalls` with `maxConcurrency` option
 - `src/streaming/normalize.ts` — `mapChatChunk` emits one `tool_call` event per call
-- `src/capabilities/capabilities.ts` — `detectModelCapabilities` (where `parallelToolCalls` will land)
 - `src/integrations/openai.ts` — OpenAI-compat client (cloud models)
 - `src/integrations/anthropic.ts` — Anthropic-compat client (cloud models)
 - ADR 0007 — Synthetic Tool-Call IDs (relevant because parallel tool calls need stable IDs for correlation)
