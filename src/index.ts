@@ -389,6 +389,7 @@ export {
   listAvailableModels,
   type ModelCapabilities,
   type RuntimeMode,
+  type ParallelToolCallBehavior,
 } from './capabilities/capabilities.js';
 
 // Telemetry (optional OpenTelemetry tracing — see ADR 0005)

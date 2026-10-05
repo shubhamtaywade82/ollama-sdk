@@ -28,7 +28,14 @@
   - `computeProgressPercent(chunk)` and `toPullProgressEvent(chunk)` exported for callers who want the percent calculation without subscribing to a stream.
   - `PullProgressEvent` type carries `{ status, digest?, total?, completed?, percent?, raw }`.
 
-- **Cloud-vs-local tool-replay investigation (ADR 0023).** Documented the SDK's stance on parallel-vs-sequential tool-call emission from cloud vs local models: the SDK is a transparent passthrough, models decide, agent authors enforce sequential execution via `ToolRegistry`'s `maxConcurrency` option if they need it. A `ModelCapabilities.parallelToolCalls` field is proposed for a follow-up PR.
+- **Cloud-vs-local tool-replay investigation (ADR 0023).** Documented the SDK's stance on parallel-vs-sequential tool-call emission from cloud vs local models: the SDK is a transparent passthrough, models decide, agent authors enforce sequential execution via `ToolRegistry`'s `maxConcurrency` option if they need it. Implemented the proposed `ModelCapabilities.parallelToolCalls` field as a best-effort heuristic:
+  - New `ParallelToolCallBehavior` union: `'yes' | 'no' | 'unknown'`.
+  - Cloud-mode + tool-capable → `'yes'` (the OpenAI/Anthropic compat bridges proxy to proprietary models that freely emit parallel tool calls).
+  - Cloud-mode + no tools → `'unknown'`.
+  - Local-mode + family in known-parallel list (`qwen2`, `qwen2.5`, `qwen3`, `llama3.1`, `llama3.2`, `llama3.3`, `llama4`, `mistral`, `mixtral`, `hermes`, `command-r`, `command-r-plus`) → `'yes'`.
+  - Local-mode + model name (including `:tag`) contains a tool-use variant hint (`tool-use`, `instruct`, `hermes`, `command-r`, etc.) → `'yes'`.
+  - Otherwise → `'unknown'` (caller should treat as "ask the model and see what it does").
+  - The family is extracted from `/api/show`'s `model_info.*.architecture` (with fallbacks to `details.family` then `details.families[0]`).
 
 ### First digest — VRAM lifecycle, fetchWithBackoff, System One image caps, done_reason decoder
 
