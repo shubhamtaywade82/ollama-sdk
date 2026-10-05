@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fix: IPv6 loopback was classified as Ollama Cloud
+
+- `inferRuntimeMode()` compared `URL.hostname` to `'::1'`, but WHATWG URL reports an IPv6 literal with its brackets (`'[::1]'`), so `http://[::1]:11434` was classified as `cloud`. Structured-output (`format`) requests to a local Ollama on IPv6 loopback were therefore refused pre-flight with `OllamaUnsupportedCapabilityError`, and `localMode` was off for capability detection. The brackets are now stripped before comparing. Public IPv6 addresses are still `cloud`.
+
 ### Host normalization and scoped `OLLAMA_API_KEY`
 
 - **Base URL normalization.** `baseUrl`, `OLLAMA_HOST`, per-credential `baseUrl` and `endpoints[].baseUrl` now accept the bare forms the Ollama CLI accepts: `127.0.0.1:11434`, `0.0.0.0`, `:11434`, `myhost`. A missing scheme defaults to `http://`, a missing port on a scheme-less host defaults to `11434`, scheme-less port `443` selects `https://`, and `:port` means `127.0.0.1`. Full URLs and reverse-proxy path prefixes are unchanged. Previously a scheme-less value produced an invalid request URL.
