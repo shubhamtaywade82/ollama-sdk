@@ -104,6 +104,18 @@ export const DEFAULT_FAILOVER_CODES: readonly string[] = [
   'network_error',
   'timeout',
   'server_error',
+  // HTTP 503 — server queue saturated (OLLAMA_MAX_QUEUE exceeded).
+  // The new OllamaOverloadedError specialization is retryable: the
+  // queue will eventually drain, and a different candidate endpoint
+  // may have capacity right now. Listed separately from
+  // 'server_error' because OllamaOverloadedError extends
+  // OllamaClientError (NOT OllamaServerError) — see
+  // src/errors.ts for the rationale.
+  'overloaded',
+  // HTTP 502 — cloud model could not be reached by the Ollama Cloud
+  // proxy. Fail over to a different model/endpoint rather than
+  // retrying the same one.
+  'bad_gateway',
   'rate_limited',
   'auth_error',
   // A candidate endpoint rejected the request pre-flight for a known-unsupported
