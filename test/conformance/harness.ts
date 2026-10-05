@@ -6,7 +6,29 @@
  * if Ollama's actual response shape diverges from what the IR-derived
  * Zod schema expects, these tests fail.
  *
- * Two ways to run:
+ * ## Two flavors of conformance test
+ *
+ *   1. **Live conformance** (this harness, `native-api.test.ts`,
+ *      `system-one.test.ts`) — hits a real Ollama server. Skips
+ *      cleanly when none is available. Validates BOTH wire format
+ *      AND model behavior (e.g. "the model actually generates text
+ *      in response to a prompt").
+ *
+ *   2. **Offline wire-format conformance** (`native-api-offline.test.ts`)
+ *      — uses `OllamaMockServer` to emit contract-shaped NDJSON
+ *      frames without any model inference. Runs in every CI
+ *      environment, including those without an Ollama daemon.
+ *      Validates ONLY the wire format (schema conformance,
+ *      error-class mapping, optional-field handling). Does NOT
+ *      validate model behavior.
+ *
+ * The split exists because wire-format drift is a contract concern
+ * (catchable offline), while model-behavior drift is a server/model
+ * concern (only catchable against a live server). The offline tests
+ * catch the former in every PR; the live tests catch the latter
+ * when a real server is available.
+ *
+ * ## Two ways to run the LIVE tests
  *
  *   1. Locally against `ollama serve`:
  *        OLLAMA_BASE_URL=http://localhost:11434 npx vitest run test/conformance/
@@ -16,8 +38,9 @@
  *      tiny model before the test run.
  *
  * If `OLLAMA_BASE_URL` is not set OR the server is unreachable, every
- * conformance test is skipped with a clear reason — the main
- * test suite (`npm test`) is NOT affected.
+ * LIVE conformance test is skipped with a clear reason — the main
+ * test suite (`npm test`) and the offline conformance tests are NOT
+ * affected.
  */
 import { beforeAll, describe, it } from 'vitest';
 import { OllamaClient } from '../../src/index.js';

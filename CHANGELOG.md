@@ -7,6 +7,35 @@
 - **Base URL normalization.** `baseUrl`, `OLLAMA_HOST`, per-credential `baseUrl` and `endpoints[].baseUrl` now accept the bare forms the Ollama CLI accepts: `127.0.0.1:11434`, `0.0.0.0`, `:11434`, `myhost`. A missing scheme defaults to `http://`, a missing port on a scheme-less host defaults to `11434`, scheme-less port `443` selects `https://`, and `:port` means `127.0.0.1`. Full URLs and reverse-proxy path prefixes are unchanged. Previously a scheme-less value produced an invalid request URL.
 - **Behavior change: `OLLAMA_API_KEY` is no longer forwarded to arbitrary hosts.** The env-sourced key is applied to the default endpoint only when its host is Ollama Cloud (`ollama.com`, `*.ollama.com`) or loopback. An explicit `apiKey` is always sent, to any host. If you relied on `OLLAMA_API_KEY` for a LAN or proxied server, pass `apiKey` explicitly. Web search/fetch (always `https://ollama.com`) still use the env key.
 
+### Production-readiness audit — tool-call accumulator, mock server
+
+- **Offline wire-format conformance tests** (`test/conformance/native-api-offline.test.ts`). The sibling `native-api.test.ts` hits a REAL Ollama server and skips when none is available. The new offline tests use `OllamaMockServer` to emit contract-shaped NDJSON frames without any model inference, so they run in every CI environment — including those without an Ollama daemon. They validate ONLY the wire format (schema conformance, error-class mapping, optional-field handling), NOT model behavior. The split exists because wire-format drift is a contract concern (catchable offline), while model-behavior drift is a server/model concern (only catchable against a live server). 22 new tests covering:
+  - `GET /api/version`, `/api/tags`, `/api/ps`, `POST /api/show` schema conformance
+  - `POST /api/chat`, `/api/generate`, `/api/embed` schema conformance (non-streaming)
+  - `POST /api/chat`, `/api/generate` streaming chunk schema conformance
+  - Error-class mapping: 404 → `OllamaNotFoundError`, 503 → `OllamaOverloadedError`, in-band `{"error":"..."}` → `OllamaStreamError`
+  - Optional telemetry fields (`prompt_eval_cached_count`, `thinking`, `done_reason`) — verifies the SDK does NOT throw when these are absent (the Wave 13 conformance failure mode)
+  - `done_reason` variants: `"stop"`, `"length"`, `"load"`, `"unload"` all parse cleanly; an undocumented value also parses cleanly (forward-compat)
+  - `OllamaClient` vs `NativeApi` shape parity (mirrors the live parity test)
+- Updated `test/conformance/harness.ts` docstring to document the live-vs-offline split.
+
+### Production-readiness audit — tool-call accumulator, mock server
+
+- **Defensive tool-call streaming accumulator (`src/tools/tool-call-accumulator.ts`).** The original `aggregateChat` in `src/streaming/normalize.ts` blindly appended every chunk's `tool_calls` array, which would produce duplicate entries if Ollama ever started streaming them incrementally. The new `ToolCallAccumulator` matches entries by `id` (the SDK-synthesized stable identifier) or by array position, and merges them with spread-semantics on `function.arguments`. For the documented native Ollama behavior (tool_calls arrive complete in one chunk), the accumulator is a no-op — one chunk carries the full array, the next chunk has nothing, and the accumulator appends exactly once. The accumulator is also exported for callers who want the same merge logic on raw NDJSON chunks.
+  - New exports: `ToolCallAccumulator` class, `mergeToolCallArrays()` stateless helper, `mergeToolCall()` / `mergeToolCallArgumentsString()` / `isSameToolCall()` standalone helpers.
+  - `aggregateChat` now uses `mergeToolCallArrays` instead of the naive `[...accumulated, ...incoming]` spread.
+  - Includes a dedicated `mergeToolCallArgumentsString` helper for the OpenAI-compat streaming format (where `function.arguments` arrives as string deltas like `'{"city":'` + `' "Bengaluru"}'`); the OpenAI-compat bridge at `src/integrations/openai.ts` already does its own per-index accumulation, but the helper is exported for callers who want the same logic elsewhere.
+
+- **In-memory mock server for deterministic CI testing (`test/mocks/ollama-mock-server.ts`).** A thin `node:http` wrapper that lets tests register route handlers with programmable delay, chunk fragmentation, mid-stream error injection, and connection drops. Complements the existing VCR cassette system (`test/vcr.ts`) with capabilities cassettes can't provide:
+  - Programmable inter-chunk delay (test backpressure handling).
+  - Mid-stream error frame injection (test in-band `{"error":"..."}` trapping).
+  - Chunk fragmentation across TCP packets (test parser buffering).
+  - 503/502/429 error status codes with custom bodies.
+  - Connection drops mid-stream (test recovery from network failures).
+  - Request body capture via `onRequest` callback.
+  - Idempotent `stop()` — safe to call from `afterEach` hooks without tracking whether `start()` ran.
+  - Ephemeral port support (`port: 0`) for parallel test runs.
+
 ### Second digest — mid-stream errors, 502/503 specialization, pull-progress ergonomics
 
 - **In-band stream-error trapping (NDJSON).** Ollama's streaming endpoints start with HTTP 200 OK and chunked transfer encoding; if generation fails mid-flight (GPU OOM, driver crash, context window overflow, model unload race), the server emits a final `{"error": "..."}` JSON frame and closes the stream. The HTTP status code never changes from 200, so HTTP-status-based error detection misses these errors entirely — they would silently bleed into the assistant's content stream as garbage tokens or undefined-field accesses.
