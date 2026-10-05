@@ -2,8 +2,41 @@
  * Dual-mode (AsyncIterator and EventEmitter-like) stream wrapper.
  */
 
-import { mapError, OllamaAbortError, type OllamaClientError } from '../errors.js';
+import {
+  mapError,
+  OllamaAbortError,
+  OllamaStreamError,
+  type OllamaClientError,
+} from '../errors.js';
 import type { AbortableAsyncIterable, OllamaStreamEvent, OllamaStreamEventType } from './types.js';
+
+/**
+ * Extract accumulated partial content from a stream's intermediate
+ * aggregation state, used to enrich {@link OllamaStreamError} when
+ * the underlying NDJSON parser detects an in-band `{"error": "..."}`
+ * frame mid-flight.
+ *
+ * Returns `''` for aggregator states that don't carry content (e.g.
+ * progress streams for pull/push). The shape is intentionally a
+ * best-effort string extractor — callers who want richer partial
+ * state should consume the stream's `on('message', …)` events
+ * directly.
+ */
+function extractPartialContent<TFinal>(accumulated: TFinal): string {
+  if (typeof accumulated !== 'object' || accumulated === null) return '';
+  const record = accumulated as Record<string, unknown>;
+  // ChatStreamResult carries `message.content`.
+  const message = record.message;
+  if (typeof message === 'object' && message !== null) {
+    const content = (message as Record<string, unknown>).content;
+    if (typeof content === 'string') return content;
+  }
+  // GenerateStreamResult carries `response`.
+  const response = record.response;
+  if (typeof response === 'string') return response;
+  // ProgressStreamResult and others don't accumulate content.
+  return '';
+}
 
 type ChunkMapper<TChunk, TFinal> = (
   chunk: TChunk,
@@ -109,7 +142,16 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
     } catch (error) {
       this.removeAbortListener?.();
       this.removeAbortListener = undefined;
-      const mapped = mapError(error);
+      // Enrich OllamaStreamError with whatever content was accumulated
+      // before the in-band error frame arrived — callers use this for
+      // diagnostics ("what did the model say before it died?").
+      const mapped =
+        error instanceof OllamaStreamError && error.partialContent === ''
+          ? new OllamaStreamError(error.message, {
+              partialContent: extractPartialContent(accumulated),
+              cause: error,
+            })
+          : mapError(error);
       this.emit({ type: 'error', data: { error: mapped } });
       this.rejectFinal(mapped);
     }
@@ -141,7 +183,15 @@ export class OllamaStream<TChunk, TFinal> implements AsyncIterable<
         }
       }
     } catch (error) {
-      const mapped = mapError(error);
+      // Enrich OllamaStreamError with whatever content was accumulated
+      // before the in-band error frame arrived.
+      const mapped =
+        error instanceof OllamaStreamError && error.partialContent === ''
+          ? new OllamaStreamError(error.message, {
+              partialContent: extractPartialContent(accumulated),
+              cause: error,
+            })
+          : mapError(error);
       this.rejectFinal(mapped);
       yield { type: 'error', data: { error: mapped } };
     } finally {

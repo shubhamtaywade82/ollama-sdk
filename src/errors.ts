@@ -130,6 +130,92 @@ export class OllamaServerError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown when the Ollama server returns HTTP **503 Service Unavailable**,
+ * indicating that the request queue is saturated (`OLLAMA_MAX_QUEUE`
+ * exceeded, default 512 — see the FAQ).
+ *
+ * Semantically a specialization of {@link OllamaServerError} (503 is a
+ * kind of 5xx server error), but extends {@link OllamaClientError}
+ * directly to preserve the subclass-specific `code: 'overloaded'` —
+ * `OllamaServerError`'s constructor unconditionally forces
+ * `code: 'server_error'`. Callers wanting to catch any 5xx should
+ * use `error.status >= 500 && error.status < 600` OR explicitly
+ * list both `OllamaServerError` and `OllamaOverloadedError`/
+ * `OllamaBadGatewayError` in their `instanceof` checks.
+ *
+ * `retryable` is `true` because the queue will eventually drain;
+ * callers using {@link withRetry} will get automatic backoff.
+ */
+export class OllamaOverloadedError extends OllamaClientError {
+  constructor(
+    message: string,
+    options?: Omit<OllamaClientErrorOptions, 'code' | 'retryable' | 'status'> | undefined,
+  ) {
+    super(message, { ...options, code: 'overloaded', status: 503, retryable: true });
+  }
+}
+
+/**
+ * Thrown when the Ollama server returns HTTP **502 Bad Gateway**,
+ * indicating that a cloud model could not be reached by the
+ * Ollama Cloud proxy. The model may be temporarily down, the
+ * cloud provider may be experiencing an outage, or the model
+ * may have been deprovisioned.
+ *
+ * Semantically a specialization of {@link OllamaServerError} (502 is a
+ * kind of 5xx server error), but extends {@link OllamaClientError}
+ * directly to preserve the subclass-specific `code: 'bad_gateway'` —
+ * see {@link OllamaOverloadedError} for the rationale. Callers wanting
+ * to catch any 5xx should use `error.status >= 500 && error.status < 600`
+ * OR explicitly list both classes in their `instanceof` checks.
+ *
+ * `retryable` is `true` for transient cloud-provider outages.
+ */
+export class OllamaBadGatewayError extends OllamaClientError {
+  constructor(
+    message: string,
+    options?: Omit<OllamaClientErrorOptions, 'code' | 'retryable' | 'status'> | undefined,
+  ) {
+    super(message, { ...options, code: 'bad_gateway', status: 502, retryable: true });
+  }
+}
+
+/**
+ * Thrown when the Ollama server emits an in-band error frame inside
+ * an NDJSON stream (chat / generate / pull / push / create).
+ *
+ * Ollama streams start with HTTP 200 OK and chunked transfer encoding.
+ * If an error occurs mid-generation (GPU OOM, driver crash, context
+ * window overflow, model unload race, etc.), the server emits a final
+ * JSON chunk of the form `{"error": "..."}` and closes the stream.
+ * The HTTP status code never changes from 200, so HTTP-status-based
+ * error detection misses these errors entirely — they would silently
+ * bleed into the assistant's content stream as garbage tokens or
+ * undefined-field accesses.
+ *
+ * `partialContent` carries whatever was accumulated before the error
+ * frame, so callers can log/diagnose what the model produced before
+ * failing. For chat streams this is the concatenated `message.content`;
+ * for generate streams it's the concatenated `response`; for pull/push
+ * streams it's empty (progress events don't accumulate content).
+ *
+ * See: https://github.com/ollama/ollama/blob/main/docs/api.md
+ */
+export class OllamaStreamError extends OllamaClientError {
+  /** Content accumulated before the in-band error frame, or '' if none. */
+  readonly partialContent: string;
+  constructor(
+    message: string,
+    options?: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      partialContent?: string | undefined;
+    },
+  ) {
+    super(message, { ...options, code: 'stream_error', retryable: false });
+    this.partialContent = options?.partialContent ?? '';
+  }
+}
+
 export class OllamaAbortError extends OllamaClientError {
   constructor(
     message: string,
@@ -451,6 +537,19 @@ function statusToError(
   }
   if (status === 429) {
     return new OllamaRateLimitError(message, { ...options, status });
+  }
+  if (status === 502) {
+    // Cloud model could not be reached. Distinct from generic 5xx so
+    // callers running multi-model agents can branch on cloud-provider
+    // failures specifically (fail over to a different model/endpoint
+    // rather than blindly retrying the same one).
+    return new OllamaBadGatewayError(message, { ...options });
+  }
+  if (status === 503) {
+    // Queue saturation (OLLAMA_MAX_QUEUE exceeded). Retryable — the
+    // queue will eventually drain. Distinct from generic 5xx so
+    // callers running parallel swarms can branch on saturation.
+    return new OllamaOverloadedError(message, { ...options });
   }
   if (status >= 500) {
     return new OllamaServerError(message, { ...options, status });

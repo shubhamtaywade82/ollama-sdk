@@ -1,5 +1,52 @@
 # Changelog
 
+## [Unreleased]
+
+### Second digest — mid-stream errors, 502/503 specialization, pull-progress ergonomics
+
+- **In-band stream-error trapping (NDJSON).** Ollama's streaming endpoints start with HTTP 200 OK and chunked transfer encoding; if generation fails mid-flight (GPU OOM, driver crash, context window overflow, model unload race), the server emits a final `{"error": "..."}` JSON frame and closes the stream. The HTTP status code never changes from 200, so HTTP-status-based error detection misses these errors entirely — they would silently bleed into the assistant's content stream as garbage tokens or undefined-field accesses.
+  - `parseNdjsonStream` now detects bare `{"error": "..."}` frames and throws `OllamaStreamError` immediately, with the error message preserved.
+  - `OllamaStreamError.partialContent` carries whatever content was accumulated before the error frame arrived (concatenated `message.content` for chat streams, concatenated `response` for generate streams, empty string for pull/push streams).
+  - The stream's `finalResult` promise rejects with the enriched `OllamaStreamError`; the `for await ... of stream` iterator yields an `{ type: 'error', data: { error } }` event before completing.
+  - See: https://github.com/ollama/ollama/blob/main/docs/api.md
+
+- **Granular HTTP status specialization.** Two new error subclasses give callers a way to branch on the failure mode rather than parsing messages or branching on `status` numbers.
+  - `OllamaOverloadedError` (HTTP 503) — server queue saturation (`OLLAMA_MAX_QUEUE` exceeded, default 512). `retryable: true`.
+  - `OllamaBadGatewayError` (HTTP 502) — cloud model could not be reached by the Ollama Cloud proxy. `retryable: true`.
+  - Both extend `OllamaClientError` directly (NOT `OllamaServerError`) because `OllamaServerError`'s constructor unconditionally forces `code: 'server_error'`. Callers wanting "any 5xx" should branch on `error.status >= 500 && error.status < 600` rather than `instanceof OllamaServerError`.
+  - Existing `instanceof` handlers for `OllamaNotFoundError` (404), `OllamaRateLimitError` (429), and `OllamaServerError` (generic 5xx) remain unchanged.
+
+- **Typed pull/push progress callback (`onProgress`).** The SDK already exposed pull/push progress as a typed `OllamaStream` via `models.pull({ stream: true })`. The new `onProgress(stream, cb)` helper wraps the stream iteration with a pre-computed `percent` field for callers building download/upload UIs:
+  ```ts
+  const stream = await client.models.pull({ model: 'llama3.2', stream: true });
+  await onProgress(stream, (event) => {
+    if (event.percent !== undefined) {
+      console.log(`${event.status}: ${event.percent}% (${event.digest?.slice(0, 12) ?? '-'})`);
+    }
+  });
+  ```
+  - `computeProgressPercent(chunk)` and `toPullProgressEvent(chunk)` exported for callers who want the percent calculation without subscribing to a stream.
+  - `PullProgressEvent` type carries `{ status, digest?, total?, completed?, percent?, raw }`.
+
+- **Cloud-vs-local tool-replay investigation (ADR 0023).** Documented the SDK's stance on parallel-vs-sequential tool-call emission from cloud vs local models: the SDK is a transparent passthrough, models decide, agent authors enforce sequential execution via `ToolRegistry`'s `maxConcurrency` option if they need it. A `ModelCapabilities.parallelToolCalls` field is proposed for a follow-up PR.
+
+### First digest — VRAM lifecycle, fetchWithBackoff, System One image caps, done_reason decoder
+
+- **VRAM lifecycle primitives.** Added ergonomic helpers for explicit GPU memory management, addressing the upstream `keep_alive` semantics documented in the Ollama FAQ:
+  - `KeepAlive` type union (`string | number | 'unload' | 'indefinite'`) and `normalizeKeepAlive()` helper map the SDK-level sugar literals `'unload'` and `'indefinite'` to the wire-level `0` and `-1` sentinels.
+  - `ModelsClient.unload(model)` issues an empty `/api/generate` request with `keep_alive: 0` to evict a model from VRAM immediately, freeing GPU memory for subsequent pipelines.
+  - `ModelsClient.pin(model)` issues an empty `/api/generate` request with `keep_alive: -1` to pre-load and pin a model indefinitely for hot-loop inference.
+  - `OllamaClient.unloadModel(model)` and `OllamaClient.pinModel(model)` convenience aliases mirror the existing `listModels` / `pullModel` pattern.
+  - `KEEP_ALIVE_UNLOAD` and `KEEP_ALIVE_INDEFINITE` exported constants for callers who want the raw sentinel values directly.
+
+- **Overload resiliency for HTTP 503 / 429.** New standalone `fetchWithBackoff()` helper wraps any fetch-shaped function with jittered exponential backoff for transient saturation responses. Mirrors the SDK's internal transport retry policy (`maxRetries: 3`, `initialDelayMs: 500`, `maxDelayMs: 30_000`, full-jitter strategy) so consumers see identical retry behavior whether they go through `OllamaClient` or call the helper directly. Useful for raw HTTP traffic to Ollama's compatibility bridges (Anthropic / OpenAI) or sibling Ollama instances outside the configured endpoint registry. `RETRYABLE_STATUS_CODES` and `DEFAULT_FETCH_BACKOFF_CONFIG` exported for downstream tooling.
+
+- **System One image support ergonomics.** The generated `SystemOneRequest.images?: readonly string[]` field (already on the wire) is now backed by:
+  - `MAX_SYSTEM_ONE_REQUEST_BYTES` (64 KiB) and `MAX_SYSTEM_ONE_IMAGES_BYTES` (32 MiB) constants documenting the conditional server-side size limits.
+  - `estimateSystemOneRequestBytes(request)` helper for pre-flight size validation before sending a multi-image batch — the runtime enforces the limit too, but the early check avoids the round-trip when the caller already knows the payload is too large.
+
+- **Response decoder hardening (Wave 13 conformance fix).** Added `KnownDoneReason` literal type (`'stop' | 'length' | 'load' | 'unload'`) and `isKnownDoneReason()` type guard so callers can narrow `done_reason` from `string | undefined` without risking `TypeError` on undefined access — the failure mode flagged in CI run #36962280416. The `done_reason` field on `ChatResponse` / `GenerateResponse` remains `string | undefined` for forward-compat with future upstream additions; the type guard provides opt-in narrowing.
+
 ## [1.8.0] - 2026-10-02
 
 - **Contract execution completion (Waves 12-16).** The SDK's contract-first architecture is now fully executable: every operation in the canonical IR is represented, generated, typed, and runtime-enforced with no `Record<string, unknown>` escape hatches on the generated surface.

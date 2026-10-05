@@ -4,3 +4,4 @@ export * from './normalize.js';
 export * from './ndjson.js';
 export * from './adapters.js';
 export * from './sse.js';
+export * from './progress.js';

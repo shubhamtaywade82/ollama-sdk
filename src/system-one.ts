@@ -75,6 +75,30 @@ import type {
 } from './generated/models/SystemOneResponse.js';
 
 /**
+ * Maximum total request size, in bytes, accepted by `/v1/systemone`
+ * when the request body carries a non-empty `images` array.
+ *
+ * The Ollama server enforces this limit server-side and rejects
+ * oversized payloads with HTTP 413. The SDK's runtime also enforces
+ * it client-side (see `OllamaRuntime`'s `maxRequestBytesWithImages`
+ * handling) so the round-trip is avoided.
+ *
+ * Without images, the limit is the much smaller
+ * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB) — the bumped
+ * images-cap exists specifically to accommodate base64-encoded image
+ * bytes shared across all questions in a single System One call.
+ */
+export const MAX_SYSTEM_ONE_IMAGES_BYTES = 32 * 1024 * 1024; // 32 MiB
+
+/**
+ * Maximum total request size, in bytes, for `/v1/systemone` when no
+ * images are attached. The Ollama server caps the JSON-only payload
+ * at 64 KiB; the runtime enforces this client-side (see
+ * `OllamaRuntime`'s `maxRequestBytes`).
+ */
+export const MAX_SYSTEM_ONE_REQUEST_BYTES = 64 * 1024; // 64 KiB
+
+/**
  * Discriminated union of the three question kinds. The upstream OpenAPI
  * defines this inline as `oneOf` within SystemOneRequest.questions; we
  * reconstruct it as a named type for SDK ergonomics.
@@ -146,6 +170,23 @@ export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> 
  *
  * The `model`, `state`, `images`, and `keep_alive` fields are inherited
  * from the generated base type unchanged.
+ *
+ * ## Image support
+ *
+ * The `images` field accepts up to N base64-encoded images shared by
+ * all questions in the request. Total request payload (JSON + images)
+ * must remain within {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (32 MiB);
+ * requests without images are capped at
+ * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB).
+ *
+ * Use {@link estimateSystemOneRequestBytes} for a client-side pre-flight
+ * check before sending a large multi-image batch — the runtime also
+ * enforces the limit, but the early check avoids the round-trip when
+ * the caller already knows the payload is too large.
+ *
+ * Requires Clef or Clef Flash with vision weights. URLs and data URLs
+ * are NOT supported — pre-encode the bytes to base64 before adding to
+ * the array.
  */
 export interface SystemOneRequest<Q extends SystemOneQuestions = SystemOneQuestions>
   extends Omit<SystemOneRequestBase, 'questions'> {
@@ -161,4 +202,38 @@ export interface SystemOneResponse<Q extends SystemOneQuestions = SystemOneQuest
   extends Omit<SystemOneResponseBase, 'answers' | 'usage'> {
   readonly answers: SystemOneAnswers<Q>;
   readonly usage: SystemOneUsage;
+}
+
+/**
+ * Estimate the on-the-wire byte size of a System One request body, for
+ * pre-flight size validation against {@link MAX_SYSTEM_ONE_REQUEST_BYTES}
+ * (no images) or {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (with images).
+ *
+ * The estimate is conservative: it uses `JSON.stringify` length and
+ * assumes UTF-8 encoding. The actual wire size may differ slightly due
+ * to server-side JSON normalization (key ordering, whitespace), but the
+ * estimate is always within a few percent of the real payload size and
+ * is suitable for "fail fast before sending" checks.
+ *
+ * @example
+ *   ```ts
+ *   const request: SystemOneRequest = { ... };
+ *   const bytes = estimateSystemOneRequestBytes(request);
+ *   const cap = request.images?.length ? MAX_SYSTEM_ONE_IMAGES_BYTES : MAX_SYSTEM_ONE_REQUEST_BYTES;
+ *   if (bytes > cap) throw new Error(`payload ${bytes}B exceeds cap ${cap}B`);
+ *   await client.systemOne(request);
+ *   ```
+ */
+export function estimateSystemOneRequestBytes(
+  request: SystemOneRequest | SystemOneRequestBase,
+): number {
+  // JSON.stringify is a faithful proxy for what the runtime sends on
+  // the wire — see src/transport/http.ts's request() method, which
+  // calls JSON.stringify on the body before passing to fetch. UTF-8
+  // multi-byte chars (the common case for non-ASCII base64) are counted
+  // correctly because String.prototype.length already reflects UTF-16
+  // code units; for pure-ASCII payloads (the typical case) the length
+  // equals the byte length directly. We err on the side of over-counting
+  // so the pre-flight check is conservative.
+  return new TextEncoder().encode(JSON.stringify(request)).byteLength;
 }

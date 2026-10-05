@@ -4,6 +4,7 @@
 
 import { listAvailableModels } from './capabilities/capabilities.js';
 import { OllamaNotFoundError } from './errors.js';
+import { KEEP_ALIVE_INDEFINITE, KEEP_ALIVE_UNLOAD } from './keep-alive.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
 import type { ProgressStreamResult } from './streaming/types.js';
@@ -13,6 +14,7 @@ import type {
   CopyRequestOptions,
   CreateRequestOptions,
   DeleteRequestOptions,
+  GenerateResponse,
   ModelResponse,
   ProgressResponse,
   PsResponse,
@@ -178,6 +180,80 @@ export class ModelsClient {
     return this.runner(
       (http) => http.request<VersionResponse>({ path: '/api/version', method: 'GET' }),
       { singleEndpoint: true },
+    );
+  }
+
+  /**
+   * Immediately unloads `model` from VRAM/RAM by issuing an empty
+   * `/api/generate` request with `keep_alive: 0`. The server
+   * finalizes any in-flight generation, releases the model's
+   * weights from GPU memory, and frees the slot for subsequent
+   * pipelines (e.g. swap a vision encoder out before loading an
+   * LLM).
+   *
+   * This is the ergonomic equivalent of:
+   *
+   * ```ts
+   * client.generate({ model, prompt: '', keep_alive: 0 });
+   * ```
+   *
+   * Use {@link pin} for the opposite lifecycle — pinning a model
+   * indefinitely in VRAM for hot-loop inference.
+   *
+   * Resolves once the server acknowledges the unload. The promise
+   * rejects on transport errors, model-not-found (404), or auth
+   * failures — callers handling transient issues can retry via the
+   * standard {@link withRetry} policy.
+   *
+   * See: https://github.com/ollama/ollama/blob/main/docs/faq.md
+   *      #how-do-i-keep-a-model-loaded-in-memory-or-make-it-unload-immediately
+   */
+  async unload(model: string): Promise<void> {
+    await this.runner(
+      (http, signal) =>
+        http.request<GenerateResponse>({
+          path: '/api/generate',
+          body: { model, prompt: '', keep_alive: KEEP_ALIVE_UNLOAD, stream: false },
+          signal,
+        }),
+      { model, singleEndpoint: true },
+    );
+  }
+
+  /**
+   * Pre-loads and pins `model` into VRAM indefinitely by issuing an
+   * empty `/api/generate` request with `keep_alive: -1`. The server
+   * loads the model into GPU memory (paying the cold-load latency
+   * once) and keeps it resident until either:
+   *
+   *   - an explicit {@link unload} call is made,
+   *   - the server process is restarted, or
+   *   - the host runs out of VRAM and the server's own eviction
+   *     policy kicks in.
+   *
+   * This is the ergonomic equivalent of:
+   *
+   * ```ts
+   * client.generate({ model, prompt: '', keep_alive: -1 });
+   * ```
+   *
+   * Use {@link unload} to release the pinned slot when the hot loop
+   * is done — leaving models pinned indefinitely exhausts VRAM and
+   * starves subsequent pipelines.
+   *
+   * Resolves once the server acknowledges the pin (i.e. the model
+   * is fully loaded). The promise rejects on transport errors,
+   * model-not-found (404), or VRAM-exhaustion failures.
+   */
+  async pin(model: string): Promise<void> {
+    await this.runner(
+      (http, signal) =>
+        http.request<GenerateResponse>({
+          path: '/api/generate',
+          body: { model, prompt: '', keep_alive: KEEP_ALIVE_INDEFINITE, stream: false },
+          signal,
+        }),
+      { model, singleEndpoint: true },
     );
   }
 
