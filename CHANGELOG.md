@@ -4,6 +4,18 @@
 
 ### Production-readiness audit — tool-call accumulator, mock server
 
+- **Offline wire-format conformance tests** (`test/conformance/native-api-offline.test.ts`). The sibling `native-api.test.ts` hits a REAL Ollama server and skips when none is available. The new offline tests use `OllamaMockServer` to emit contract-shaped NDJSON frames without any model inference, so they run in every CI environment — including those without an Ollama daemon. They validate ONLY the wire format (schema conformance, error-class mapping, optional-field handling), NOT model behavior. The split exists because wire-format drift is a contract concern (catchable offline), while model-behavior drift is a server/model concern (only catchable against a live server). 22 new tests covering:
+  - `GET /api/version`, `/api/tags`, `/api/ps`, `POST /api/show` schema conformance
+  - `POST /api/chat`, `/api/generate`, `/api/embed` schema conformance (non-streaming)
+  - `POST /api/chat`, `/api/generate` streaming chunk schema conformance
+  - Error-class mapping: 404 → `OllamaNotFoundError`, 503 → `OllamaOverloadedError`, in-band `{"error":"..."}` → `OllamaStreamError`
+  - Optional telemetry fields (`prompt_eval_cached_count`, `thinking`, `done_reason`) — verifies the SDK does NOT throw when these are absent (the Wave 13 conformance failure mode)
+  - `done_reason` variants: `"stop"`, `"length"`, `"load"`, `"unload"` all parse cleanly; an undocumented value also parses cleanly (forward-compat)
+  - `OllamaClient` vs `NativeApi` shape parity (mirrors the live parity test)
+- Updated `test/conformance/harness.ts` docstring to document the live-vs-offline split.
+
+### Production-readiness audit — tool-call accumulator, mock server
+
 - **Defensive tool-call streaming accumulator (`src/tools/tool-call-accumulator.ts`).** The original `aggregateChat` in `src/streaming/normalize.ts` blindly appended every chunk's `tool_calls` array, which would produce duplicate entries if Ollama ever started streaming them incrementally. The new `ToolCallAccumulator` matches entries by `id` (the SDK-synthesized stable identifier) or by array position, and merges them with spread-semantics on `function.arguments`. For the documented native Ollama behavior (tool_calls arrive complete in one chunk), the accumulator is a no-op — one chunk carries the full array, the next chunk has nothing, and the accumulator appends exactly once. The accumulator is also exported for callers who want the same merge logic on raw NDJSON chunks.
   - New exports: `ToolCallAccumulator` class, `mergeToolCallArrays()` stateless helper, `mergeToolCall()` / `mergeToolCallArgumentsString()` / `isSameToolCall()` standalone helpers.
   - `aggregateChat` now uses `mergeToolCallArrays` instead of the naive `[...accumulated, ...incoming]` spread.
