@@ -9,6 +9,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   OLLAMA_CLOUD_BASE_URL,
   resolveApiKey,
+  resolveEndpointApiKey,
   resolveBaseUrl,
   resolveCredentialEndpoints,
   type OllamaClientConfig,
@@ -147,8 +148,9 @@ export class OllamaClient {
   private readonly cloudApiKey: string | undefined;
 
   constructor(config: OllamaClientConfig = {}) {
-    const resolvedApiKey = resolveApiKey(config.apiKey);
-    this.cloudApiKey = resolvedApiKey;
+    this.cloudApiKey = resolveApiKey(config.apiKey);
+    const defaultBaseUrl = resolveBaseUrl(config.baseUrl);
+    const resolvedApiKey = resolveEndpointApiKey(config.apiKey, defaultBaseUrl);
     const credentialEndpoints = resolveCredentialEndpoints(config);
     const endpoints =
       config.endpoints ??
@@ -157,7 +159,7 @@ export class OllamaClient {
         : [
             {
               name: 'default',
-              baseUrl: resolveBaseUrl(config.baseUrl),
+              baseUrl: defaultBaseUrl,
               ...(resolvedApiKey !== undefined ? { apiKey: resolvedApiKey } : {}),
               ...(config.headers !== undefined ? { headers: config.headers } : {}),
             },
