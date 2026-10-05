@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Production-readiness audit — tool-call accumulator, mock server
+
+- **Defensive tool-call streaming accumulator (`src/tools/tool-call-accumulator.ts`).** The original `aggregateChat` in `src/streaming/normalize.ts` blindly appended every chunk's `tool_calls` array, which would produce duplicate entries if Ollama ever started streaming them incrementally. The new `ToolCallAccumulator` matches entries by `id` (the SDK-synthesized stable identifier) or by array position, and merges them with spread-semantics on `function.arguments`. For the documented native Ollama behavior (tool_calls arrive complete in one chunk), the accumulator is a no-op — one chunk carries the full array, the next chunk has nothing, and the accumulator appends exactly once. The accumulator is also exported for callers who want the same merge logic on raw NDJSON chunks.
+  - New exports: `ToolCallAccumulator` class, `mergeToolCallArrays()` stateless helper, `mergeToolCall()` / `mergeToolCallArgumentsString()` / `isSameToolCall()` standalone helpers.
+  - `aggregateChat` now uses `mergeToolCallArrays` instead of the naive `[...accumulated, ...incoming]` spread.
+  - Includes a dedicated `mergeToolCallArgumentsString` helper for the OpenAI-compat streaming format (where `function.arguments` arrives as string deltas like `'{"city":'` + `' "Bengaluru"}'`); the OpenAI-compat bridge at `src/integrations/openai.ts` already does its own per-index accumulation, but the helper is exported for callers who want the same logic elsewhere.
+
+- **In-memory mock server for deterministic CI testing (`test/mocks/ollama-mock-server.ts`).** A thin `node:http` wrapper that lets tests register route handlers with programmable delay, chunk fragmentation, mid-stream error injection, and connection drops. Complements the existing VCR cassette system (`test/vcr.ts`) with capabilities cassettes can't provide:
+  - Programmable inter-chunk delay (test backpressure handling).
+  - Mid-stream error frame injection (test in-band `{"error":"..."}` trapping).
+  - Chunk fragmentation across TCP packets (test parser buffering).
+  - 503/502/429 error status codes with custom bodies.
+  - Connection drops mid-stream (test recovery from network failures).
+  - Request body capture via `onRequest` callback.
+  - Idempotent `stop()` — safe to call from `afterEach` hooks without tracking whether `start()` ran.
+  - Ephemeral port support (`port: 0`) for parallel test runs.
+
 ### Second digest — mid-stream errors, 502/503 specialization, pull-progress ergonomics
 
 - **In-band stream-error trapping (NDJSON).** Ollama's streaming endpoints start with HTTP 200 OK and chunked transfer encoding; if generation fails mid-flight (GPU OOM, driver crash, context window overflow, model unload race), the server emits a final `{"error": "..."}` JSON frame and closes the stream. The HTTP status code never changes from 200, so HTTP-status-based error detection misses these errors entirely — they would silently bleed into the assistant's content stream as garbage tokens or undefined-field accesses.

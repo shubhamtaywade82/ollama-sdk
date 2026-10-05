@@ -208,6 +208,15 @@ export {
   type ToolRegistryOptions,
 } from './tools/index.js';
 
+// Tool-call streaming accumulator (defensive merge for multi-chunk tool_calls)
+export {
+  ToolCallAccumulator,
+  mergeToolCallArrays,
+  mergeToolCall,
+  mergeToolCallArgumentsString,
+  isSameToolCall,
+} from './tools/tool-call-accumulator.js';
+
 // MCP
 export {
   loadMcpTools,

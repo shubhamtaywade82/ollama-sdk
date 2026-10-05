@@ -5,6 +5,7 @@
 import type { ChatResponse, GenerateResponse, ProgressResponse } from '../types.js';
 import { extractUsage, NANOS_PER_MS } from '../usage.js';
 import { ensureToolCallIds } from '../tools/tool-call-id.js';
+import { mergeToolCallArrays } from '../tools/tool-call-accumulator.js';
 import { OllamaStream } from './stream.js';
 import type {
   AbortableAsyncIterable,
@@ -24,9 +25,20 @@ function aggregateChat(accumulated: ChatStreamResult, chunk: ChatResponse): Chat
         message.thinking !== undefined
           ? (accumulated.message.thinking ?? '') + message.thinking
           : accumulated.message.thinking,
-      tool_calls: message.tool_calls?.length
-        ? [...(accumulated.message.tool_calls ?? []), ...message.tool_calls]
-        : accumulated.message.tool_calls,
+      // Defensive tool-call merging: instead of blindly appending
+      // every chunk's tool_calls array (which would produce
+      // duplicates if Ollama ever starts streaming them
+      // incrementally), merge entries that refer to the same logical
+      // call (matched by id or array position). For the documented
+      // native behavior (tool_calls arrive complete in one chunk)
+      // this is a no-op — the accumulator appends exactly once.
+      //
+      // See src/tools/tool-call-accumulator.ts for the full merge
+      // semantics and the rationale.
+      tool_calls:
+        message.tool_calls?.length || accumulated.message.tool_calls?.length
+          ? mergeToolCallArrays(accumulated.message.tool_calls, message.tool_calls)
+          : undefined,
     },
     model: chunk.model,
     done: chunk.done,
