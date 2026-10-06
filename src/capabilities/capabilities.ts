@@ -89,7 +89,8 @@ export interface ModelCapabilities {
 export function inferRuntimeMode(baseUrl: string): RuntimeMode {
   try {
     const url = new URL(baseUrl);
-    const host = url.hostname.toLowerCase();
+    // WHATWG URL keeps the brackets on an IPv6 literal ("[::1]"), so strip them before comparing
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
     if (
       host === 'localhost' ||
       host === '127.0.0.1' ||
