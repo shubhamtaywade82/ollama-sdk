@@ -4,6 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
+export type { BalanceResponse } from './BalanceResponse.js';
 export type { ChatMessage } from './ChatMessage.js';
 export type { ChatRequest } from './ChatRequest.js';
 export type { ChatResponse } from './ChatResponse.js';
@@ -17,6 +18,9 @@ export type { ErrorResponse } from './ErrorResponse.js';
 export type { GenerateRequest } from './GenerateRequest.js';
 export type { GenerateResponse } from './GenerateResponse.js';
 export type { GenerateStreamEvent } from './GenerateStreamEvent.js';
+export type { IncludedBalance } from './IncludedBalance.js';
+export type { LegacyBalanceLimit } from './LegacyBalanceLimit.js';
+export type { LegacyIncludedBalance } from './LegacyIncludedBalance.js';
 export type { ListResponse } from './ListResponse.js';
 export type { Logprob } from './Logprob.js';
 export type { ModelOptions } from './ModelOptions.js';
@@ -45,6 +49,9 @@ export type { Thinking } from './Thinking.js';
 export type { TokenLogprob } from './TokenLogprob.js';
 export type { ToolCall } from './ToolCall.js';
 export type { ToolDefinition } from './ToolDefinition.js';
+export type { UsageBucket } from './UsageBucket.js';
+export type { UsageMetrics } from './UsageMetrics.js';
+export type { UsageResponse } from './UsageResponse.js';
 export type { VersionResponse } from './VersionResponse.js';
 export type { WebFetchRequest } from './WebFetchRequest.js';
 export type { WebFetchResponse } from './WebFetchResponse.js';

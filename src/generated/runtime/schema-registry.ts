@@ -7,6 +7,7 @@
  */
 
 import type { z } from 'zod';
+import { BalanceResponseSchema } from '../models/BalanceResponse.schema.js';
 import { ChatRequestSchema } from '../models/ChatRequest.schema.js';
 import { ChatResponseSchema } from '../models/ChatResponse.schema.js';
 import { CopyRequestSchema } from '../models/CopyRequest.schema.js';
@@ -25,6 +26,7 @@ import { ShowResponseSchema } from '../models/ShowResponse.schema.js';
 import { StatusResponseSchema } from '../models/StatusResponse.schema.js';
 import { SystemOneRequestSchema } from '../models/SystemOneRequest.schema.js';
 import { SystemOneResponseSchema } from '../models/SystemOneResponse.schema.js';
+import { UsageResponseSchema } from '../models/UsageResponse.schema.js';
 import { VersionResponseSchema } from '../models/VersionResponse.schema.js';
 import { WebFetchRequestSchema } from '../models/WebFetchRequest.schema.js';
 import { WebFetchResponseSchema } from '../models/WebFetchResponse.schema.js';
@@ -60,6 +62,7 @@ export const requestSchemas: Readonly<Record<string, z.ZodType>> = {
  * typed response semantics are critical (e.g. System One).
  */
 export const responseSchemas: Readonly<Record<string, z.ZodType>> = {
+  balance: BalanceResponseSchema,
   chat: ChatResponseSchema,
   create: StatusResponseSchema,
   embed: EmbedResponseSchema,
@@ -70,6 +73,7 @@ export const responseSchemas: Readonly<Record<string, z.ZodType>> = {
   show: ShowResponseSchema,
   systemOne: SystemOneResponseSchema,
   tags: ListResponseSchema,
+  usage: UsageResponseSchema,
   version: VersionResponseSchema,
   webFetch: WebFetchResponseSchema,
   webSearch: WebSearchResponseSchema,

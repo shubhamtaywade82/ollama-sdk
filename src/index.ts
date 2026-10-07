@@ -59,6 +59,17 @@ export type {
   WebSearchResponse,
   WebFetchRequestOptions,
   WebFetchResponse,
+  UsageRange,
+  UsageScope,
+  UsageRequestOptions,
+  BalanceRequestOptions,
+  UsageResponse,
+  UsageMetrics,
+  UsageBucket,
+  BalanceResponse,
+  IncludedBalance,
+  LegacyBalanceLimit,
+  LegacyIncludedBalance,
 } from './types.js';
 
 // Errors

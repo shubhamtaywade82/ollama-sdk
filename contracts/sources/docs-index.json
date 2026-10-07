@@ -7,8 +7,8 @@
       "kind": "openapi-yaml",
       "path": "contracts/sources/ollama.openapi.yaml",
       "upstream": "https://github.com/ollama/ollama/blob/main/docs/openapi.yaml",
-      "pinnedSha": "86fc5e9dcadb89b042e31e9b4bbb35baac2e0e54",
-      "pinnedAt": "2026-09-25"
+      "pinnedSha": "675c8bb59da99c32aabee4900f358ac074999c16",
+      "pinnedAt": "2026-10-07"
     },
     {
       "id": "openai-compatibility",

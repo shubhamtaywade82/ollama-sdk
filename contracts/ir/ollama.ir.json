@@ -2,8 +2,37 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "22fa3fefbf471724",
+  "sourceHash": "2355ff8e72335ae2",
   "operations": [
+    {
+      "id": "balance",
+      "method": "GET",
+      "path": "/api/balance",
+      "response": {
+        "$ref": "#/schemas/BalanceResponse"
+      },
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "host": "https://ollama.com",
+      "notes": [
+        "Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Takes no parameters. For usage history see the usage operation.",
+        "Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.",
+        "Use OllamaClient.balance() — the generated NativeApi class does not expose this operation."
+      ]
+    },
     {
       "id": "blobs",
       "method": "HEAD",
@@ -210,9 +239,11 @@
             "messages",
             "quantize",
             "stream",
+            "files",
             "draft_files",
             "draft_quantize",
-            "requires"
+            "requires",
+            "capabilities"
           ],
           "unsupportedFields": [],
           "sdkOnlyFields": [
@@ -788,6 +819,35 @@
       }
     },
     {
+      "id": "usage",
+      "method": "GET",
+      "path": "/api/usage",
+      "response": {
+        "$ref": "#/schemas/UsageResponse"
+      },
+      "environment": {
+        "local": false,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true
+      },
+      "domain": "native",
+      "host": "https://ollama.com",
+      "notes": [
+        "Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.",
+        "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
+        "Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin).",
+        "Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.",
+        "Use OllamaClient.usage() — the generated NativeApi class does not expose this operation."
+      ]
+    },
+    {
       "id": "version",
       "method": "GET",
       "path": "/api/version",
@@ -1307,6 +1367,43 @@
     }
   ],
   "schemas": [
+    {
+      "name": "BalanceResponse",
+      "source": {
+        "openapi": "#/components/schemas/BalanceResponse"
+      },
+      "definition": {
+        "type": "object",
+        "required": [
+          "included",
+          "purchased"
+        ],
+        "properties": {
+          "included": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IncludedBalance"
+              },
+              {
+                "$ref": "#/components/schemas/LegacyIncludedBalance"
+              }
+            ]
+          },
+          "purchased": {
+            "type": "object",
+            "required": [
+              "balance_usd"
+            ],
+            "properties": {
+              "balance_usd": {
+                "type": "number",
+                "description": "Remaining unexpired purchased credits in USD."
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "name": "ChatMessage",
       "source": {
@@ -2033,6 +2130,98 @@
           "eval_duration": {
             "type": "integer",
             "description": "Time spent generating tokens in nanoseconds"
+          }
+        }
+      }
+    },
+    {
+      "name": "IncludedBalance",
+      "source": {
+        "openapi": "#/components/schemas/IncludedBalance"
+      },
+      "definition": {
+        "title": "Included credits",
+        "type": "object",
+        "required": [
+          "balance_usd",
+          "allowance_usd",
+          "period"
+        ],
+        "properties": {
+          "balance_usd": {
+            "type": "number",
+            "description": "Remaining included credits in USD."
+          },
+          "allowance_usd": {
+            "type": "number",
+            "description": "Included credits available for the full period in USD."
+          },
+          "period": {
+            "type": "object",
+            "required": [
+              "from",
+              "until"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Start of the included period in UTC, inclusive."
+              },
+              "until": {
+                "type": "string",
+                "format": "date-time",
+                "description": "End of the included period in UTC, exclusive."
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "LegacyBalanceLimit",
+      "source": {
+        "openapi": "#/components/schemas/LegacyBalanceLimit"
+      },
+      "definition": {
+        "type": "object",
+        "required": [
+          "remaining_percent",
+          "resets_at"
+        ],
+        "properties": {
+          "remaining_percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Percentage of the limit remaining."
+          },
+          "resets_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Next reset time in UTC."
+          }
+        }
+      }
+    },
+    {
+      "name": "LegacyIncludedBalance",
+      "source": {
+        "openapi": "#/components/schemas/LegacyIncludedBalance"
+      },
+      "definition": {
+        "title": "Legacy plan limits",
+        "type": "object",
+        "required": [
+          "session",
+          "weekly"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/LegacyBalanceLimit"
+          },
+          "weekly": {
+            "$ref": "#/components/schemas/LegacyBalanceLimit"
           }
         }
       }
@@ -3002,6 +3191,143 @@
                 "type": "object",
                 "description": "JSON Schema for the function parameters"
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "UsageBucket",
+      "source": {
+        "openapi": "#/components/schemas/UsageBucket"
+      },
+      "definition": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UsageMetrics"
+          },
+          {
+            "type": "object",
+            "required": [
+              "from",
+              "until"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Start of the bucket in UTC, inclusive."
+              },
+              "until": {
+                "type": "string",
+                "format": "date-time",
+                "description": "End of the bucket in UTC, exclusive."
+              },
+              "partial": {
+                "type": "boolean",
+                "description": "Present and true for the current hour or day, which is still in progress."
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UsageMetrics",
+      "source": {
+        "openapi": "#/components/schemas/UsageMetrics"
+      },
+      "definition": {
+        "type": "object",
+        "required": [
+          "request_count"
+        ],
+        "properties": {
+          "request_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of recorded requests."
+          },
+          "usage_usd": {
+            "type": "number",
+            "description": "Total value of the requests in USD, including usage covered by your plan and usage paid from purchased credits."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "description": "Recorded input tokens, including cached input tokens."
+          },
+          "cached_input_tokens": {
+            "type": "integer",
+            "description": "Recorded input tokens read from cache, already included in input_tokens."
+          },
+          "output_tokens": {
+            "type": "integer",
+            "description": "Recorded output tokens."
+          }
+        }
+      }
+    },
+    {
+      "name": "UsageResponse",
+      "source": {
+        "openapi": "#/components/schemas/UsageResponse"
+      },
+      "definition": {
+        "type": "object",
+        "required": [
+          "range",
+          "scope",
+          "granularity",
+          "from",
+          "until",
+          "totals",
+          "buckets"
+        ],
+        "properties": {
+          "range": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d"
+            ],
+            "description": "Selected time range."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "self",
+              "team"
+            ],
+            "description": "Selected usage scope."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "day"
+            ],
+            "description": "Set automatically - hour for 24h, day for 7d and 30d."
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the range in UTC, inclusive."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the range in UTC, exclusive."
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageMetrics",
+            "description": "Usage across the entire range."
+          },
+          "buckets": {
+            "type": "array",
+            "description": "Usage in chronological order, including buckets with no recorded requests.",
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
             }
           }
         }
