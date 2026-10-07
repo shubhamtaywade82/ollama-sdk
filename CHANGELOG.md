@@ -1,8 +1,8 @@
 # Changelog
 
-## [1.9.0] — Digest upgrades: vision resolver, dual-mode Responses bridge, KV-cache sessions, context safety, blob publishing
+## [1.9.0] — Digest upgrades: vision resolver, dual-mode Responses bridge, KV-cache sessions, context safety, blob publishing, cloud usage & balance
 
-Five upgrades closing the gaps surfaced by the official Ollama documentation review (see [ADR 0024](./docs/adr/0024-digest-upgrades-vision-responses-sessions-context-blobs.md)). All additive — no breaking changes; 689 pre-existing tests stay green, 50 new tests added.
+Five upgrades closing the gaps surfaced by the official Ollama documentation review (see [ADR 0024](./docs/adr/0024-digest-upgrades-vision-responses-sessions-context-blobs.md)) — plus a second-pass recheck against the current official docs (see the last section) that added the Ollama Cloud account endpoints and a missing `/api/create` field. All additive — no breaking changes; 689 pre-existing tests stay green, 60 new tests added.
 
 ### Universal vision asset resolver (`src/vision.ts`)
 
@@ -43,13 +43,27 @@ Five upgrades closing the gaps surfaced by the official Ollama documentation rev
 - **`createBlobFromData(data, {digest?})`** / **`createBlobFromFile(path)`** — HEAD existence check then upload, skipping the POST (and the wasted bandwidth) when the blob is already present; returns `BlobUploadResult { digest, alreadyExisted }` (file variant adds `fileName` — the basename `/api/create`'s `files` map keys on).
 - **`createModelFromGguf(model, ggufPath | paths, opts)`** — one-shot implementation of Ollama's documented import protocol: push a blob per GGUF shard, then `POST /api/create` with `files: { <fileName>: <digest> }` (verified against the official API reference).
 
+### Docs recheck: Ollama Cloud account endpoints + contract refresh
+
+A second full audit against the current official Ollama docs (`docs/openapi.yaml`, `docs/api/*.mdx`, `docs/capabilities/*.mdx`, `docs/modelfile.mdx`, `docs/import.mdx`, `docs/context-length.mdx`) found the SDK already at parity everywhere except three items — all closed here:
+
+- **`client.usage(options?)`** — wraps `GET https://ollama.com/api/usage` (cloud-only): request counts, USD spend, and token totals (input / cached-input / output) across the whole range plus hourly (`range: '24h'`) or daily (`'7d'`/`'30d'`) buckets, including `partial: true` markers for the in-progress hour/day. Query parameters `range` (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope` (`'self' | 'team'`, server default `'self'`, team requires an admin) are typed and only sent when provided.
+- **`client.balance(options?)`** — wraps `GET https://ollama.com/api/balance`: remaining included + purchased credits, with the included shape a runtime-discriminated union of the plan-period credits object (`balance_usd`/`allowance_usd`/`period`) and the legacy session/weekly percentage-limits shape.
+- Both ride the same fixed-cloud-host pipeline as `webSearch`/`webFetch` (`https://ollama.com`, `apiKey`/`OLLAMA_API_KEY`, default timeout + retry, never multi-endpoint failover) and both endpoints' documented 10-req/min rate limit is respected by the shared `OllamaRateLimitError` retry semantics (429 + `Retry-After`).
+- **`CreateRequestOptions.capabilities`** — the one field-level gap the drift detector surfaced: the official `/api/create` payload accepts `capabilities: string[]` (e.g. `'decision'`) to add capabilities without removing inherited/inferred ones; now typed and forwarded. `files` also joined the create parity manifest.
+- **Contract refresh** — the pinned OpenAPI snapshot (`contracts/sources/ollama.openapi.yaml` + verbatim `docs/upstream/ollama-openapi.yaml`) moved from the 2026-10-02 pin to 2026-10-07 (source SHA `675c8bb`), bringing the `Usage*`/`Balance*` schemas into the IR (7 new contract-generated models), repairing the corrupted enum literals the upstream file carries (`[24h, 7d, 30d]`, `[hour, day]`), and adding a new `contracts/overlays/cloud.yaml` so bidirectional endpoint discovery, the MCP tool registry, and the IR inspector all see the account endpoints.
+- **Generator fix**: top-level `allOf` schemas (like `UsageBucket` = `UsageMetrics & {from, until, partial?}`) previously emitted as an empty interface — the models emitter dropped the intersection. `allOf` now emits a correct type alias; the Zod emitter already handled it.
+- Everything else audited clean: all 15 core REST endpoints (incl. legacy `/api/embeddings`), `/v1/systemone`, `web_search`/`web_fetch`, the full OpenAI-compat surface (incl. `reasoning_effort`, `reasoning.effort`, `think`, `instructions`, `max_output_tokens`) and Anthropic-compat surface (incl. `output_config`, thinking, tool results, all streaming events), field-level sync on every request/response schema (`logprobs`, `top_logprobs`, `think`, `remote_host`/`remote_model`, `draft_files`, `parser`, `renderer`, `requires`, Ps `context_length`/`size_vram`, Show `capabilities`/`thinking`), auth (`OLLAMA_API_KEY` scoping), and the capability docs (vision, structured outputs, thinking, embeddings, tool calling, context length, GGUF import).
+- New exports: `client.usage()`, `client.balance()`, `UsageRequestOptions`, `UsageRange`, `UsageScope`, `BalanceRequestOptions`, and the contract-generated `UsageResponse`, `UsageMetrics`, `UsageBucket`, `BalanceResponse`, `IncludedBalance`, `LegacyBalanceLimit`, `LegacyIncludedBalance`.
+- 10 new unit tests (`test/usage-balance.test.ts`, mocked fetch — CI-safe) and updated guard tests (`test/security-invariants.test.ts` host allowlist now covers the four cloud ops; `test/contract/parity.test.ts` new-ops set extended).
+
 ### Documentation & examples
 
 - README: four new Quick Start sections (sessions, dual-mode Responses, context safety, blob publishing) + rewritten vision section; five new feature bullets.
 - **MIGRATION.md** (new): openai npm SDK → this SDK mapping table, responses/chat-completions/vision/statefulness/reasoning/error mapping.
 - **ADR 0024** (new) + ADR index now lists 0022–0024.
-- Five runnable examples: `examples/vision-inputs.ts`, `examples/responses-bridge.ts`, `examples/conversation-session.ts`, `examples/context-safety.ts`, `examples/blob-publishing.ts` (`npm run example <file>`).
-- 50 new unit tests (mocked fetch — CI-safe, no daemon): `test/vision-resolver.test.ts`, `test/responses-bridge.test.ts`, `test/conversation-session.test.ts`, `test/context-safety.test.ts`, `test/blob-helpers.test.ts`.
+- Five runnable examples: `examples/vision-inputs.ts`, `examples/responses-bridge.ts`, `examples/conversation-session.ts`, `examples/context-safety.ts`, `examples/blob-publishing.ts` (`npm run example <file>`) — plus `examples/usage-balance.ts` from the docs-recheck pass.
+- 50 new unit tests (mocked fetch — CI-safe, no daemon): `test/vision-resolver.test.ts`, `test/responses-bridge.test.ts`, `test/conversation-session.test.ts`, `test/context-safety.test.ts`, `test/blob-helpers.test.ts` — plus 10 more in `test/usage-balance.test.ts`.
 
 ## [Unreleased]
 

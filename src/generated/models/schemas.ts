@@ -2,6 +2,7 @@
 // Source: contracts/ir/ollama.ir.json (canonical Ollama IR).
 // Pairs with ./<name>.ts (the TypeScript interface).
 
+export { BalanceResponseSchema } from './BalanceResponse.schema.js';
 export { ChatMessageSchema } from './ChatMessage.schema.js';
 export { ChatRequestSchema } from './ChatRequest.schema.js';
 export { ChatResponseSchema } from './ChatResponse.schema.js';
@@ -15,6 +16,9 @@ export { ErrorResponseSchema } from './ErrorResponse.schema.js';
 export { GenerateRequestSchema } from './GenerateRequest.schema.js';
 export { GenerateResponseSchema } from './GenerateResponse.schema.js';
 export { GenerateStreamEventSchema } from './GenerateStreamEvent.schema.js';
+export { IncludedBalanceSchema } from './IncludedBalance.schema.js';
+export { LegacyBalanceLimitSchema } from './LegacyBalanceLimit.schema.js';
+export { LegacyIncludedBalanceSchema } from './LegacyIncludedBalance.schema.js';
 export { ListResponseSchema } from './ListResponse.schema.js';
 export { LogprobSchema } from './Logprob.schema.js';
 export { ModelOptionsSchema } from './ModelOptions.schema.js';
@@ -43,6 +47,9 @@ export { ThinkingSchema } from './Thinking.schema.js';
 export { TokenLogprobSchema } from './TokenLogprob.schema.js';
 export { ToolCallSchema } from './ToolCall.schema.js';
 export { ToolDefinitionSchema } from './ToolDefinition.schema.js';
+export { UsageBucketSchema } from './UsageBucket.schema.js';
+export { UsageMetricsSchema } from './UsageMetrics.schema.js';
+export { UsageResponseSchema } from './UsageResponse.schema.js';
 export { VersionResponseSchema } from './VersionResponse.schema.js';
 export { WebFetchRequestSchema } from './WebFetchRequest.schema.js';
 export { WebFetchResponseSchema } from './WebFetchResponse.schema.js';

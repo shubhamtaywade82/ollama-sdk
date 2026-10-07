@@ -194,6 +194,21 @@ function emitSchemaInterface(schema: SchemaContract, ctx: EmissionContext): stri
     return `${HEADER}\nexport type ${name} = unknown;\n`;
   }
 
+  // `allOf` schemas: emit a `type` alias intersecting the members (plus
+  // local properties in the rare JSON-Schema merge case). `emitInlineObject`
+  // only reads `properties`, so routing an allOf schema through the
+  // interface path would silently drop the intersection — exactly what
+  // `UsageBucket` (allOf[UsageMetrics, {from, until, partial?}]) needs.
+  if (def.allOf && def.allOf.length > 0) {
+    const members = def.allOf.map((child) => emitType(child, ctx));
+    if (def.properties) members.push(emitInlineObject(def, { ...ctx, indent: '  ' }));
+    const alias = members.join(' & ');
+    const lines: string[] = [HEADER, ''];
+    if (schema.description) lines.push(`/** ${schema.description} */`);
+    lines.push(`export type ${name} = ${alias};`, '');
+    return lines.join('\n');
+  }
+
   // If the schema is just a primitive alias (no `properties` and a primitive type),
   // emit a `type` alias instead of an `interface`.
   if (!def.properties && (def.type || def.$ref || def.oneOf || def.anyOf || def.enum)) {

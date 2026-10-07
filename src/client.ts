@@ -86,11 +86,14 @@ import type {
   PushRequestOptions,
   RequestCancellationOptions,
   ShowRequestOptions,
+  UsageRequestOptions,
   WebFetchRequestOptions,
   WebFetchResponse,
   WebSearchRequestOptions,
   WebSearchResponse,
+  BalanceRequestOptions,
 } from './types.js';
+import type { BalanceResponse, UsageResponse } from './generated/models/index.js';
 
 let logicalRequestSequence = 0;
 
@@ -869,6 +872,65 @@ export class OllamaClient {
     return this.executeCloudRequest(
       (http, signal) =>
         http.request<WebFetchResponse>({ path: '/api/web_fetch', body: req, signal }),
+      req,
+    );
+  }
+  /**
+   * Ollama Cloud usage statistics (`GET https://ollama.com/api/usage`) — request counts,
+   * USD spend, and token totals (including cached input tokens) for cloud inference,
+   * web search, and web fetch, bucketed by hour (`range: '24h'`) or day (`'7d'`/`'30d'`).
+   *
+   * See {@link OllamaClient.webSearch} for the cloud-endpoint/auth/timeout/retry
+   * behavior, which applies identically here. Query parameters mirror the official
+   * endpoint: `range` (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope`
+   * (`'self' | 'team'`, server default `'self'`; team scope requires a team admin).
+   * Omitted options are left unset so the server applies its own defaults.
+   *
+   * ```ts
+   * const usage = await client.usage({ range: '24h' });
+   * console.log(usage.totals.request_count, usage.totals.usage_usd);
+   * for (const bucket of usage.buckets) {
+   *   if (bucket.partial) continue; // current hour, still in progress
+   *   // ...
+   * }
+   * ```
+   */
+  usage(req: UsageRequestOptions = {}): Promise<UsageResponse> {
+    const params = new URLSearchParams();
+    if (req.range !== undefined) params.set('range', req.range);
+    if (req.scope !== undefined) params.set('scope', req.scope);
+    const query = params.toString();
+    return this.executeCloudRequest(
+      (http, signal) =>
+        http.request<UsageResponse>({
+          path: query ? `/api/usage?${query}` : '/api/usage',
+          method: 'GET',
+          signal,
+        }),
+      req,
+    );
+  }
+  /**
+   * Ollama Cloud balance (`GET https://ollama.com/api/balance`) — remaining included
+   * and purchased usage credits. The included balance is either a plan-period credit
+   * object (`balance_usd`/`allowance_usd`/`period`) or, on legacy plans, session/weekly
+   * percentage limits; the shape is discriminated at runtime by the server response.
+   * See {@link OllamaClient.webSearch} for the cloud-endpoint/auth/timeout/retry
+   * behavior, which applies identically here.
+   *
+   * ```ts
+   * const balance = await client.balance();
+   * if ('balance_usd' in balance.included) {
+   *   console.log(balance.included.balance_usd, balance.purchased.balance_usd);
+   * } else {
+   *   console.log(balance.included.session.remaining_percent, '% of session limit left');
+   * }
+   * ```
+   */
+  balance(req: BalanceRequestOptions = {}): Promise<BalanceResponse> {
+    return this.executeCloudRequest(
+      (http, signal) =>
+        http.request<BalanceResponse>({ path: '/api/balance', method: 'GET', signal }),
       req,
     );
   }

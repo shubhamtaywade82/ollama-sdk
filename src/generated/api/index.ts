@@ -11,6 +11,7 @@ export { OpenAIApi } from './openai-api.js';
 export { AnthropicApi } from './anthropic-api.js';
 
 // Operation constants (Wave 3):
+export { balanceOp as balance } from './operations.js';
 export { blobsOp as blobs } from './operations.js';
 export { chatOp as chat } from './operations.js';
 export { copyOp as copy } from './operations.js';
@@ -25,6 +26,7 @@ export { pushOp as push } from './operations.js';
 export { showOp as show } from './operations.js';
 export { systemOneOp as systemOne } from './operations.js';
 export { tagsOp as tags } from './operations.js';
+export { usageOp as usage } from './operations.js';
 export { versionOp as version } from './operations.js';
 export { webFetchOp as webFetch } from './operations.js';
 export { webSearchOp as webSearch } from './operations.js';

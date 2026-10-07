@@ -205,9 +205,11 @@ operations:
           - 'messages'
           - 'quantize'
           - 'stream'
+          - 'files'
           - 'draft_files'
           - 'draft_quantize'
           - 'requires'
+          - 'capabilities'
         sdkOnlyFields:
           - 'adapters'
           - 'modelfile'

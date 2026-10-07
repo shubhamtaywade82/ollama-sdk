@@ -19,6 +19,7 @@
 - 🔌 **Model Context Protocol (MCP)**: First-class, transport-neutral `McpBridge` for converting MCP tool descriptors into Ollama function definitions and registering executable MCP-backed tools.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
+- 💳 **Ollama Cloud Usage & Balance**: `usage()`/`balance()` wrap Ollama's hosted account endpoints (`GET /api/usage`, `GET /api/balance`) — request counts, USD spend, cached-token totals bucketed by hour/day, and remaining included/purchased credits (including the legacy session/weekly plan shapes) — with the same fixed-cloud-host, API-key, timeout, and retry semantics as the web tools.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, and surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
@@ -503,6 +504,39 @@ console.log(page.title, page.content.slice(0, 200));
 ```
 
 These two methods don't participate in the multi-endpoint failover below — there's only ever the one cloud host to call — but they do use the same default `timeoutMs` and retry policy as everything else.
+
+### Cloud Usage & Balance (Ollama Cloud account)
+
+`usage`/`balance` wrap Ollama's **hosted account endpoints** (`GET https://ollama.com/api/usage` and `/api/balance`) — the same fixed Ollama Cloud service and API-key requirements as `webSearch`/`webFetch` above, so everything said there about auth, timeouts, and retry applies identically here:
+
+```typescript
+const client = new OllamaClient({
+  baseUrl: 'http://localhost:11434', // local inference — unrelated to the calls below
+  apiKey: process.env.OLLAMA_API_KEY, // required for usage/balance specifically
+});
+
+// Usage for the last 24 hours, bucketed hourly (omit options for the server
+// defaults: range='7d', scope='self'). Team scope requires a team admin.
+const usage = await client.usage({ range: '24h' });
+console.log(usage.totals.request_count, usage.totals.usage_usd, usage.totals.cached_input_tokens);
+for (const bucket of usage.buckets) {
+  if (bucket.partial) continue; // the current hour — still in progress
+  console.log(bucket.from, bucket.request_count);
+}
+
+// Remaining credits. `included` is either the plan-period credits object
+// (`balance_usd`/`allowance_usd`/`period`) or, on legacy plans, the
+// session/weekly percentage-limits shape — discriminated by the response.
+const balance = await client.balance();
+if ('balance_usd' in balance.included) {
+  console.log(`included: $${balance.included.balance_usd} of $${balance.included.allowance_usd}`);
+} else {
+  console.log(`session limit: ${balance.included.session.remaining_percent}% remaining`);
+}
+console.log(`purchased: $${balance.purchased.balance_usd}`);
+```
+
+Both endpoints are rate-limited to 10 requests/minute per user (429 responses carry `Retry-After`); polling about once a minute is the recommended cadence.
 
 ### Autonomous Agent & Tool Calling
 

@@ -1,0 +1,70 @@
+# Ollama Cloud account endpoints overlay.
+#
+# Ollama documents two cloud-hosted account endpoints that live at
+# https://ollama.com/api/... rather than the local Ollama server:
+#
+#   GET https://ollama.com/api/usage     (query: range = 24h|7d|30d, scope = self|team)
+#   GET https://ollama.com/api/balance
+#
+# These joined the pinned OpenAPI snapshot in the 2026-10-07 refresh
+# (source SHA 675c8bb59da99c32aabee4900f358ac074999c16), so structural
+# truth (method, path, response schema refs) is inherited from the spec
+# via the `openapi:` references below. This overlay contributes the
+# behavioral truth the spec cannot express: they are cloud-only, they
+# target a different host, and they accept no request body (usage's
+# parameters travel as query strings, which the generated runtime does
+# not model).
+#
+# Like web_search/web_fetch (see web.yaml), the `host:` field tells the
+# runtime these operations target a different base URL than the local
+# Ollama server; the API emitter skips them when generating NativeApi.
+# Callers use OllamaClient.usage / OllamaClient.balance, which spin up
+# a dedicated cloud HttpClient. The MCP emitter, the endpoint discovery
+# validator, and the IR inspector all see them through this overlay.
+
+version: 1
+service: ollama
+domain: native
+
+operations:
+  usage:
+    openapi: /api/usage
+    method: GET
+    host: https://ollama.com
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: unsupported
+      cloud: supported
+    capabilities: {}
+    status:
+      documented: true
+    responseSchema: UsageResponse
+    notes:
+      - 'Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.'
+      - 'Requires an Ollama Cloud API key (set via OllamaClient credentials).'
+      - 'Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin).'
+      - 'Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.'
+      - 'Use OllamaClient.usage() — the generated NativeApi class does not expose this operation.'
+
+  balance:
+    openapi: /api/balance
+    method: GET
+    host: https://ollama.com
+    runtime:
+      streaming: unsupported
+      transport: json
+    environment:
+      local: unsupported
+      cloud: supported
+    capabilities: {}
+    status:
+      documented: true
+    responseSchema: BalanceResponse
+    notes:
+      - 'Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.'
+      - 'Requires an Ollama Cloud API key (set via OllamaClient credentials).'
+      - 'Takes no parameters. For usage history see the usage operation.'
+      - 'Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.'
+      - 'Use OllamaClient.balance() — the generated NativeApi class does not expose this operation.'

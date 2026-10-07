@@ -7,6 +7,26 @@
 
 import type { OperationDefinition } from '../runtime/operation-definition.js';
 
+export const balanceOp = {
+  operationId: 'balance',
+  method: 'GET',
+  path: '/api/balance',
+  response: { $ref: '#/schemas/BalanceResponse' },
+  environment: { local: false, cloud: true },
+  host: 'https://ollama.com',
+  transport: { mode: 'json', streaming: false },
+  capabilities: {},
+  status: { documented: true },
+  domain: 'native',
+  notes: [
+    'Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.',
+    'Requires an Ollama Cloud API key (set via OllamaClient credentials).',
+    'Takes no parameters. For usage history see the usage operation.',
+    'Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.',
+    'Use OllamaClient.balance() — the generated NativeApi class does not expose this operation.',
+  ],
+} as const satisfies OperationDefinition;
+
 export const blobsOp = {
   operationId: 'blobs',
   method: 'HEAD',
@@ -228,6 +248,26 @@ export const tagsOp = {
   domain: 'native',
 } as const satisfies OperationDefinition;
 
+export const usageOp = {
+  operationId: 'usage',
+  method: 'GET',
+  path: '/api/usage',
+  response: { $ref: '#/schemas/UsageResponse' },
+  environment: { local: false, cloud: true },
+  host: 'https://ollama.com',
+  transport: { mode: 'json', streaming: false },
+  capabilities: {},
+  status: { documented: true },
+  domain: 'native',
+  notes: [
+    'Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.',
+    'Requires an Ollama Cloud API key (set via OllamaClient credentials).',
+    'Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin).',
+    'Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.',
+    'Use OllamaClient.usage() — the generated NativeApi class does not expose this operation.',
+  ],
+} as const satisfies OperationDefinition;
+
 export const versionOp = {
   operationId: 'version',
   method: 'GET',
@@ -374,6 +414,7 @@ export const anthropicMessagesOp = {
 } as const satisfies OperationDefinition;
 
 export const allOperations = [
+  balanceOp,
   blobsOp,
   chatOp,
   copyOp,
@@ -388,6 +429,7 @@ export const allOperations = [
   showOp,
   systemOneOp,
   tagsOp,
+  usageOp,
   versionOp,
   webFetchOp,
   webSearchOp,

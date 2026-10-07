@@ -382,6 +382,12 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly messages?: readonly Message[] | undefined;
   /** Minimum Ollama version required by the model. */
   readonly requires?: string | undefined;
+  /**
+   * Capabilities to add without removing inherited or inferred capabilities
+   * (e.g. `decision` for compatible decision models). Mirrors the official
+   * `/api/create` payload.
+   */
+  readonly capabilities?: readonly string[] | undefined;
 }
 
 export interface DeleteRequestOptions extends RequestCancellationOptions {
@@ -449,3 +455,47 @@ export interface WebFetchResponse {
   readonly content: string;
   readonly links?: readonly string[] | undefined;
 }
+
+/**
+ * `usage`/`balance` report Ollama Cloud account activity at `https://ollama.com` —
+ * fixed cloud services, unrelated to any locally-configured `baseUrl`/`endpoints` —
+ * and require an Ollama account API key (`apiKey`/`OLLAMA_API_KEY`). See
+ * {@link OllamaClient.usage}.
+ */
+export interface UsageRequestOptions extends RequestCancellationOptions {
+  /**
+   * Completed UTC hours or days to include, plus the current partial hour or
+   * day. Server default: `'7d'`. `granularity` is derived server-side
+   * (`'hour'` for `'24h'`, `'day'` for `'7d'`/`'30d'`).
+   */
+  readonly range?: UsageRange | undefined;
+  /** Whose requests are reported. Server default: `'self'`; `'team'` requires a team admin. */
+  readonly scope?: UsageScope | undefined;
+}
+
+/** Time range for {@link OllamaClient.usage} (`range` query parameter). */
+export type UsageRange = '24h' | '7d' | '30d';
+
+/** Reporting scope for {@link OllamaClient.usage} (`scope` query parameter). */
+export type UsageScope = 'self' | 'team';
+
+/**
+ * See {@link UsageRequestOptions} — same fixed Ollama Cloud endpoint and auth.
+ * `GET /api/balance` takes no parameters; the options object exists for
+ * cancellation (`signal` / `timeoutMs`) only.
+ */
+export type BalanceRequestOptions = RequestCancellationOptions;
+
+// Contract-generated response types for the Ollama Cloud account endpoints.
+// Re-exported here (and from the package root) so the public surface stays a
+// single module; the source of truth is the generated model tree, refreshed
+// by `npm run contract:generate` from the pinned OpenAPI snapshot.
+export type {
+  UsageResponse,
+  UsageMetrics,
+  UsageBucket,
+  BalanceResponse,
+  IncludedBalance,
+  LegacyBalanceLimit,
+  LegacyIncludedBalance,
+} from './generated/models/index.js';

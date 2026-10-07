@@ -108,14 +108,18 @@ describe('Wave 16: Security — path parameter safety', () => {
 
 describe('Wave 16: Security — host injection prevention', () => {
   it('operation.host is an allowlisted contract property, not arbitrary', async () => {
-    // The only operations with host are webSearch and webFetch, both
-    // declaring host: 'https://ollama.com'. A caller cannot inject an
-    // arbitrary host — it must be declared in the overlay.
+    // The only operations with host are the four cloud-hosted ones —
+    // webSearch, webFetch, usage, and balance — all declaring
+    // host: 'https://ollama.com'. A caller cannot inject an arbitrary
+    // host; it must be declared in the overlay.
     expect(webSearchOp.host).toBe('https://ollama.com');
     // No other native/openai operation declares a host.
     const { allOperations } = await import('../src/generated/api/operations.js');
     const hostOps = allOperations.filter((op) => op.host);
-    expect(hostOps.length).toBe(2);
+    expect(hostOps.length).toBe(4);
+    expect(new Set(hostOps.map((op) => op.operationId))).toEqual(
+      new Set(['webSearch', 'webFetch', 'usage', 'balance']),
+    );
     expect(hostOps.every((op) => op.host === 'https://ollama.com')).toBe(true);
   });
 
