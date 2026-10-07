@@ -1356,6 +1356,12 @@ npm run bench
 
 # Run full CI verification pipeline (typecheck, lint, test, build, edge runtime check)
 npm run verify
+
+# Non-disastrous smoke test: contract gates (validate, IR diff, type drift) + full
+# verify chain + package type-resolution check. Read-only — no clean, no codegen
+# rewriting src/generated. Live conformance runs automatically if an Ollama server
+# is reachable on localhost:11434 (otherwise those tests skip cleanly).
+npm run smoke
 ```
 
 ---
