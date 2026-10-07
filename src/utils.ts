@@ -3,16 +3,20 @@
  * the core client bundle (see ADR 0006 — Edge Runtime CI).
  */
 
+import { imageStringNeedsResolution, resolveImages, type VisionInput } from './vision.js';
+
 /**
  * Encodes an image to a base64 string, matching the wire format Ollama's `/api/chat` and
  * `/api/generate` `images` arrays expect.
  *
- * - A `string` is assumed to already be base64-encoded and is returned unchanged.
- * - A `Uint8Array` is base64-encoded using whichever universal primitive the runtime
- *   exposes: `Buffer` on Node.js, `btoa` on browsers/Edge runtimes. Chunked so it doesn't
- *   blow the engine's max call-stack/argument-count limits on large images.
+ * - A `string` is assumed to already be base64-encoded and is returned unchanged. For
+ *   data URIs, URLs, and local file paths use {@link resolveImageInput}, which this SDK's
+ *   request pipeline applies automatically (see {@link withEncodedImages}).
+ * - A `Uint8Array` (or Node `Buffer`) is base64-encoded using whichever universal primitive
+ *   the runtime exposes: `Buffer` on Node.js, `btoa` on browsers/Edge runtimes. Chunked so it
+ *   doesn't blow the engine's max call-stack/argument-count limits on large images.
  */
-export async function encodeImage(image: Uint8Array | string): Promise<string> {
+export async function encodeImage(image: VisionInput): Promise<string> {
   if (typeof image === 'string') return image;
 
   const bufferCtor = (
@@ -29,34 +33,43 @@ export async function encodeImage(image: Uint8Array | string): Promise<string> {
 }
 
 async function encodeImages(
-  images: readonly (string | Uint8Array)[] | undefined,
-): Promise<readonly string[] | undefined> {
-  if (images === undefined) return undefined;
-  return Promise.all(images.map((image) => encodeImage(image)));
+  images: readonly VisionInput[],
+  signal?: AbortSignal | undefined,
+): Promise<readonly string[]> {
+  return resolveImages(images, signal) as Promise<readonly string[]>;
 }
 
 /**
- * Returns `req` unchanged if `req.images` has no `Uint8Array` entries (the common case),
- * otherwise a shallow copy with `images` base64-encoded. Keeps `chat`/`generate` request
- * bodies wire-compatible without requiring callers to pre-encode raw image bytes.
+ * Normalizes `req.images` to wire-ready raw base64 strings, resolving every polymorphic
+ * {@link VisionInput} — data URIs (header stripped), `http(s)://` URLs (fetched), local
+ * file paths (read via dynamically-imported `node:fs`, Node.js only), and raw
+ * `Buffer`/`Uint8Array` bytes (base64-encoded). Returns `req` **unchanged (same reference)**
+ * when every entry is already a plain base64 string (the common case), so the request
+ * pipeline stays allocation-free for pre-encoded callers.
  */
-export async function withEncodedImages<
-  T extends { images?: readonly (string | Uint8Array)[] | undefined },
->(req: T): Promise<T> {
-  if (!req.images?.some((image) => image instanceof Uint8Array)) return req;
-  return { ...req, images: await encodeImages(req.images) };
+export async function withEncodedImages<T extends { images?: readonly VisionInput[] | undefined }>(
+  req: T,
+  signal?: AbortSignal | undefined,
+): Promise<T> {
+  const needsResolution = req.images?.some(
+    (image) => typeof image !== 'string' || imageStringNeedsResolution(image),
+  );
+  if (!needsResolution) return req;
+  return { ...req, images: await encodeImages(req.images ?? [], signal) };
 }
 
 /**
  * Applies {@link withEncodedImages} to each message's `images` array. Returns `messages`
- * unchanged (same reference) if no message carries a `Uint8Array` image.
+ * unchanged (same reference) if no message carries a non-base64-ready image.
  */
 export async function withEncodedMessageImages<
-  T extends { images?: readonly (string | Uint8Array)[] | undefined },
->(messages: readonly T[]): Promise<readonly T[]> {
-  if (!messages.some((message) => message.images?.some((image) => image instanceof Uint8Array)))
-    return messages;
-  return Promise.all(messages.map((message) => withEncodedImages(message)));
+  T extends { images?: readonly VisionInput[] | undefined },
+>(messages: readonly T[], signal?: AbortSignal | undefined): Promise<readonly T[]> {
+  const needsResolution = messages.some((message) =>
+    message.images?.some((image) => typeof image !== 'string' || imageStringNeedsResolution(image)),
+  );
+  if (!needsResolution) return messages;
+  return Promise.all(messages.map((message) => withEncodedImages(message, signal)));
 }
 
 // ─── Disposable helpers (TS 5.2+ `using` declarations) ──────────────────

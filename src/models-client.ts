@@ -3,7 +3,7 @@
  */
 
 import { listAvailableModels } from './capabilities/capabilities.js';
-import { OllamaNotFoundError } from './errors.js';
+import { OllamaClientError, OllamaNotFoundError } from './errors.js';
 import { KEEP_ALIVE_INDEFINITE, KEEP_ALIVE_UNLOAD } from './keep-alive.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
@@ -25,6 +25,14 @@ import type {
   StatusResponse,
   VersionResponse,
 } from './types.js';
+
+/** Result of a convenience blob upload ({@link ModelsClient.createBlobFromData}). */
+export interface BlobUploadResult {
+  /** Content digest (`sha256:<hex>`) of the uploaded payload. */
+  readonly digest: string;
+  /** True when the server already had this blob (HTTP 200) and skipped writing. */
+  readonly alreadyExisted: boolean;
+}
 
 /**
  * Every operation here targets one specific Ollama server's local model catalog or blob
@@ -299,5 +307,134 @@ export class ModelsClient {
       if (err instanceof OllamaNotFoundError) return false;
       throw err;
     }
+  }
+
+  /**
+   * Computes a blob digest the way Ollama's content-addressed store expects:
+   * SHA-256 over the raw bytes, formatted as `sha256:<64 lowercase hex>`.
+   *
+   * Uses the Web Crypto API (`crypto.subtle.digest`), which exists in every
+   * supported runtime — Node.js ≥ 19 exposes it as a global (this SDK
+   * requires Node ≥ 20), and browsers/edge runtimes have always had it.
+   */
+  async computeBlobDigest(data: Uint8Array): Promise<string> {
+    // Minimal structural type for Web Crypto's SubtleCrypto.digest — declared
+    // locally because this project's `lib` is ES2022-only (no DOM types),
+    // while Node ≥ 20 and every browser expose `crypto.subtle` as a global.
+    const subtle = (
+      globalThis as {
+        crypto?:
+          | {
+              subtle?:
+                | {
+                    digest(
+                      algorithm: 'SHA-256',
+                      data: ArrayBufferView | ArrayBuffer,
+                    ): Promise<ArrayBuffer>;
+                  }
+                | undefined;
+            }
+          | undefined;
+      }
+    ).crypto?.subtle;
+    if (subtle === undefined) {
+      throw new OllamaClientError(
+        'computeBlobDigest requires the Web Crypto API (crypto.subtle), unavailable in this runtime.',
+        { code: 'crypto_unavailable' },
+      );
+    }
+    const digestBytes = await subtle.digest('SHA-256', data as unknown as ArrayBuffer);
+    const hex = Array.from(new Uint8Array(digestBytes), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return `sha256:${hex}`;
+  }
+
+  /**
+   * Computes the SHA-256 digest of `data` and pushes it as a blob in one
+   * step — the content-addressed upload Ollama's own tooling performs
+   * (`curl -T file http://…/api/blobs/sha256:…`). Returns the digest, which
+   * `/api/create`'s `files` field references.
+   *
+   * Pass `digest` to skip recomputation when the caller already knows it —
+   * the server verifies the content against the digest and rejects mismatches.
+   */
+  async createBlobFromData(
+    data: Uint8Array,
+    opts?: { readonly digest?: string | undefined; readonly signal?: AbortSignal | undefined },
+  ): Promise<BlobUploadResult> {
+    const digest = opts?.digest ?? (await this.computeBlobDigest(data));
+    const alreadyExisted = await this.checkBlob(digest);
+    if (!alreadyExisted) {
+      await this.createBlob(digest, data);
+    }
+    return { digest, alreadyExisted };
+  }
+
+  /**
+   * Reads a local file and uploads it as a blob (Node.js only — dynamic
+   * `node:fs` import, so browser bundles never pull it in). The file name
+   * (basename) is what `/api/create`'s `files` map expects as the key, so
+   * this returns it alongside the digest.
+   */
+  async createBlobFromFile(
+    path: string,
+    opts?: { readonly signal?: AbortSignal | undefined },
+  ): Promise<BlobUploadResult & { readonly fileName: string }> {
+    // Specifier hidden behind a variable so browser/edge bundlers never try
+    // to resolve `node:fs` at build time — see src/vision.ts NODE_FS_MODULE.
+    const nodeFsModule = 'node:fs';
+    const { promises: fs } = (await import(nodeFsModule)) as typeof import('node:fs');
+    const data = await fs.readFile(path);
+    const result = await this.createBlobFromData(new Uint8Array(data), {
+      ...opts,
+    });
+    const fileName = path.split(/[\\/]/).pop() ?? path;
+    return { ...result, fileName };
+  }
+
+  /**
+   * One-shot custom-model publishing from raw GGUF weights, following the
+   * protocol Ollama's API reference documents: push a blob for the GGUF
+   * bytes, then `POST /api/create` with `files: { <fileName>: <digest> }`.
+   * Split GGUFs are supported via `files` — pass every shard's path.
+   *
+   * ```ts
+   * await client.models.createModelFromGguf('my-model', '/path/to/model.gguf', {
+   *   template: '{{ .Prompt }}',
+   * });
+   * ```
+   *
+   * @param model Name for the new model (e.g. `'my-model:latest'`).
+   * @param gguf Path(s) to GGUF file(s) on the local filesystem.
+   * @param opts Everything else `/api/create` accepts (`template`, `system`,
+   *   `parameters`, `license`, `quantize`, …) except `files` and `from`.
+   */
+  async createModelFromGguf(
+    model: string,
+    gguf: string | readonly string[],
+    opts?: Omit<CreateRequestOptions, 'model' | 'files' | 'from' | 'stream'>,
+  ): Promise<ProgressResponse> {
+    const paths = typeof gguf === 'string' ? [gguf] : gguf;
+    if (paths.length === 0) {
+      throw new OllamaClientError('createModelFromGguf: at least one GGUF path is required.', {
+        code: 'invalid_request',
+      });
+    }
+    const files: Record<string, string> = {};
+    for (const path of paths) {
+      const uploaded = await this.createBlobFromFile(path, { signal: opts?.signal });
+      files[uploaded.fileName] = uploaded.digest;
+    }
+    const {
+      model: _model,
+      files: _files,
+      from: _from,
+      stream: _stream,
+      ...rest
+    } = (opts ?? {}) as CreateRequestOptions;
+    return this.create({ ...rest, model, files, stream: false } as CreateRequestOptions & {
+      stream: false;
+    });
   }
 }

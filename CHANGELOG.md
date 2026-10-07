@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.9.0] — Digest upgrades: vision resolver, dual-mode Responses bridge, KV-cache sessions, context safety, blob publishing
+
+Five upgrades closing the gaps surfaced by the official Ollama documentation review (see [ADR 0024](./docs/adr/0024-digest-upgrades-vision-responses-sessions-context-blobs.md)). All additive — no breaking changes; 689 pre-existing tests stay green, 50 new tests added.
+
+### Universal vision asset resolver (`src/vision.ts`)
+
+- **`VisionInput = string | Buffer | Uint8Array`** accepted anywhere `images` is (`Message.images`, `generate()`), implementing the official SDK vision convention: SDKs accept polymorphic sources; the REST API strictly requires raw base64 strings.
+- String resolution order: `data:image/...;base64,` data URIs (header stripped) → `http(s)://` URLs (fetched via global `fetch`, abortable through the request's `signal`) → image-extension file paths (`.png`/`.jpg`/`.webp`/…, read via **dynamically imported** `node:fs` — Node only, browser bundles unaffected; graceful passthrough when the read fails) → assume raw base64.
+- Path detection is extension-based, not slash-based — `/` is a legal base64 alphabet character, and a contains-slash heuristic would misfire on long payloads.
+- The request pipeline stays allocation-free when every entry is already base64 (`withEncodedImages` returns the same array reference).
+- Previously-broken inputs are silently fixed: data-URI strings, which used to ship the `data:image/...;base64,` header to the server, are now stripped.
+- New exports: `resolveImageInput()`, `imageStringNeedsResolution()`, `resolveImages()`, `type VisionInput`.
+
+### Dual-mode OpenAI Responses bridge (`src/responses.ts`)
+
+- **`client.responses.create()`** — ergonomic, OpenAI-SDK-shaped bridge (`model`, `input`, `instructions`, `tools`, `temperature`, `top_p`, `max_output_tokens`, `reasoning_effort`, `think`) over `POST /v1/responses` (Ollama ≥ v0.13.3), with **transparent `/api/chat` fallback on 404** for older servers: `instructions` → system message, `max_output_tokens` → `options.num_predict`, reply normalized back into the Responses shape (`output_text`, `usage.input_tokens`/`output_tokens`). The result's `transport` field (`'native' | 'chat-adapter'`) records the path taken.
+- **`client.responses.stream()`** — lazy async generator yielding simplified `{type: 'text_delta' | 'thinking_delta' | 'done'}` events; same dual-mode transport, fallback only on establishment failure (never mid-stream, which would duplicate consumed deltas).
+- **`client.responses.createText()`** — convenience returning just the output text.
+- Native-mode mapping extracts joined `output_text` blocks (including refusals), reasoning traces (`thinking`), and parsed `function_call` items (`tool_calls` with parsed `arguments` objects).
+- 404-only fallback, deliberately: 5xx remains a retryable error for the existing retry policy; 4xx is a request bug — neither means "endpoint absent."
+- The full wire-shaped surface stays on `client.openai.responses()`; this module is the ergonomic migration subset documented in the new **MIGRATION.md** (openai npm SDK → this SDK mapping table).
+
+### KV-cache-aware conversation sessions (`src/conversation.ts`)
+
+- **`client.session(model, systemPrompt?)`** (or `new ConversationSession(client, options)`) — multi-turn session with an **append-only frozen history** and a system prompt **pinned at construction** (no mutation API — a per-call system prompt is the #1 silent KV-cache killer), maximizing Ollama's prompt-prefix KV-cache reuse across turns.
+- **Per-turn and cumulative cache statistics** from `prompt_eval_cached_count` / `prompt_eval_count`: `session.cacheStats` (cumulative) and `sendTurn()`'s `TurnCacheStats` (per turn).
+- Hit-rate denominator is `cached / (cached + evaluated)`: when the entire prompt hits the cache, Ollama reports `prompt_eval_count: 0`, so dividing by `prompt_eval_count` alone would score the best case as 0%.
+- `send()` (reply text), `sendTurn()` (full turn record), `getMessages()` (defensive copy of the frozen history), `reset()` (restores system prompt, zeroes stats). Per-turn overrides (`options`, `think`, `keep_alive`, `tools`, `format`, `signal`, `timeoutMs`) ride on the request, never the history.
+
+### Context-window safety (`src/context-safety.ts`)
+
+- **Pre-flight estimation on every `chat()`/`generate()` call** guards against Ollama's silent prompt truncation when `num_ctx` is unset (server default 2048–4096, model-dependent): CJK-aware heuristic (~1 token per CJK character, ~4 chars/token elsewhere, `IMAGE_TOKEN_ESTIMATE` per image, per-message overhead, tool schemas), ±20–30% by design — no tokenizer download.
+- **`defaultContextLength`** client config — injected as `options.num_ctx` on every request that omits it, making the effective window explicit on the wire.
+- **`onContextOverflow: 'warn' | 'throw'`** (default `'warn'`) — log through the configured logger and send anyway, or reject client-side with `OllamaClientError` (`code: 'context_overflow'`) before anything hits the wire. `contextWarningThreshold` (default `0.9`) tunes the trip point.
+- Window resolution order: request `num_ctx` → client `defaultContextLength` → conservative 2048 fallback, which warns only when the estimate _outright exceeds_ it (no margin — the real server default may be 4096, and a margin would generate false positives).
+- New exports: `estimateTokens()`, `estimateChatRequestTokens()`, `estimateGenerateRequestTokens()`, `checkChatContext()`, `checkGenerateContext()`, `contextWarningMessage()`, `DEFAULT_CONTEXT_WARNING_THRESHOLD`, `IMAGE_TOKEN_ESTIMATE`, `OLLAMA_FALLBACK_CONTEXT_LENGTH`.
+
+### Blob management & custom GGUF model publishing (`src/models-client.ts`)
+
+- **`computeBlobDigest(data)`** — SHA-256 via the Web Crypto API (`crypto.subtle`, global in Node ≥ 20 and every browser/edge runtime), formatted `sha256:<64 lowercase hex>` exactly as Ollama's content-addressed store expects.
+- **`createBlobFromData(data, {digest?})`** / **`createBlobFromFile(path)`** — HEAD existence check then upload, skipping the POST (and the wasted bandwidth) when the blob is already present; returns `BlobUploadResult { digest, alreadyExisted }` (file variant adds `fileName` — the basename `/api/create`'s `files` map keys on).
+- **`createModelFromGguf(model, ggufPath | paths, opts)`** — one-shot implementation of Ollama's documented import protocol: push a blob per GGUF shard, then `POST /api/create` with `files: { <fileName>: <digest> }` (verified against the official API reference).
+
+### Documentation & examples
+
+- README: four new Quick Start sections (sessions, dual-mode Responses, context safety, blob publishing) + rewritten vision section; five new feature bullets.
+- **MIGRATION.md** (new): openai npm SDK → this SDK mapping table, responses/chat-completions/vision/statefulness/reasoning/error mapping.
+- **ADR 0024** (new) + ADR index now lists 0022–0024.
+- Five runnable examples: `examples/vision-inputs.ts`, `examples/responses-bridge.ts`, `examples/conversation-session.ts`, `examples/context-safety.ts`, `examples/blob-publishing.ts` (`npm run example <file>`).
+- 50 new unit tests (mocked fetch — CI-safe, no daemon): `test/vision-resolver.test.ts`, `test/responses-bridge.test.ts`, `test/conversation-session.test.ts`, `test/context-safety.test.ts`, `test/blob-helpers.test.ts`.
+
 ## [Unreleased]
 
 ### Fix: IPv6 loopback was classified as Ollama Cloud
@@ -55,6 +106,7 @@
   - Existing `instanceof` handlers for `OllamaNotFoundError` (404), `OllamaRateLimitError` (429), and `OllamaServerError` (generic 5xx) remain unchanged.
 
 - **Typed pull/push progress callback (`onProgress`).** The SDK already exposed pull/push progress as a typed `OllamaStream` via `models.pull({ stream: true })`. The new `onProgress(stream, cb)` helper wraps the stream iteration with a pre-computed `percent` field for callers building download/upload UIs:
+
   ```ts
   const stream = await client.models.pull({ model: 'llama3.2', stream: true });
   await onProgress(stream, (event) => {

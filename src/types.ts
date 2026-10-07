@@ -2,6 +2,8 @@
  * Core protocol and message types for the Ollama REST API.
  */
 
+import type { VisionInput } from './vision.js';
+
 export type Role = 'system' | 'user' | 'assistant' | 'tool' | 'thought';
 
 /** Ollama native thinking control: booleans, null for model default, or model-defined levels. */
@@ -40,11 +42,14 @@ export interface Message {
   readonly role: Role;
   readonly content: string;
   /**
-   * Base64-encoded image strings, or raw `Uint8Array` image bytes. `Uint8Array` entries
-   * are base64-encoded automatically (see {@link encodeImage}) before the request reaches
-   * the wire — Ollama's REST API only ever accepts base64 strings.
+   * Polymorphic vision inputs, resolved automatically before the request reaches
+   * the wire (see {@link resolveImageInput}): raw base64 strings pass through;
+   * `data:image/...;base64,` data URIs are stripped to their payload; `http(s)://`
+   * URLs are fetched and encoded; local file paths (`.png`/`.jpg`/`.webp`/...) are
+   * read via `node:fs` on Node.js; and `Buffer`/`Uint8Array` bytes are base64-encoded.
+   * Ollama's REST API only ever receives raw base64 strings.
    */
-  readonly images?: readonly (string | Uint8Array)[] | undefined;
+  readonly images?: readonly VisionInput[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
   /**
    * Ollama's native `/api/chat` field identifying which tool produced this result.
@@ -201,11 +206,14 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly raw?: boolean | undefined;
   readonly format?: FormatOption | undefined;
   /**
-   * Base64-encoded image strings, or raw `Uint8Array` image bytes. `Uint8Array` entries
-   * are base64-encoded automatically (see {@link encodeImage}) before the request reaches
-   * the wire — Ollama's REST API only ever accepts base64 strings.
+   * Polymorphic vision inputs, resolved automatically before the request reaches
+   * the wire (see {@link resolveImageInput}): raw base64 strings pass through;
+   * `data:image/...;base64,` data URIs are stripped to their payload; `http(s)://`
+   * URLs are fetched and encoded; local file paths (`.png`/`.jpg`/`.webp`/...) are
+   * read via `node:fs` on Node.js; and `Buffer`/`Uint8Array` bytes are base64-encoded.
+   * Ollama's REST API only ever receives raw base64 strings.
    */
-  readonly images?: readonly (string | Uint8Array)[] | undefined;
+  readonly images?: readonly VisionInput[] | undefined;
   readonly options?: ModelOptions | undefined;
   readonly keep_alive?: string | number | undefined;
   readonly think?: ThinkValue | undefined;

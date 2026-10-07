@@ -39,6 +39,15 @@ import { ModelsClient } from './models-client.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { OllamaRuntime } from './generated/runtime/runtime.js';
+import { ResponsesModule } from './responses.js';
+import { ConversationSession, type ConversationSessionOptions } from './conversation.js';
+import {
+  checkChatContext,
+  checkGenerateContext,
+  contextWarningMessage,
+  type ContextCheck,
+} from './context-safety.js';
+import type { ModelOptions } from './types.js';
 import { NativeApi } from './generated/api/native-api.js';
 import { FailoverHttpClient } from './failover-http-client.js';
 import { createDecision, type Decision } from './decision.js';
@@ -46,11 +55,7 @@ import type {
   SystemOneRequest as SystemOneRequestBase,
   SystemOneResponse as SystemOneResponseBase,
 } from './generated/models/index.js';
-import type {
-  SystemOneQuestions,
-  SystemOneRequest,
-  SystemOneResponse,
-} from './system-one.js';
+import type { SystemOneQuestions, SystemOneRequest, SystemOneResponse } from './system-one.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
 import { withEncodedImages, withEncodedMessageImages } from './utils.js';
 import {
@@ -146,6 +151,12 @@ export class OllamaClient {
    * `OLLAMA_API_KEY`), independent of whether `config.endpoints` was used instead.
    */
   private readonly cloudApiKey: string | undefined;
+  /** Configured `defaultContextLength` — injected as `num_ctx` when a request omits it. */
+  private readonly defaultContextLength: number | undefined;
+  /** Configured `contextWarningThreshold` (default 0.9). */
+  private readonly contextWarningThreshold: number | undefined;
+  /** Configured overflow policy — `'warn'` (default) or `'throw'`. */
+  private readonly onContextOverflow: 'warn' | 'throw';
 
   constructor(config: OllamaClientConfig = {}) {
     this.cloudApiKey = resolveApiKey(config.apiKey);
@@ -178,6 +189,9 @@ export class OllamaClient {
       typeof config.retries === 'number'
         ? { ...DEFAULT_RETRY_CONFIG, maxRetries: config.retries }
         : { ...DEFAULT_RETRY_CONFIG, ...config.retries };
+    this.defaultContextLength = config.defaultContextLength;
+    this.contextWarningThreshold = config.contextWarningThreshold;
+    this.onContextOverflow = config.onContextOverflow ?? 'warn';
     this.models = new ModelsClient((op, opts) => this.executeWithFailover(op, opts));
   }
 
@@ -223,9 +237,7 @@ export class OllamaClient {
         ...(this.cloudApiKey !== undefined ? { apiKey: this.cloudApiKey } : {}),
         fetch: this.fetchImpl,
         ...(this.middleware !== undefined ? { middleware: this.middleware } : {}),
-        ...(this.onLifecycleEvent !== undefined
-          ? { onLifecycleEvent: this.onLifecycleEvent }
-          : {}),
+        ...(this.onLifecycleEvent !== undefined ? { onLifecycleEvent: this.onLifecycleEvent } : {}),
       });
       this._runtime = new OllamaRuntime({
         http,
@@ -281,6 +293,82 @@ export class OllamaClient {
     return this._decision;
   }
   private _decision: Decision | undefined;
+
+  /**
+   * Ergonomic OpenAI Responses API bridge (`client.responses.create()` /
+   * `.stream()`). Dual-mode transport: prefers the native `POST
+   * /v1/responses` endpoint (Ollama ≥ v0.13.3) and transparently re-issues via
+   * `/api/chat` when the server answers 404, so migrating OpenAI code works
+   * unchanged against older servers. See `src/responses.ts`.
+   */
+  get responses(): ResponsesModule {
+    if (this._responses === undefined) {
+      this._responses = new ResponsesModule((op, opts) => this.executeWithFailover(op, opts));
+    }
+    return this._responses;
+  }
+  private _responses: ResponsesModule | undefined;
+
+  /**
+   * Starts a KV-prefix-preserving multi-turn conversation session.
+   *
+   * ```ts
+   * const session = client.session('llama3.1', 'You are a concise assistant.');
+   * const reply = await session.send('Hi!');
+   * const detail = await session.sendTurn('Why is the sky blue?');
+   * detail.cache.hitRate; // per-turn KV-cache hit rate
+   * session.cacheStats; // cumulative stats across turns
+   * ```
+   *
+   * Accepts either `(model, systemPrompt?)` or a full options object
+   * (`{ model, systemPrompt, options, think, keep_alive, tools }`). See
+   * `src/conversation.ts` for why the system prompt is pinned for the
+   * session's lifetime.
+   */
+  session(model: string, systemPrompt?: string): ConversationSession;
+  session(options: ConversationSessionOptions): ConversationSession;
+  session(
+    modelOrOptions: string | ConversationSessionOptions,
+    systemPrompt?: string,
+  ): ConversationSession {
+    const options: ConversationSessionOptions =
+      typeof modelOrOptions === 'string'
+        ? {
+            model: modelOrOptions,
+            ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+          }
+        : modelOrOptions;
+    return new ConversationSession(this, options);
+  }
+
+  /**
+   * Context-window pre-flight enforcement — see `src/context-safety.ts` and
+   * the `defaultContextLength` / `onContextOverflow` config docs. Logs a
+   * warning (default) or throws client-side when the estimated prompt size
+   * is close to / beyond the effective context window.
+   */
+  private enforceContextSafety(kind: 'chat' | 'generate', check: ContextCheck): void {
+    if (!check.exceedsThreshold) return;
+    const message = contextWarningMessage(check, kind);
+    if (this.onContextOverflow === 'throw') {
+      throw new OllamaClientError(message, { code: 'context_overflow' });
+    }
+    this.logger.warn(message);
+  }
+
+  /**
+   * Returns `options` with `num_ctx` injected from the client's
+   * `defaultContextLength` when the request didn't set one — making the
+   * effective context window explicit on the wire instead of relying on
+   * Ollama's silently-truncating server default. Returns the original
+   * reference when there's nothing to inject (the common case).
+   */
+  private injectDefaultContextLength(options: ModelOptions | undefined): ModelOptions | undefined {
+    if (options?.num_ctx !== undefined || this.defaultContextLength === undefined) {
+      return options;
+    }
+    return { ...options, num_ctx: this.defaultContextLength };
+  }
 
   /**
    * Fail-fast guard for `format` (structured output) requests: throws before any network
@@ -461,7 +549,7 @@ export class OllamaClient {
   async chat(
     req: ChatRequestOptions,
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
-    const encodedMessages = await withEncodedMessageImages(req.messages);
+    const encodedMessages = await withEncodedMessageImages(req.messages, req.signal);
     const messages = encodedMessages.map((message) => {
       if (message.role === 'tool' && message.tool_call_id !== undefined) {
         const { tool_call_id: _toolCallId, ...nativeMessage } = message;
@@ -469,6 +557,17 @@ export class OllamaClient {
       }
       return message;
     });
+    // Context-window pre-flight: warn (or throw) before sending when the
+    // estimated prompt is close to / beyond the effective window, and make
+    // the window explicit by injecting `defaultContextLength` as `num_ctx`.
+    this.enforceContextSafety(
+      'chat',
+      checkChatContext(req, {
+        defaultContextLength: this.defaultContextLength,
+        threshold: this.contextWarningThreshold,
+      }),
+    );
+    const options = this.injectDefaultContextLength(req.options);
     if (req.stream) {
       return this.executeWithFailover(
         async (http, signal) => {
@@ -476,7 +575,7 @@ export class OllamaClient {
             this.assertStructuredOutputSupported(http.baseUrl, req.model);
           const stream = await http.requestStream<ChatResponse>({
             path: '/api/chat',
-            body: { ...req, messages, stream: true },
+            body: { ...req, options, messages, stream: true },
             signal,
           });
           return normalizeChatStream(stream, signal);
@@ -505,7 +604,7 @@ export class OllamaClient {
             this.assertStructuredOutputSupported(http.baseUrl, req.model);
           return http.request<ChatResponse>({
             path: '/api/chat',
-            body: { ...req, messages, stream: false },
+            body: { ...req, options, messages, stream: false },
             signal,
           });
         }, req);
@@ -558,7 +657,16 @@ export class OllamaClient {
   async generate(
     req: GenerateRequestOptions,
   ): Promise<GenerateResponse | OllamaStream<GenerateResponse, GenerateStreamResult>> {
-    const encodedReq = await withEncodedImages(req);
+    const encodedReq = await withEncodedImages(req, req.signal);
+    // Context-window pre-flight — same policy as `chat`.
+    this.enforceContextSafety(
+      'generate',
+      checkGenerateContext(req, {
+        defaultContextLength: this.defaultContextLength,
+        threshold: this.contextWarningThreshold,
+      }),
+    );
+    const options = this.injectDefaultContextLength(req.options);
     if (encodedReq.stream) {
       return this.executeWithFailover(
         async (http, signal) => {
@@ -566,7 +674,7 @@ export class OllamaClient {
             this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
           const stream = await http.requestStream<GenerateResponse>({
             path: '/api/generate',
-            body: { ...encodedReq, stream: true },
+            body: { ...encodedReq, options, stream: true },
             signal,
           });
           return normalizeGenerateStream(stream, signal);
@@ -592,7 +700,7 @@ export class OllamaClient {
             this.assertStructuredOutputSupported(http.baseUrl, encodedReq.model);
           return http.request<GenerateResponse>({
             path: '/api/generate',
-            body: { ...encodedReq, stream: false },
+            body: { ...encodedReq, options, stream: false },
             signal,
           });
         }, encodedReq);

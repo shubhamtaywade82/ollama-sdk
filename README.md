@@ -12,14 +12,17 @@
 
 - 🚀 **Native Web Standards**: Built on native `fetch` and Web Streams. Zero external HTTP dependencies.
 - 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3:8b`, `deepseek-r1:8b`) via the native `think` parameter, with discrete `thinking` and `token` streaming events, plus `logprobs`/`top_logprobs` for token-level confidence scoring.
-- 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` accepts base64 strings or raw `Uint8Array` bytes (auto-encoded) for vision models like `llava` or `qwen2.5vl`.
+- 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` is a universal resolver — pass raw base64 strings, `data:image/...;base64,` data URIs, `http(s)://` URLs (fetched), local file paths (`.png`/`.jpg`/`.webp`/…, read via `node:fs` on Node), or raw `Buffer`/`Uint8Array` bytes — everything is normalized to the raw base64 Ollama's REST API expects, matching the official SDK vision convention.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
 - 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, active health checks, and per-endpoint `models` allow-lists for routing several model-specific API keys through one client.
 - 🔌 **Model Context Protocol (MCP)**: First-class, transport-neutral `McpBridge` for converting MCP tool descriptors into Ollama function definitions and registering executable MCP-backed tools.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
-- 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models.
+- 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
+- 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, and surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent.
+- 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
+- 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`).
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
@@ -241,6 +244,105 @@ console.log(res.prompt_eval_count, res.prompt_eval_cached_count);
 console.log(res.prompt_eval_cached_count ?? 0);
 ```
 
+### KV-Cache-Aware Conversation Sessions
+
+Ollama reuses the model's KV cache across turns by **prompt prefix matching** — anything that mutates the prefix (changing the system prompt, injecting per-call timestamps, reordering past turns) invalidates the whole cache and forces a full re-evaluation. `client.session()` makes the cache-friendly structure the default: a system prompt pinned at construction, an append-only frozen history, and per-turn options that never touch the prefix.
+
+```typescript
+const session = client.session('llama3.1', 'You are a concise assistant.');
+
+// Ergonomic path — just the reply text
+await session.send('Hi!');
+
+// Detailed path — per-turn KV-cache statistics + raw response
+const turn = await session.sendTurn('Why is the sky blue?');
+console.log(turn.cache);
+// { cachedTokens: 48, evaluatedTokens: 6, hitRate: 0.89 }
+
+// Cumulative view across the whole session
+console.log(session.cacheStats);
+// { turns: 2, cachedTokens: 48, evaluatedTokens: 54, totalPromptTokens: 102, hitRate: 0.47 }
+
+session.reset(); // back to system-prompt-only, stats zeroed
+session.getMessages(); // defensive copy of the frozen history
+```
+
+Note the hit-rate denominator: when the _entire_ prompt hits the cache, Ollama reports `prompt_eval_count: 0` — the session's `hitRate` adds both counters so the best case scores `1`, not `0`.
+
+### OpenAI Responses API (dual-mode)
+
+`client.responses.create()` gives migrating OpenAI code a small, familiar surface (`model`, `input`, `instructions`, `tools`, `temperature`, `top_p`, `max_output_tokens`, `reasoning_effort`, `think`) with **dual-mode transport**: the native `POST /v1/responses` endpoint is preferred (Ollama ≥ v0.13.3), and a `404` from older servers transparently re-issues the request through `/api/chat` — `instructions` mapped to a system message, the reply mapped back into the Responses shape. The result's `transport` field records which path served it.
+
+```typescript
+const res = await client.responses.create({
+  model: 'gpt-oss:20b',
+  input: 'Explain KV caches in one paragraph.',
+  instructions: 'Be precise.',
+  max_output_tokens: 256,
+  reasoning_effort: 'medium',
+});
+
+console.log(res.output_text);
+console.log(res.usage); // { input_tokens, output_tokens, total_tokens }
+console.log(res.transport); // 'native' | 'chat-adapter'
+
+// Streaming variant — simplified text/thinking deltas + final response
+for await (const event of client.responses.stream({ model: 'qwen3', input: 'Tell me a haiku.' })) {
+  if (event.type === 'text_delta') process.stdout.write(event.delta);
+  else if (event.type === 'done') console.log('\n', event.response.usage);
+}
+```
+
+Ollama implements the Responses API **non-statefully** — `previous_response_id` and `conversation` don't exist, so send the full conversation in `input` every call (or use `ConversationSession` to manage it). For the full OpenAI-shaped surface (raw `output` items, SSE event objects), use `client.openai.responses()`.
+
+### Context-Window Safety (silent-truncation guard)
+
+With `num_ctx` unset, Ollama loads the model with a conservative default window (commonly 2048–4096 tokens) and **silently truncates** prompts that don't fit — the model simply loses the top of the conversation with no error. The client estimates the prompt size before every `chat`/`generate` call and surfaces the risk:
+
+```typescript
+const client = new OllamaClient({
+  // Make the window explicit on every request that omits options.num_ctx
+  defaultContextLength: 8192,
+
+  // 'warn' (default): log through `logger` and send anyway
+  // 'throw': reject client-side with OllamaClientError before anything hits the wire
+  onContextOverflow: 'warn',
+});
+
+// Warnings fire when the estimate crosses 90% of the effective window:
+// "OllamaClient.chat(): estimated prompt size ~1900 tokens is close to or
+//  beyond the request's context window (num_ctx=2048). The server will
+//  likely silently truncate …"
+```
+
+The estimators are exported for custom pipelines: `estimateTokens(text)` (CJK-aware — ~1 token per CJK character, ~4 chars/token elsewhere), `estimateChatRequestTokens(req)` / `estimateGenerateRequestTokens(req)` (message overhead + tool schemas + `IMAGE_TOKEN_ESTIMATE` per image), and the underlying `checkChatContext` / `checkGenerateContext` / `contextWarningMessage`. All are heuristics (±20–30%) — for exact counts, ask the server (`prompt_eval_count`).
+
+### Blob Management & Custom GGUF Model Publishing
+
+Ollama's documented import protocol: push a blob for each file, then reference it in `/api/create`'s `files` map by file name and SHA-256 digest. The SDK wraps the whole flow:
+
+```typescript
+// Content-addressed digest: SHA-256 -> "sha256:<64 lowercase hex>"
+const digest = await client.models.computeBlobDigest(ggufBytes);
+
+// HEAD-check + upload (skips the POST when the blob already exists)
+const { digest, alreadyExisted } = await client.models.createBlobFromData(ggufBytes);
+const upload = await client.models.createBlobFromFile('/models/my-model.gguf');
+// -> { digest: 'sha256:…', alreadyExisted: false, fileName: 'my-model.gguf' }
+
+// One-shot: upload every GGUF shard, then POST /api/create with files: {name: digest}
+await client.models.createModelFromGguf('my-model', '/models/my-model.gguf', {
+  template: '{{ .Prompt }}',
+  parameters: { temperature: 0.7 },
+});
+
+// Split GGUFs: pass every shard
+await client.models.createModelFromGguf('my-model', [
+  '/models/model-00001-of-00002.gguf',
+  '/models/model-00002-of-00002.gguf',
+]);
+```
+
 ### Token Log Probabilities (`logprobs`)
 
 Set `logprobs: true` (optionally with `top_logprobs`) on `chat()`/`generate()` to get per-token log probabilities back — useful for confidence scoring, speculative decoding, or agent routing decisions.
@@ -261,26 +363,61 @@ for (const entry of res.logprobs ?? []) {
 
 ### Multimodal / Vision Input
 
-`images` on a `Message` (or on `generate()`'s top-level request) accepts base64-encoded strings or raw `Uint8Array` bytes — `Uint8Array` entries are base64-encoded automatically before the request is sent.
+`images` on a `Message` (or on `generate()`'s top-level request) is a **universal vision resolver** — every polymorphic form is normalized to the raw base64 string Ollama's REST API expects (no `data:image/...;base64,` URI prefixes ever reach the wire):
 
 ```typescript
-import { readFile } from 'node:fs/promises';
-
-const imageBytes = await readFile('./cat.png'); // Buffer, a Uint8Array subclass
-
+// 1. Local file paths (Node.js — read via dynamically-imported node:fs)
 const res = await client.chatText({
   model: 'llava',
-  messages: [{ role: 'user', content: 'What is in this image?', images: [imageBytes] }],
+  messages: [
+    {
+      role: 'user',
+      content: 'What is in this image?',
+      images: ['./cat.png'],
+    },
+  ],
 });
-console.log(res);
 
-// Base64 strings work too, unchanged:
-const base64Res = await client.generateText({
+// 2. Data URIs — the header is stripped automatically
+await client.chat({
+  model: 'llava',
+  messages: [
+    {
+      role: 'user',
+      content: 'Describe this.',
+      images: ['data:image/png;base64,iVBORw0KGgo...'],
+    },
+  ],
+});
+
+// 3. Web URLs — fetched and encoded
+await client.chat({
+  model: 'llava',
+  messages: [{ role: 'user', content: 'OCR this.', images: ['https://example.com/receipt.png'] }],
+});
+
+// 4. Raw bytes — Buffer / Uint8Array, base64-encoded automatically
+import { readFile } from 'node:fs/promises';
+await client.chat({
+  model: 'llava',
+  messages: [
+    {
+      role: 'user',
+      content: 'What is in this image?',
+      images: [await readFile('./cat.png')],
+    },
+  ],
+});
+
+// 5. Plain base64 strings — passed through unchanged
+await client.generateText({
   model: 'llava',
   prompt: 'Describe this image.',
   images: ['iVBORw0KGgoAAAANSUhEUgAA...'],
 });
 ```
+
+The resolver is also exported standalone for custom pipelines: `resolveImageInput(input)` (single) and `resolveImages(images)` (batch, parallel). In browsers/edge runtimes, file-path strings throw a descriptive error (no `node:fs`) — read the file yourself and pass the bytes.
 
 ### Structured Outputs with Zod
 

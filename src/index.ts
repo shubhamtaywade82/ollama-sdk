@@ -127,11 +127,7 @@ export {
 } from './keep-alive.js';
 
 // Response decoder helpers — `done_reason` type narrowing
-export {
-  isKnownDoneReason,
-  KNOWN_DONE_REASONS,
-  type KnownDoneReason,
-} from './done-reason.js';
+export { isKnownDoneReason, KNOWN_DONE_REASONS, type KnownDoneReason } from './done-reason.js';
 
 // Middleware
 export {
@@ -249,7 +245,6 @@ export {
   type McpElicitationResult,
   type McpElicitationHandlers,
 } from './mcp/index.js';
-
 
 // Integrations (OpenAI & Anthropic compatibility)
 export {
@@ -430,6 +425,49 @@ export {
 
 // Utilities
 export { encodeImage } from './utils.js';
+
+// Universal vision asset resolution — data URIs, URLs, file paths, raw bytes
+export { resolveImageInput, imageStringNeedsResolution, type VisionInput } from './vision.js';
+
+// OpenAI Responses API bridge (dual-mode: native /v1/responses + /api/chat fallback)
+export {
+  ResponsesModule,
+  type ResponsesCreateRequest,
+  type ResponsesCreateResponse,
+  type ResponsesReasoningEffort,
+  type ResponsesStreamEvent,
+  type ResponsesToolDefinition,
+  type ResponsesUsage,
+} from './responses.js';
+
+// KV-prefix-preserving conversation sessions with cache statistics
+export {
+  ConversationSession,
+  type ConversationSendOptions,
+  type ConversationSessionOptions,
+  type CumulativeCacheStats,
+  type SessionTurn,
+  type TurnCacheStats,
+} from './conversation.js';
+
+// Context-window safety — token estimation + pre-flight overflow checks
+export {
+  DEFAULT_CONTEXT_WARNING_THRESHOLD,
+  IMAGE_TOKEN_ESTIMATE,
+  OLLAMA_FALLBACK_CONTEXT_LENGTH,
+  checkChatContext,
+  checkGenerateContext,
+  contextWarningMessage,
+  estimateChatRequestTokens,
+  estimateGenerateRequestTokens,
+  estimateTokens,
+  type ContextCheck,
+  type ContextCheckOptions,
+  type ContextWindowSource,
+} from './context-safety.js';
+
+// Blob upload result (from ModelsClient's convenience blob helpers)
+export type { BlobUploadResult } from './models-client.js';
 
 // Logger
 export {
