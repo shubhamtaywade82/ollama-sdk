@@ -216,6 +216,31 @@ export interface OllamaClientConfig {
   readonly logger?: Logger;
   /** Enables console debug logger if true. */
   readonly debug?: boolean;
+  /**
+   * Default context window (`num_ctx`) applied to every `chat`/`generate`
+   * request that doesn't set `options.num_ctx` itself. Injected as
+   * `options.num_ctx` on the wire, making the effective window explicit
+   * instead of leaving it to Ollama's server default (commonly 2048–4096,
+   * model-dependent) — which **silently truncates** prompts that don't fit,
+   * with no error and no warning. See `src/context-safety.ts`.
+   */
+  readonly defaultContextLength?: number;
+  /**
+   * Fraction of the effective context window at which the client warns that
+   * a request's estimated prompt size is approaching truncation (default
+   * `0.9` — see `DEFAULT_CONTEXT_WARNING_THRESHOLD`).
+   */
+  readonly contextWarningThreshold?: number;
+  /**
+   * What happens when the pre-flight context check (see
+   * `src/context-safety.ts`) concludes a request will likely be truncated:
+   * `'warn'` (default) logs a warning through the configured logger and sends
+   * the request anyway; `'throw'` rejects the request client-side with
+   * `OllamaClientError` before anything hits the wire. `'throw'` is the
+   * safety-critical choice — use it when silent history truncation would
+   * corrupt application behavior (e.g. long-context RAG, agents).
+   */
+  readonly onContextOverflow?: 'warn' | 'throw';
   /** Request lifecycle hook for telemetry/metrics. */
   readonly onLifecycleEvent?: RequestLifecycleHook;
 }
