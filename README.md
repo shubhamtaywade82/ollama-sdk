@@ -24,11 +24,13 @@
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, and surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
 - 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`).
+- 🧵 **Batched Embeddings with Backpressure**: `client.embedBatch()` splits corpora of any size into bounded `/api/embed` batches (default 32 inputs × 3 in flight) — order-preserving, fail-fast, progress-reporting — so RAG/vector ingestion can't OOM a local daemon or saturate `OLLAMA_MAX_QUEUE` the way `Promise.all` floods do, with per-string context-window pre-flight against silent truncation.
+- 🧹 **Client Teardown (`destroy()`)**: One call aborts every in-flight request, active stream, and queued capacity waiter with `OllamaAbortError` — the clean-exit path for `worker_threads`, CLI runners, and short-lived scripts where dangling fetch bodies keep the event loop alive.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
-- 📦 **Dual ESM & CJS Build**: Full module support with clean TypeScript `.d.ts` declaration maps.
+- 📦 **Dual ESM & CJS Build**: Full module support with paired `.d.ts`/`.d.cts` declarations mapped through conditional `exports` — verified in CI by `@arethetypeswrong/cli` **and** by compiling real CommonJS (node16) and ESM (nodenext) consumer projects against the packed tarball.
 - 🧩 **Contract-First Architecture**: A single canonical IR (`contracts/ir/ollama.ir.json`) drives TypeScript interfaces, generated API classes (`NativeApi`/`OpenAIApi`/`AnthropicApi`), MCP tool descriptors, Zod schemas, and field-level parity verification. New Ollama endpoints (like `/v1/systemone`) are caught automatically by bidirectional endpoint discovery. See [ADRs 0013-0019](./docs/adr/README.md).
 
 ---
@@ -461,6 +463,31 @@ console.log(
 ```
 
 `embed()` targets the modern `/api/embed` endpoint (batch `input`, `truncate`, and `dimensions` truncation are all supported). The older single-prompt `/api/embeddings` is still available as `client.embeddings()`, but it's `@deprecated` — Ollama's own docs consider it legacy in favor of `/api/embed`.
+
+#### Batched embeddings with backpressure (large corpora)
+
+Embedding a whole corpus with `Promise.all(chunks.map(c => client.embed(...)))` is the failure mode every RAG pipeline eventually hits: hundreds of simultaneous requests contend sockets, saturate the daemon's request queue (`OLLAMA_MAX_QUEUE` → 503s), and spike GPU VRAM as the model instance serves every prompt at once. Long inputs have a second, quieter failure mode — Ollama **silently truncates** any input string longer than the model's context window unless `truncate: false` is set.
+
+`embedBatch()` is the safe building block for ingestion:
+
+```typescript
+const { embeddings, batchCount } = await client.embedBatch({
+  model: 'nomic-embed-text:latest',
+  input: corpus, // any size — 10 strings or 10 million
+  batchSize: 32, // inputs per /api/embed request (default 32)
+  concurrency: 3, // batches in flight simultaneously (default 3)
+  keep_alive: '10m', // pin the model for the whole ingestion
+  onBatchComplete: (done, total) => progress.log(`${done}/${total} batches`),
+});
+
+// embeddings[i] always corresponds to corpus[i], no matter which batch
+// finished first — safe to zip straight into a vector store.
+await vectorStore.upsert(corpus.map((text, i) => ({ id: i, text, vector: embeddings[i] })));
+```
+
+Every batch rides the client's full pipeline — failover, retry, auth, telemetry — and the operation is **order-preserving** and **fail-fast**: the first batch error aborts its in-flight siblings and rejects the whole call with the original error, so a half-indexed corpus never looks like success. The caller's `signal` cancels queued and in-flight batches alike (`code: 'aborted'`).
+
+Like `chat`/`generate`, `embedBatch()` injects `defaultContextLength` as `num_ctx` and pre-checks each input string's estimated tokens against the resolved window — warn (default) or throw (`onContextOverflow: 'throw'`) with the offending indexes _before_ any request is sent, since Ollama truncates embedding inputs silently. Tune `batchSize`/`concurrency` per daemon: lower both for a laptop GPU, raise `concurrency` for remote or multi-endpoint clients.
 
 ### Model Lifecycle Management
 
@@ -962,6 +989,37 @@ initial HTTP round trip:
   between turns, outside any `chat()` call, so a slow tool never ties up one of your
   scarce concurrent-request accounts.
 
+### Client Teardown: `destroy()`
+
+Inside `node:worker_threads` tasks, CLI runners, serverless handlers, and other
+short-lived processes, the things that keep an event loop (and therefore the
+thread or process) alive are exactly the things this SDK manages: in-flight
+fetch bodies, unconsumed stream readers, and requests queued behind
+`maxConcurrentPerEndpoint`. `destroy()` is the one-call drain for all of them:
+
+```typescript
+import { parentPort, workerData } from 'node:worker_threads';
+
+const client = new OllamaClient({ baseUrl: workerData.ollamaUrl });
+try {
+  await processTask(client, workerData.payload);
+} finally {
+  // Aborts every request/stream still in flight with OllamaAbortError
+  // (code 'aborted'), releases their endpoint slots, and lets the worker
+  // thread exit cleanly. Idempotent — safe to call from a signal handler.
+  const aborted = client.destroy('worker task finished');
+  if (aborted > 0) logger.warn(`torn down ${aborted} in-flight operations`);
+}
+```
+
+Every aborted operation — dispatched **or** still queued — rejects with
+`OllamaAbortError` carrying the reason; active streams reject their
+`finalResult` and release their concurrency slots, so nothing dangles after
+the call returns the count of operations it aborted. `destroy()` is a drain,
+not a permanent disable: the client stays usable afterward (spawn a fresh one
+if you want a hard cut), and calling it on an idle client is a no-op that
+returns `0`.
+
 ---
 
 ### Observability with OpenTelemetry
@@ -1358,9 +1416,10 @@ npm run bench
 npm run verify
 
 # Non-disastrous smoke test: contract gates (validate, IR diff, type drift) + full
-# verify chain + package type-resolution check. Read-only — no clean, no codegen
-# rewriting src/generated. Live conformance runs automatically if an Ollama server
-# is reachable on localhost:11434 (otherwise those tests skip cleanly).
+# verify chain + package type-resolution check + real CJS/ESM consumer compile.
+# Read-only — no clean, no codegen rewriting src/generated. Live conformance runs
+# automatically if an Ollama server is reachable on localhost:11434 (otherwise
+# those tests skip cleanly).
 npm run smoke
 ```
 

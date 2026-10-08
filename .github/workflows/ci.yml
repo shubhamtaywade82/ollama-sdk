@@ -70,6 +70,15 @@ jobs:
       - name: Check published type resolution
         run: npx --yes @arethetypeswrong/cli@latest --pack .
 
+      - name: Verify NodeNext TypeScript consumer compilation (CJS + ESM)
+        # Compiles two real consumer projects against the packed tarball:
+        # a CommonJS consumer (module node16 -> .d.cts via the `require`
+        # condition) and an ESM consumer (module nodenext -> .d.ts via the
+        # `import` condition). Catches the TS1479 "masquerading ESM types"
+        # class and ambient-global leaks (e.g. `Buffer`) that attw alone
+        # cannot see. See scripts/verify-consumer-types.sh.
+        run: npm run verify:consumer-types
+
       - name: Verify consumer tarball installation and module resolution
         run: |
           TARBALL=$(npm pack --pack-destination /tmp | tail -n 1)

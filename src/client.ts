@@ -15,6 +15,7 @@ import {
   type OllamaClientConfig,
 } from './config.js';
 import {
+  OllamaAbortError,
   OllamaClientError,
   OllamaModelRoutingError,
   OllamaUnsupportedCapabilityError,
@@ -41,6 +42,13 @@ import { AnthropicCompatClient } from './integrations/anthropic.js';
 import { OllamaRuntime } from './generated/runtime/runtime.js';
 import { ResponsesModule } from './responses.js';
 import { ConversationSession, type ConversationSessionOptions } from './conversation.js';
+import {
+  batchEmbed,
+  embedBatchOverflowMessage,
+  findOversizedEmbedInputs,
+  type EmbedBatchOptions,
+  type EmbedBatchResult,
+} from './embed-batch.js';
 import {
   checkChatContext,
   checkGenerateContext,
@@ -160,6 +168,14 @@ export class OllamaClient {
   private readonly contextWarningThreshold: number | undefined;
   /** Configured overflow policy — `'warn'` (default) or `'throw'`. */
   private readonly onContextOverflow: 'warn' | 'throw';
+  /**
+   * Controllers for every in-flight request and active stream managed by this
+   * client — see {@link OllamaClient.destroy} and {@link createRequestScope}.
+   * Entries live for exactly as long as the underlying work does: until the
+   * response settles (requests) or the stream's `finalResult` settles
+   * (streams, via `executeWithFailover`'s `holdUntil` release path).
+   */
+  private readonly activeRequests = new Set<AbortController>();
 
   constructor(config: OllamaClientConfig = {}) {
     this.cloudApiKey = resolveApiKey(config.apiKey);
@@ -374,6 +390,43 @@ export class OllamaClient {
   }
 
   /**
+   * Creates the per-request abort scope registered with {@link destroy}:
+   * a controller that fires when the caller's `signal` aborts OR when
+   * `destroy()` runs, whichever comes first. `dispose()` removes the
+   * registration when the work it guards settles — for plain requests when
+   * the response settles, for streams when `finalResult` settles (the same
+   * moment `executeWithFailover`'s `holdUntil` releases the endpoint slot),
+   * so a destroy() can tear down a stream mid-consumption but never outlives
+   * one that already finished.
+   */
+  private createRequestScope(userSignal: AbortSignal | undefined): {
+    signal: AbortSignal;
+    dispose: () => void;
+  } {
+    const controller = new AbortController();
+    const propagateUserAbort = (): void => {
+      controller.abort(userSignal?.reason);
+    };
+    let detach: (() => void) | undefined;
+    if (userSignal) {
+      if (userSignal.aborted) {
+        propagateUserAbort();
+      } else {
+        userSignal.addEventListener('abort', propagateUserAbort, { once: true });
+        detach = () => userSignal.removeEventListener('abort', propagateUserAbort);
+      }
+    }
+    this.activeRequests.add(controller);
+    return {
+      signal: controller.signal,
+      dispose: () => {
+        detach?.();
+        this.activeRequests.delete(controller);
+      },
+    };
+  }
+
+  /**
    * Fail-fast guard for `format` (structured output) requests: throws before any network
    * call if the candidate endpoint is inferred as Ollama Cloud, which does not currently
    * support structured outputs (see `ModelCapabilities.supportsStructuredOutputRequest`).
@@ -426,7 +479,8 @@ export class OllamaClient {
       holdUntil?: ((result: T) => Promise<unknown>) | undefined;
     },
   ): Promise<T> {
-    const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, options?.signal);
+    const scope = this.createRequestScope(options?.signal);
+    const timeout = createTimeoutSignal(options?.timeoutMs ?? this.timeoutMs, scope.signal);
     const requestId = createLogicalRequestId();
     let deferTimeoutCancel = false;
     try {
@@ -527,6 +581,7 @@ export class OllamaClient {
                 .catch(() => undefined)
                 .finally(() => {
                   timeout.cancel();
+                  scope.dispose();
                   this.registry.release(endpoint.name);
                 });
             } else {
@@ -537,7 +592,10 @@ export class OllamaClient {
         throw lastError ?? new Error('No healthy Ollama endpoints available');
       }
     } finally {
-      if (!deferTimeoutCancel) timeout.cancel();
+      if (!deferTimeoutCancel) {
+        timeout.cancel();
+        scope.dispose();
+      }
     }
   }
 
@@ -757,6 +815,59 @@ export class OllamaClient {
   }
 
   /**
+   * Batch-constrained, order-preserving embedding generation for large
+   * corpora — the safe building block for RAG/vector-index ingestion at
+   * scale. Splits `input` into `batchSize` slices and embeds them through
+   * {@link embed} with at most `concurrency` batches in flight (defaults:
+   * 32 × 3), so `Promise.all`-style floods that OOM local daemons and
+   * saturate `OLLAMA_MAX_QUEUE` can't happen by accident. Fail-fast: the
+   * first batch error aborts every sibling in-flight batch and rejects the
+   * whole operation with the original error.
+   *
+   * Before any request is sent, `defaultContextLength` is injected as
+   * `num_ctx` (same as chat/generate) and each input string's token estimate
+   * is checked against the resolved window: Ollama silently truncates
+   * oversized embedding inputs by default, so the client warns (or throws,
+   * under `onContextOverflow: 'throw'`) with the offending indexes — see
+   * `src/embed-batch.ts` for the exact trip point (no margin: an embedding
+   * prompt IS the whole input).
+   *
+   * ```ts
+   * const { embeddings, batchCount } = await client.embedBatch({
+   *   model: 'nomic-embed-text:latest',
+   *   input: corpus,                 // e.g. 50k chunks
+   *   batchSize: 32,                 // inputs per /api/embed request
+   *   concurrency: 3,                // batches in flight
+   *   onBatchComplete: (done, total) => progress.log(`${done}/${total}`),
+   * });
+   * // embeddings[i] always corresponds to corpus[i]
+   * ```
+   */
+  async embedBatch(options: EmbedBatchOptions): Promise<EmbedBatchResult> {
+    const resolvedOptions = this.injectDefaultContextLength(options.options);
+    const contextLength = resolvedOptions?.num_ctx;
+    if (contextLength !== undefined) {
+      const oversized = findOversizedEmbedInputs(options.input, contextLength);
+      if (oversized.length > 0) {
+        const message = embedBatchOverflowMessage(
+          oversized,
+          options.input.length,
+          contextLength,
+          options.truncate === false,
+        );
+        if (this.onContextOverflow === 'throw') {
+          throw new OllamaClientError(message, { code: 'context_overflow' });
+        }
+        this.logger.warn(message);
+      }
+    }
+    return batchEmbed(
+      this,
+      resolvedOptions === options.options ? options : { ...options, options: resolvedOptions },
+    );
+  }
+
+  /**
    * @deprecated Ollama's `/api/embeddings` endpoint has been superseded by `/api/embed`
    * (exposed here as {@link OllamaClient.embed}), which additionally supports batch
    * input. Kept for compatibility with existing callers; new code should use `embed`.
@@ -943,10 +1054,12 @@ export class OllamaClient {
     operation: (http: HttpClient, signal: AbortSignal) => Promise<T>,
     options: RequestCancellationOptions,
   ): Promise<T> {
-    const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, options.signal);
+    const scope = this.createRequestScope(options.signal);
+    const timeout = createTimeoutSignal(options.timeoutMs ?? this.timeoutMs, scope.signal);
     using _timeout = {
       [Symbol.dispose]() {
         timeout.cancel();
+        scope.dispose();
       },
     };
     const requestId = createLogicalRequestId();
@@ -1005,6 +1118,35 @@ export class OllamaClient {
   }
   endpointStatus(): EndpointHealth[] {
     return this.registry.status();
+  }
+
+  /**
+   * Immediately aborts every in-flight request and active stream managed by
+   * this client — the clean teardown path for short-lived processes, CLI
+   * runners, and `node:worker_threads` tasks where dangling fetch bodies,
+   * unconsumed stream readers, or queued capacity waiters would otherwise
+   * keep the event loop (and thus the thread/process) alive.
+   *
+   * Every aborted operation rejects with an {@link OllamaAbortError}
+   * (`code: 'aborted'`) carrying `reason` as its message — including requests
+   * still queued behind `maxConcurrentPerEndpoint`, not just dispatched ones.
+   * Streams reject their `finalResult` and release their endpoint slots.
+   *
+   * Idempotent: calling it again (or on a client with nothing in flight)
+   * is a no-op that returns `0`. The client remains usable afterward —
+   * `destroy()` is a drain, not a permanent disable; callers that want a
+   * permanently-dead client should discard the instance.
+   *
+   * @returns the number of in-flight operations that were aborted.
+   */
+  destroy(reason: string = 'Ollama client destroyed'): number {
+    const controllers = [...this.activeRequests];
+    const cause = new OllamaAbortError(reason);
+    for (const controller of controllers) {
+      controller.abort(cause);
+    }
+    this.activeRequests.clear();
+    return controllers.length;
   }
 
   // --- Compatibility Adapters ---
