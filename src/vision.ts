@@ -41,9 +41,12 @@ import { OllamaClientError } from './errors.js';
  *
  * - `string` — a raw base64 payload, a `data:image/...;base64,` data URI, an
  *   `http(s)://` URL, or (on Node.js) a local file path.
- * - `Buffer` / `Uint8Array` — raw image bytes, base64-encoded automatically.
+ * - `Uint8Array` — raw image bytes, base64-encoded automatically. Node
+ *   `Buffer` is a `Uint8Array` subclass, so buffers are accepted everywhere
+ *   bytes are — without importing Node types into consumer compilations: the
+ *   published declarations stay free of `@types/node` globals (audit TYP-03).
  */
-export type VisionInput = string | Buffer | Uint8Array;
+export type VisionInput = string | Uint8Array;
 
 /** Data-URI prefix, e.g. `data:image/png;base64,`. Case-insensitive on the MIME type. */
 const DATA_URI_PATTERN = /^data:image\/[a-z0-9.+-]+;base64,/i;

@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.10.0] — Production-readiness audit: batched embedding pipeline, client teardown, type-declaration hardening
+
+Three findings from the daily production-readiness audit (see [ADR 0025](./docs/adr/0025-embedding-batching-client-teardown-declaration-portability.md)) — all additive, no breaking changes; 749 pre-existing tests stay green, 29 new tests added.
+
+### Batch-constrained embedding pipeline (`src/embed-batch.ts` + `client.embedBatch()`) — EMB-01
+
+- **`client.embedBatch({ model, input, batchSize?, concurrency?, … })`** for high-volume RAG/vector ingestion: splits any corpus into bounded `/api/embed` batches (defaults: 32 inputs × 3 in flight) instead of `Promise.all` floods that OOM local daemons, contend sockets, and saturate `OLLAMA_MAX_QUEUE` (503s).
+- **Order-preserving** — `embeddings[i]` always corresponds to `input[i]` regardless of batch completion order; safe to zip straight into a vector store.
+- **Fail-fast** — the first batch error aborts its in-flight siblings (each still riding the client's full failover/retry/auth/telemetry pipeline) and rejects the whole operation with the _original_ error, so a half-indexed corpus never looks like success. Caller `signal` cancels queued and in-flight batches alike (`code: 'aborted'`).
+- **Per-string context-window pre-flight** — Ollama _silently truncates_ embedding inputs longer than `num_ctx`; `embedBatch()` injects `defaultContextLength` as `num_ctx` and warns (or throws under `onContextOverflow: 'throw'`) with the offending indexes _before_ any request is sent. No margin, unlike chat/generate: an embedding prompt is the whole input.
+- `onBatchComplete(done, total)` progress callback; `truncate`/`dimensions`/`keep_alive`/`options`/`timeoutMs` pass through per batch; new exports `batchEmbed`, `findOversizedEmbedInputs`, `embedBatchOverflowMessage`, `DEFAULT_EMBED_BATCH_SIZE`, `DEFAULT_EMBED_CONCURRENCY` + types.
+
+### Client teardown — `OllamaClient.destroy(reason)` — THD-01
+
+- One call aborts **every in-flight request, active stream, and queued capacity waiter** with `OllamaAbortError` (`code: 'aborted'`, message = `reason`) — the clean-exit path for `node:worker_threads`, CLI runners, and short-lived processes where dangling fetch bodies and unconsumed stream readers keep the event loop alive.
+- Streams reject their `finalResult` and release their `maxConcurrentPerEndpoint` slots via the existing `holdUntil` release path; scopes deregister the moment their work settles, so `destroy()` can tear down a stream mid-consumption but never outlives finished work.
+- Idempotent (repeat calls return `0`) and a drain, not a disable — the client stays usable afterward. Returns the number of aborted operations. Covers every surface that goes through `executeWithFailover`/`executeCloudRequest`: chat/generate/embed (+Batch), models, responses bridge, sessions, agent, usage/balance, web tools.
+
+### Type-declaration portability hardening — TYP-03
+
+- Verified (not just assumed) the dual-packaging story: `@arethetypeswrong/cli` reports zero problems across node10/node16-CJS/node16-ESM/bundler for every entry point, and the exports map already maps `import → .d.ts` / `require → .d.cts` per subpath.
+- **New `scripts/verify-consumer-types.sh`** (also in CI and `verify:release`): compiles two _real_ consumer projects against the packed tarball — a CommonJS consumer under `--module node16` (the `require` condition, exactly the TS1479 "masquerading ESM types" scenario) and an ESM consumer under `--module nodenext`.
+- **Fixed a real leak it caught**: `VisionInput` included Node's `Buffer` global, so strict consumers without `@types/node` could not compile against our declarations. Now `string | Uint8Array` — Node Buffers are `Uint8Array` subclasses and remain fully accepted (13 vision tests untouched and green) — the published declarations are free of Node ambient globals.
+
 ## [1.9.0] — Digest upgrades: vision resolver, dual-mode Responses bridge, KV-cache sessions, context safety, blob publishing, cloud usage & balance
 
 Five upgrades closing the gaps surfaced by the official Ollama documentation review (see [ADR 0024](./docs/adr/0024-digest-upgrades-vision-responses-sessions-context-blobs.md)) — plus a second-pass recheck against the current official docs (see the last section) that added the Ollama Cloud account endpoints and a missing `/api/create` field. All additive — no breaking changes; 689 pre-existing tests stay green, 60 new tests added.

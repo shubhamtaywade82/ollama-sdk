@@ -1,6 +1,6 @@
 {
   "name": "@nemesis-oss/ollama-sdk",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Production-grade TypeScript SDK for Ollama with native fetch, high availability failover, multi-turn tool calling, structured outputs, reasoning stream tokens, OpenAI/Anthropic bridges, MCP, Web Stream adapters, and a contract-first hybrid architecture that generates TypeScript types, API classes, MCP tools, and Zod schemas from a single canonical IR.",
   "keywords": [
     "ollama",
@@ -184,9 +184,10 @@
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
     "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
+    "verify:consumer-types": "bash scripts/verify-consumer-types.sh",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
-    "smoke": "npm run contract:validate && npm run contract:diff && npm run contract:drift -- --strict && npm run verify && npm run check:types",
-    "verify:release": "npm run clean && npm run contract:validate && npm run contract:diff && npm run contract:generate && npm run contract:drift -- --strict && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity -- --skip-live-docs && npm run check:types",
+    "smoke": "npm run contract:validate && npm run contract:diff && npm run contract:drift -- --strict && npm run verify && npm run check:types && npm run verify:consumer-types",
+    "verify:release": "npm run clean && npm run contract:validate && npm run contract:diff && npm run contract:generate && npm run contract:drift -- --strict && npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity -- --skip-live-docs && npm run check:types && npm run verify:consumer-types",
     "example": "tsx",
     "lab": "tsx lab/run.ts",
     "lab:live": "npm run build && tsx lab/live-tour.ts",

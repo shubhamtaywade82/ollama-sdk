@@ -477,6 +477,18 @@ export {
   type ContextWindowSource,
 } from './context-safety.js';
 
+// Batch-constrained embedding pipeline for high-volume ingestion (RAG/vector indexing)
+export {
+  DEFAULT_EMBED_BATCH_SIZE,
+  DEFAULT_EMBED_CONCURRENCY,
+  batchEmbed,
+  embedBatchOverflowMessage,
+  findOversizedEmbedInputs,
+  type EmbedBatchOptions,
+  type EmbedBatchResult,
+  type OversizedEmbedInput,
+} from './embed-batch.js';
+
 // Blob upload result (from ModelsClient's convenience blob helpers)
 export type { BlobUploadResult } from './models-client.js';
 
