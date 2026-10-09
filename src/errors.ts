@@ -452,26 +452,54 @@ export class OllamaAgentMaxIterationsError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown when the agent's cycle detection fires: the same tool call —
+ * identical name **and** identical arguments — would execute more times than
+ * `maxRepeatedToolCalls` allows during one run.
+ *
+ * This is the fail-fast diagnosis for a model stuck in a tool loop (repeatedly
+ * calling the same function with the same arguments, never reacting to the
+ * results); without it, a looping model only surfaces as a generic
+ * {@link OllamaAgentMaxIterationsError} after burning the full iteration
+ * budget on wasted calls.
+ */
+export class OllamaAgentToolLoopError extends OllamaClientError {
+  /** Name of the tool whose identical call would exceed the repeat budget. */
+  readonly toolName: string;
+  /** How many times this exact call would have executed including the rejected one. */
+  readonly repeatedExecutions: number;
+  /** The configured per-signature execution budget. */
+  readonly maxRepeatedToolCalls: number;
+  /** Canonical `name(args)` signature of the repeated call (very large payloads truncated). */
+  readonly signature: string;
+
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code'> & {
+      toolName: string;
+      repeatedExecutions: number;
+      maxRepeatedToolCalls: number;
+      signature: string;
+    },
+  ) {
+    super(message, { ...options, code: 'agent_tool_loop_detected', retryable: false });
+    this.toolName = options.toolName;
+    this.repeatedExecutions = options.repeatedExecutions;
+    this.maxRepeatedToolCalls = options.maxRepeatedToolCalls;
+    this.signature = options.signature;
+  }
+}
+
 export class OllamaMcpError extends OllamaClientError {
   readonly mcpMethod:
-    | 'listTools'
-    | 'callTool'
-    | 'tools/call'
-    | 'tasks/get'
-    | 'tasks/result'
-    | 'tasks/cancel';
+    'listTools' | 'callTool' | 'tools/call' | 'tasks/get' | 'tasks/result' | 'tasks/cancel';
   readonly toolName?: string | undefined;
   readonly issues?: unknown;
   constructor(
     message: string,
     options: Omit<OllamaClientErrorOptions, 'code'> & {
       mcpMethod:
-        | 'listTools'
-        | 'callTool'
-        | 'tools/call'
-        | 'tasks/get'
-        | 'tasks/result'
-        | 'tasks/cancel';
+        'listTools' | 'callTool' | 'tools/call' | 'tasks/get' | 'tasks/result' | 'tasks/cancel';
       toolName?: string | undefined;
       issues?: unknown;
     },

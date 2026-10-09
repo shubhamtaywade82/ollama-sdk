@@ -3,6 +3,7 @@
  */
 
 import { normalizeBaseUrl } from './host.js';
+import { joinUrlPath } from './url.js';
 import { mapError } from '../errors.js';
 import { composeMiddleware, type Middleware, type RequestContext } from '../middleware.js';
 import type { RequestLifecycleHook } from '../logger.js';
@@ -132,7 +133,9 @@ export class HttpClient {
       timestamp: startedAt,
     });
 
-    const finalHandler = async (req: RequestContext): Promise<{
+    const finalHandler = async (
+      req: RequestContext,
+    ): Promise<{
       status: number;
       headers: Record<string, string>;
       body: Response;
@@ -195,10 +198,7 @@ export class HttpClient {
       let response: Response;
       if (rawResponse !== undefined && context.body === rawResponse) {
         response = rawResponse as Response;
-        if (
-          context.status !== response.status ||
-          !sameHeaders(context.headers, response.headers)
-        ) {
+        if (context.status !== response.status || !sameHeaders(context.headers, response.headers)) {
           const cloned = response.clone();
           response = new Response(cloned.body, {
             status: context.status,
@@ -274,7 +274,7 @@ export class HttpClient {
   }
 
   async request<T>(options: HttpRequestOptions): Promise<T> {
-    const url = `${this.baseUrl}${options.path}`;
+    const url = joinUrlPath(this.baseUrl, options.path);
     const method =
       options.method ??
       (options.body !== undefined || options.rawBody !== undefined ? 'POST' : 'GET');
@@ -356,7 +356,7 @@ export class HttpClient {
    * can decode their provider-specific event payloads without duplicating transport logic.
    */
   async requestSseStream(options: HttpRequestOptions): Promise<AbortableAsyncIterable<SseEvent>> {
-    const url = `${this.baseUrl}${options.path}`;
+    const url = joinUrlPath(this.baseUrl, options.path);
     const method = options.method ?? 'POST';
     const headers = {
       ...this.buildHeaders(options.headers),
@@ -433,7 +433,7 @@ export class HttpClient {
   }
 
   async requestStream<T>(options: HttpRequestOptions): Promise<AbortableAsyncIterable<T>> {
-    const url = `${this.baseUrl}${options.path}`;
+    const url = joinUrlPath(this.baseUrl, options.path);
     const method = options.method ?? 'POST';
     const headers = this.buildHeaders(options.headers);
 

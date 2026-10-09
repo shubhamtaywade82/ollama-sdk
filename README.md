@@ -28,6 +28,8 @@
 - 🧹 **Client Teardown (`destroy()`)**: One call aborts every in-flight request, active stream, and queued capacity waiter with `OllamaAbortError` — the clean-exit path for `worker_threads`, CLI runners, and short-lived scripts where dangling fetch bodies keep the event loop alive.
 - 🧠 **Dynamic Context-Window Discovery**: `client.models.getContextLength({ model })` resolves the real window from the server — the allocated window of the running instance (`/api/ps`), the Modelfile `num_ctx` default, and the native GGUF maximum (`model_info`), in precedence order — so applications stop hardcoding 2048/4096 guesses.
 - 🔁 **Model-Affinity Scheduling**: `ModelAffinityScheduler` runs multi-model workloads through per-model serial queues with a distinct-model cap (default 1), deepening the already-hot model before loading the next — the anti-thrashing order for `OLLAMA_NUM_PARALLEL`/`OLLAMA_MAX_LOADED_MODELS`-bounded daemons — and routes candidate lists to whichever model is already loaded.
+- 🛡️ **Agent Loop Guardrails**: `Agent` is a boundary-checked runner out of the box — `maxIterations` (default 10), an opt-in `maxToolCalls` budget, and opt-in **cycle detection** (`maxRepeatedToolCalls`) that fails fast with `OllamaAgentToolLoopError` the moment the model re-emits one identical tool call instead of burning the whole iteration budget on it; tool rejections (including unregistered names) are always encapsulated as `role: 'tool'` results, never loop crashes.
+- 🧼 **Vision History Hygiene**: `sanitizeHistoryForNextTurn()` evicts stale base64 image payloads from consumer-managed multi-turn vision histories — every `/api/chat` request re-sends the whole history, so old images silently bloat payload, context, and heap; the helper keeps images only on the trailing window you choose, conversation text fully preserved.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
@@ -191,6 +193,21 @@ npm install @nemesis-oss/ollama-sdk zod
 ```
 
 `zod` is a peer dependency (`^3.22.0 || ^4.0.0`) — install whichever major version your project already uses instead of getting a second copy bundled in.
+
+### Hosting Behind a Reverse Proxy (subpath mounts)
+
+Point `baseUrl` (or `OLLAMA_HOST`) at the mount point and every request path joins underneath it — `/api/chat`, the OpenAI/Anthropic compatibility routes (`/v1/...`), streaming, and generated-surface operations all preserve the prefix:
+
+```typescript
+// Ollama behind https://gateway.internal.corp/ai/ollama →
+// requests go to https://gateway.internal.corp/ai/ollama/api/chat, etc.
+const client = new OllamaClient({ baseUrl: 'https://gateway.internal.corp/ai/ollama' });
+
+// Scheme-less gateway hosts with subpaths normalize too:
+// 'proxy.internal:8080/ollama' → http://proxy.internal:8080/ollama/api/chat
+```
+
+The transport deliberately never uses `new URL(path, base)` — WHATWG semantics discard the base's path segments for absolute paths (`new URL('/api/chat', 'https://gw/ai/ollama')` → `https://gw/api/chat`). URL assembly is owned by a single join helper with an exactly-one-slash invariant, pinned by tests at the unit, transport, and client levels (see `src/transport/url.ts`).
 
 ---
 
@@ -370,6 +387,36 @@ const kept = compactConversationHistory(session.getMessages(), {
 ```
 
 Compaction is deliberately **manual, never automatic**: rewriting the history invalidates the prompt prefix, so the next turn starts with a cold KV cache (visible as a one-turn `evaluatedTokens` spike in `cacheStats`). That recompute-for-a-fitting-window tradeoff is sometimes exactly right and sometimes wasteful — the SDK surfaces the numbers and leaves the call to you. Estimates use the same CJK-aware heuristic as the pre-flight checks (tool calls and images included); `minTailMessages` (default 2) guarantees the newest exchange survives even when oversized.
+
+### Evicting Stale Images from Vision Histories
+
+`/api/chat` is stateless — every request re-sends the whole history, base64 images
+included, and every image costs real context tokens on every turn. A consumer-managed
+vision history therefore re-uploads each photo long after the model answered the
+question that needed it. `sanitizeHistoryForNextTurn()` is the explicit fix — a pure
+helper that evicts image payloads from every message outside a trailing keep-window,
+conversation text fully preserved:
+
+```typescript
+import { sanitizeHistoryForNextTurn } from '@nemesis-oss/ollama-sdk';
+
+history.push({ role: 'user', content: 'What is in THIS photo?', images: [newImage] });
+
+// Old images evicted, only the trailing turn keeps its payload:
+await client.chat({ model: 'llava', messages: sanitizeHistoryForNextTurn(history) });
+
+// Keep a wider window, and tell the model what used to be there:
+sanitizeHistoryForNextTurn(history, {
+  keepImagesOnLastMessages: 2,
+  imagePlaceholder: '[image from an earlier turn removed to save context]',
+});
+```
+
+The same philosophy as compaction — caller-initiated, never automatic — with the same
+visible tradeoffs (the model loses access to evicted images; the KV prefix diverges at
+the eviction point, so a hot cache-friendly session shouldn't sanitize). Input arrays
+and untouched messages are never mutated; kept messages are reused by reference. See
+[ADR 0027](./docs/adr/0027-agent-cycle-detection-url-join-history-hygiene.md).
 
 ### Model-Affinity Scheduling (multi-model anti-thrashing)
 
@@ -688,6 +735,43 @@ synthesizes a stable client-side ID for tracing and execution correlation:
 `response.turns[0].toolResults[0].toolCallId`. Native `role: 'tool'` history entries
 use Ollama's documented `tool_name` field; the SDK-local `toolCallId` is not sent on
 the wire. See [ADR 0007](./docs/adr/0007-synthetic-tool-call-ids.md).
+
+The loop is boundary-checked by construction. `maxIterations` (default 10) bounds the
+run; an optional `maxToolCalls` budget caps total executions; and tool rejections never
+crash the loop — the registry encapsulates unregistered names, argument-validation
+failures, timeouts, and thrown errors as failed `ToolExecutionResult`s that are fed
+back to the model as ordinary `role: 'tool'` messages so it can self-correct. When a
+model gets _stuck_ — re-emitting the same call with unchanged arguments instead of
+reacting to its results — opt-in cycle detection fails fast with a precise diagnosis
+instead of letting the loop burn its whole budget on the same wasted call:
+
+```typescript
+import { Agent, OllamaAgentToolLoopError } from '@nemesis-oss/ollama-sdk';
+
+const agent = new Agent(client, {
+  tools: registry,
+  maxIterations: 10,
+  maxToolCalls: 40, // total execution budget across the run
+  maxRepeatedToolCalls: 3, // per identical call (same name + same arguments)
+});
+
+try {
+  const result = await agent.run({ model: 'qwen3:8b', messages });
+} catch (error) {
+  if (error instanceof OllamaAgentToolLoopError) {
+    // The model re-emitted error.toolName with identical arguments a 4th time.
+    // error.signature holds the canonical call; error.repeatedExecutions the count.
+    // Fail fast at turn 4 instead of burning all 10 iterations on it.
+  }
+}
+```
+
+Counting is per canonical signature — `canonicalToolCallSignature()` (also exported)
+sorts argument keys recursively, so a model re-emitting the same call in a different
+key order still counts as the same call. Failed, unregistered, and timed-out
+executions count too: re-calling a failing tool with unchanged arguments is exactly
+the pathological loop this catches. Like `maxToolCalls`, the guardrail is opt-in and
+caller-owned — see [ADR 0027](./docs/adr/0027-agent-cycle-detection-url-join-history-hygiene.md).
 
 Running several `Agent`s against different models/API keys for different roles (e.g. a
 planning model, a coding model, a research model) is a single `OllamaClient` with
