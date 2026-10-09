@@ -96,6 +96,7 @@ export {
   OllamaUnsupportedCapabilityError,
   OllamaAgentMaxIterationsError,
   OllamaAgentMaxToolCallsError,
+  OllamaAgentToolLoopError,
   OllamaMcpError,
   OllamaIncompatibleModelError,
   OllamaSkillNotFoundError,
@@ -382,6 +383,7 @@ export {
 // Agent
 export {
   Agent,
+  canonicalToolCallSignature,
   type AgentConfig,
   type AgentHooks,
   type AgentResult,
@@ -455,10 +457,12 @@ export {
 export {
   ConversationSession,
   compactConversationHistory,
+  sanitizeHistoryForNextTurn,
   type CompactionOptions,
   type ConversationSendOptions,
   type ConversationSessionOptions,
   type CumulativeCacheStats,
+  type HistorySanitizeOptions,
   type SessionCompactionOptions,
   type SessionCompactionResult,
   type SessionTurn,

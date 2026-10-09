@@ -33,6 +33,22 @@ export interface AgentConfig {
   readonly maxIterations?: number | undefined;
   /** Maximum total tool calls allowed during one agent run. */
   readonly maxToolCalls?: number | undefined;
+  /**
+   * Cycle detection: maximum executions of one *identical* tool call — same
+   * tool name and same arguments — during a single run. When the model would
+   * exceed this budget (the classic stuck-loop signature: re-emitting the
+   * same call without reacting to its results), the run fails fast with
+   * {@link OllamaAgentToolLoopError} instead of burning the remaining
+   * iterations on the same wasted call.
+   *
+   * Off by default (`undefined`), matching `maxToolCalls`: an explicit,
+   * caller-owned guardrail. Counting is per canonical signature, so
+   * argument key order never splits one repeated call into several
+   * "distinct" ones. Every call handed to the registry counts — failed,
+   * unregistered, and timed-out executions included, since re-calling a
+   * failing tool with unchanged arguments is exactly the loop this catches.
+   */
+  readonly maxRepeatedToolCalls?: number | undefined;
   readonly hooks?: AgentHooks | undefined;
   /** Validate tool support from /api/show before starting a tool-enabled run. Default: true. */
   readonly validateToolCapability?: boolean | undefined;
