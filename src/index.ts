@@ -454,9 +454,13 @@ export {
 // KV-prefix-preserving conversation sessions with cache statistics
 export {
   ConversationSession,
+  compactConversationHistory,
+  type CompactionOptions,
   type ConversationSendOptions,
   type ConversationSessionOptions,
   type CumulativeCacheStats,
+  type SessionCompactionOptions,
+  type SessionCompactionResult,
   type SessionTurn,
   type TurnCacheStats,
 } from './conversation.js';
@@ -465,17 +469,40 @@ export {
 export {
   DEFAULT_CONTEXT_WARNING_THRESHOLD,
   IMAGE_TOKEN_ESTIMATE,
+  MESSAGE_OVERHEAD_TOKENS,
   OLLAMA_FALLBACK_CONTEXT_LENGTH,
   checkChatContext,
   checkGenerateContext,
   contextWarningMessage,
   estimateChatRequestTokens,
   estimateGenerateRequestTokens,
+  estimateMessageTokens,
   estimateTokens,
   type ContextCheck,
   type ContextCheckOptions,
   type ContextWindowSource,
 } from './context-safety.js';
+
+// Dynamic context-window discovery — allocated (ps) vs Modelfile vs native GGUF
+export {
+  extractNativeContextLength,
+  extractParameterNumCtx,
+  findRunningModelContextLength,
+  resolveContextLength,
+  type ContextDiscoveryRequestOptions,
+  type ContextLengthSignals,
+  type ContextLengthSource,
+  type DiscoveredContextLength,
+} from './context-discovery.js';
+
+// Model-affinity scheduling — per-model serial queues, anti-thrashing dispatch
+export {
+  ModelAffinityScheduler,
+  createModelAffinityScheduler,
+  type ModelAffinityClient,
+  type ModelAffinitySchedulerOptions,
+  type ModelAffinityStats,
+} from './affinity.js';
 
 // Batch-constrained embedding pipeline for high-volume ingestion (RAG/vector indexing)
 export {

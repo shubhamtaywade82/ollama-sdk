@@ -21,11 +21,13 @@
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
 - 💳 **Ollama Cloud Usage & Balance**: `usage()`/`balance()` wrap Ollama's hosted account endpoints (`GET /api/usage`, `GET /api/balance`) — request counts, USD spend, cached-token totals bucketed by hour/day, and remaining included/purchased credits (including the legacy session/weekly plan shapes) — with the same fixed-cloud-host, API-key, timeout, and retry semantics as the web tools.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
-- 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, and surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent.
+- 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent, and offers a one-call `compact()` sliding-window escape hatch when a session outgrows its window.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
 - 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`).
 - 🧵 **Batched Embeddings with Backpressure**: `client.embedBatch()` splits corpora of any size into bounded `/api/embed` batches (default 32 inputs × 3 in flight) — order-preserving, fail-fast, progress-reporting — so RAG/vector ingestion can't OOM a local daemon or saturate `OLLAMA_MAX_QUEUE` the way `Promise.all` floods do, with per-string context-window pre-flight against silent truncation.
 - 🧹 **Client Teardown (`destroy()`)**: One call aborts every in-flight request, active stream, and queued capacity waiter with `OllamaAbortError` — the clean-exit path for `worker_threads`, CLI runners, and short-lived scripts where dangling fetch bodies keep the event loop alive.
+- 🧠 **Dynamic Context-Window Discovery**: `client.models.getContextLength({ model })` resolves the real window from the server — the allocated window of the running instance (`/api/ps`), the Modelfile `num_ctx` default, and the native GGUF maximum (`model_info`), in precedence order — so applications stop hardcoding 2048/4096 guesses.
+- 🔁 **Model-Affinity Scheduling**: `ModelAffinityScheduler` runs multi-model workloads through per-model serial queues with a distinct-model cap (default 1), deepening the already-hot model before loading the next — the anti-thrashing order for `OLLAMA_NUM_PARALLEL`/`OLLAMA_MAX_LOADED_MODELS`-bounded daemons — and routes candidate lists to whichever model is already loaded.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
@@ -319,6 +321,95 @@ const client = new OllamaClient({
 ```
 
 The estimators are exported for custom pipelines: `estimateTokens(text)` (CJK-aware — ~1 token per CJK character, ~4 chars/token elsewhere), `estimateChatRequestTokens(req)` / `estimateGenerateRequestTokens(req)` (message overhead + tool schemas + `IMAGE_TOKEN_ESTIMATE` per image), and the underlying `checkChatContext` / `checkGenerateContext` / `contextWarningMessage`. All are heuristics (±20–30%) — for exact counts, ask the server (`prompt_eval_count`).
+
+### Discovering the Real Context Window
+
+Guessing context windows ("it's probably 2048… or 4096?") is how silent truncation happens. Ollama advertises the real numbers in two places, and they answer _different questions_: `GET /api/ps` reports the window the **running instance actually allocated** (exact, reflects the Modelfile `num_ctx` default and what fit in memory), while `POST /api/show` exposes the Modelfile's `num_ctx` default _and_ the model's **native GGUF maximum** in `model_info["<architecture>.context_length"]` — the official API examples show a model with a 131072-token native max whose running instance allocated 4096, a 32× gap. `getContextLength()` consults them in precedence order and returns every signal it found:
+
+```typescript
+const window = await client.models.getContextLength({ model: 'gemma4' });
+// -> { contextLength: 4096,        // program against this — resolved by precedence
+//      source: 'running',          // 'running' | 'parameters' | 'model-info' | 'fallback'
+//      runningContextLength: 4096, // allocated by the loaded instance (when loaded)
+//      nativeContextLength: 131072 } // the ceiling you could raise num_ctx toward
+
+// The canonical wiring — make the client's own pre-flight checks exact:
+const client = new OllamaClient({ defaultContextLength: window.contextLength });
+
+// Or raise the window deliberately when the model supports it (native max):
+await client.chat({
+  model: 'gemma4',
+  messages,
+  options: { num_ctx: window.nativeContextLength }, // 131072 — needs VRAM to match
+});
+```
+
+`skipRunningCheck: true` skips the `/api/ps` round-trip (e.g. cloud/compat-only endpoints); a 404 from `/api/ps` is treated as "not running" and never fails the lookup. The pure pieces — `resolveContextLength()`, `extractParameterNumCtx()`, `findRunningModelContextLength()`, `extractNativeContextLength()` — are exported for callers that already hold `ps`/`show` responses.
+
+### Compacting Long Conversations
+
+Sessions grow monotonically; windows don't. When `cacheStats.hitRate` collapses while history grows — or the pre-flight warnings above start firing — `compact()` is the explicit fix: it keeps the pinned system prompt plus the most recent turns that fit the budget, dropping the oldest turns in between.
+
+```typescript
+const session = client.session('llama3.1', 'You are terse.', {
+  options: { num_ctx: 4096 },
+});
+
+// …many turns later…
+const result = session.compact();
+// -> { droppedMessages: 14, estimatedTokensBefore: 4180,
+//      estimatedTokensAfter: 3552, effectiveBudget: 3686 }  // num_ctx − 10% reply reserve
+
+// Or compact any message array with an explicit budget (the pure helper):
+import { compactConversationHistory } from '@nemesis-oss/ollama-sdk';
+const kept = compactConversationHistory(session.getMessages(), {
+  maxEstimatedTokens: 4096,
+  reserveForReply: 512, // headroom for the model's next reply
+  minTailMessages: 2, // never drop the latest exchange (default)
+});
+```
+
+Compaction is deliberately **manual, never automatic**: rewriting the history invalidates the prompt prefix, so the next turn starts with a cold KV cache (visible as a one-turn `evaluatedTokens` spike in `cacheStats`). That recompute-for-a-fitting-window tradeoff is sometimes exactly right and sometimes wasteful — the SDK surfaces the numbers and leaves the call to you. Estimates use the same CJK-aware heuristic as the pre-flight checks (tool calls and images included); `minTailMessages` (default 2) guarantees the newest exchange survives even when oversized.
+
+### Model-Affinity Scheduling (multi-model anti-thrashing)
+
+Ollama's concurrency model (per the official FAQ) makes same-model parallelism cheap — KV cache scales as `OLLAMA_NUM_PARALLEL × context_length` for the _loaded_ model — but switching models is expensive: a request for a different model queues until the first goes idle or is evicted (`OLLAMA_MAX_LOADED_MODELS`, default 3× GPU count), paying an unload/cold-load swap each time. Workloads that interleave models arbitrarily (extraction on a coder model, reasoning on a thinking model) thrash the daemon that way. `ModelAffinityScheduler` is the client-side fix:
+
+```typescript
+import { ModelAffinityScheduler } from '@nemesis-oss/ollama-sdk';
+
+const scheduler = new ModelAffinityScheduler(client, {
+  concurrentModels: 1, // one model hot at a time (default) — the anti-thrash setting
+  perModelConcurrency: 1, // mirror the daemon's OLLAMA_NUM_PARALLEL if you raise it
+});
+
+// Per-model serial queues; the active model deepens before the next one loads:
+await scheduler.run('deepseek-r1', () => reason(client));
+await scheduler.run('qwen2.5:coder', () => extract(client));
+
+// Candidate lists: picks whichever model is already loaded (GET /api/ps, TTL-cached):
+const code = await scheduler.run(['qwen2.5:coder', 'qwen2.5:14b'], (model) =>
+  extractWith(client, model),
+);
+
+scheduler.stats; // { activeModels: ['deepseek-r1'], queuedTasks: 3 }
+await scheduler.dispose(); // waits for every queue to drain
+```
+
+Dispatch is **affinity-sticky, not round-robin**: when a queued model is already active, its tasks start before a different model's (up to `perModelConcurrency`), because deepening the hot model avoids a swap. Tasks are your own functions — the scheduler adds no retry, timeout, or failover, and a rejected task only rejects its own `run()` promise. Candidate selection degrades gracefully: if `/api/ps` fails, the first candidate runs and the failure is never cached.
+
+### Capacity Planning: OLLAMA_NUM_PARALLEL, MAX_QUEUE & KV-Cache Memory
+
+The server-side knobs (official FAQ defaults) and the client-side surfaces that map onto them:
+
+| Server knob                         | Default                   | Effect                                                                                                                                                     | Client-side counterpart                                                                                                                                                       |
+| ----------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OLLAMA_NUM_PARALLEL`               | 1                         | Parallel requests **per loaded model**; required memory scales `NUM_PARALLEL × CONTEXT_LENGTH` (a 4K-context model at 4 parallel allocates a 16K KV cache) | `ModelAffinityScheduler({ perModelConcurrency })`, `ToolRegistry({ maxConcurrency })` for agent tool dispatch                                                                 |
+| `OLLAMA_MAX_LOADED_MODELS`          | 3× GPUs (3 on CPU)        | Concurrently loaded models; beyond it, requests queue until a model goes idle or is evicted — the swap/thrash cycle                                        | `ModelAffinityScheduler({ concurrentModels })` — keep the working set small; `client.models.pin()`/`unload()` for explicit lifecycle                                          |
+| `OLLAMA_MAX_QUEUE`                  | 512                       | Queued requests beyond this are rejected immediately with **503**                                                                                          | `endpointHealth.maxConcurrentPerEndpoint` (queue client-side instead of saturating the daemon), `embedBatch({ batchSize, concurrency })` for ingestion, retry/failover on 503 |
+| `OLLAMA_CONTEXT_LENGTH` / `num_ctx` | 2048–4096 model-dependent | The window per request — prompts beyond it are **silently truncated**                                                                                      | `models.getContextLength()` for the real number, `defaultContextLength` to make it explicit, pre-flight warnings + `session.compact()` to stay inside it                      |
+
+The two failure modes this table prevents: `Promise.all`-style floods (hundreds of simultaneous requests → queue saturation → 503s, VRAM spikes) and model ping-pong (alternating models → repeated unload/reload stalls). The SDK's request path already caps and queues per endpoint via `endpointHealth` — including `strategy: 'least-connections'` for pools — and `embedBatch`/`ModelAffinityScheduler` extend that discipline to ingestion and multi-model workloads. `OLLAMA_KV_CACHE_TYPE` (`f16`/`q8_0`/`q4_0`) trades KV precision for memory headroom at the daemon level; benchmark its latency impact against these client-side levers before relying on it for throughput.
 
 ### Blob Management & Custom GGUF Model Publishing
 

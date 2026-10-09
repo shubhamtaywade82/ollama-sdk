@@ -107,7 +107,13 @@ export function inferRuntimeMode(baseUrl: string): RuntimeMode {
   }
 }
 
-function extractContextLength(modelInfo?: Record<string, unknown>): number | undefined {
+/**
+ * Scans `/api/show`'s `model_info` for the model's **native** context length
+ * (keys are architecture-prefixed: `llama.context_length`,
+ * `gemma4.context_length`, …). Also re-exported by `src/context-discovery.ts`
+ * as `extractNativeContextLength` for the context-window discovery flow.
+ */
+export function extractContextLength(modelInfo?: Record<string, unknown>): number | undefined {
   if (!modelInfo) return undefined;
   for (const [key, value] of Object.entries(modelInfo)) {
     if (

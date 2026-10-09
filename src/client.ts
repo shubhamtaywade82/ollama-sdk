@@ -55,6 +55,7 @@ import {
   contextWarningMessage,
   type ContextCheck,
 } from './context-safety.js';
+import type { ContextDiscoveryRequestOptions } from './context-discovery.js';
 import type { ModelOptions } from './types.js';
 import { NativeApi } from './generated/api/native-api.js';
 import { FailoverHttpClient } from './failover-http-client.js';
@@ -888,7 +889,16 @@ export class OllamaClient {
   readonly createModel = (r: CreateRequestOptions) => this.models.create(r);
   readonly deleteModel = (req: DeleteRequestOptions) => this.models.delete(req);
   readonly copyModel = (req: CopyRequestOptions) => this.models.copy(req);
-  readonly ps = () => this.models.ps();
+  readonly ps = (request?: RequestCancellationOptions) => this.models.ps(request);
+  /**
+   * Discovers the model's real context window — the allocated window of the
+   * running instance (`/api/ps`), the Modelfile `num_ctx` default, and the
+   * native GGUF maximum (`/api/show` `model_info`), resolved by precedence.
+   * Convenience alias for {@link ModelsClient.getContextLength} — see that
+   * method for the full contract and the precedence order.
+   */
+  readonly getContextLength = (request: ContextDiscoveryRequestOptions) =>
+    this.models.getContextLength(request);
   readonly version = () => this.models.version();
   readonly createBlob = (digest: string, data: BinaryBody) => this.models.createBlob(digest, data);
   readonly checkBlob = (digest: string) => this.models.checkBlob(digest);

@@ -3,6 +3,14 @@
  */
 
 import { listAvailableModels } from './capabilities/capabilities.js';
+import {
+  extractParameterNumCtx,
+  findRunningModelContextLength,
+  resolveContextLength,
+  type ContextDiscoveryRequestOptions,
+  type DiscoveredContextLength,
+} from './context-discovery.js';
+import { extractContextLength } from './capabilities/capabilities.js';
 import { OllamaClientError, OllamaNotFoundError } from './errors.js';
 import { KEEP_ALIVE_INDEFINITE, KEEP_ALIVE_UNLOAD } from './keep-alive.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
@@ -20,6 +28,7 @@ import type {
   PsResponse,
   PullRequestOptions,
   PushRequestOptions,
+  RequestCancellationOptions,
   ShowRequestOptions,
   ShowResponse,
   StatusResponse,
@@ -178,9 +187,71 @@ export class ModelsClient {
     );
   }
 
-  ps(): Promise<PsResponse> {
-    return this.runner((http) => http.request<PsResponse>({ path: '/api/ps', method: 'GET' }), {
-      singleEndpoint: true,
+  ps(request?: RequestCancellationOptions): Promise<PsResponse> {
+    return this.runner(
+      (http, signal) => http.request<PsResponse>({ path: '/api/ps', method: 'GET', signal }),
+      {
+        singleEndpoint: true,
+        ...(request?.signal !== undefined ? { signal: request.signal } : {}),
+        ...(request?.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
+      },
+    );
+  }
+
+  /**
+   * Discovers the model's real context window from the server — no more
+   * 2048/4096 guesswork. Consults, in precedence order:
+   *
+   *   1. `GET /api/ps` — the window the **running instance actually
+   *      allocated** (exact, reflects the Modelfile `num_ctx` default and
+   *      what fit in memory); skipped when the model isn't loaded, when
+   *      `skipRunningCheck` is set, or harmlessly on servers without the
+   *      field.
+   *   2. `POST /api/show` `parameters` — a Modelfile-authored
+   *      `num_ctx <n>` default, i.e. the window a cold load will allocate.
+   *   3. `POST /api/show` `model_info["<arch>.context_length"]` — the
+   *      model's **native GGUF maximum** (a ceiling to raise `num_ctx`
+   *      toward, not the allocated window).
+   *   4. Fallback — Ollama's conservative unset-`num_ctx` default (2048).
+   *
+   * The result carries every signal it found, so `nativeContextLength:
+   * 131072` vs `contextLength: 4096` (a 32× gap seen in the official API
+   * examples) is visible rather than guessed. Typical wiring:
+   *
+   * ```ts
+   * const { contextLength, source, nativeContextLength } =
+   *   await client.models.getContextLength({ model: 'gemma4' });
+   * // -> { contextLength: 4096, source: 'running', nativeContextLength: 131072 }
+   * ```
+   *
+   * Makes two server calls (`/api/ps` + `/api/show`) unless
+   * `skipRunningCheck` is set. A 404 from `/api/ps` (endpoint without the
+   * listing) is treated as "not running" and never fails the lookup;
+   * other transport errors propagate normally.
+   */
+  async getContextLength(
+    request: ContextDiscoveryRequestOptions,
+  ): Promise<DiscoveredContextLength> {
+    let running: number | undefined;
+    if (request.skipRunningCheck !== true) {
+      try {
+        const ps = await this.ps({ signal: request.signal, timeoutMs: request.timeoutMs });
+        running = findRunningModelContextLength(ps.models, request.model);
+      } catch (err) {
+        // Endpoints without the running-models listing (e.g. compat-only
+        // hosts) still deserve parameter/model-info discovery.
+        if (!(err instanceof OllamaNotFoundError)) throw err;
+      }
+    }
+    const showRes = await this.show({
+      model: request.model,
+      signal: request.signal,
+      timeoutMs: request.timeoutMs,
+    });
+    return resolveContextLength({
+      running,
+      parameter: extractParameterNumCtx(showRes.parameters),
+      native: extractContextLength(showRes.model_info),
     });
   }
 
