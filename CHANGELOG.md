@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.11.0] — Documentation digest: dynamic context-window discovery, conversation compaction, model-affinity scheduling
+
+Three real gaps from the follow-up documentation digest on concurrency & memory-scaling mechanics (see [ADR 0026](./docs/adr/0026-context-discovery-history-compaction-model-affinity.md)) — all additive, no breaking changes; 778 pre-existing tests stay green, 40 new tests added. One digest claim was stale (client-side concurrency pooling already existed as `endpointHealth.maxConcurrentPerEndpoint`) and is answered with capacity-planning documentation instead of new code.
+
+### Dynamic context-window discovery (`src/context-discovery.ts` + `models.getContextLength()`)
+
+- **`client.models.getContextLength({ model, skipRunningCheck?, signal?, timeoutMs? })`** resolves the real window instead of 2048/4096 guesswork, by precedence: the **allocated window of the running instance** (`GET /api/ps` `context_length` — exact, reflects the Modelfile default and what fit in memory) → the **Modelfile `num_ctx` default** (`POST /api/show` `parameters`) → the **native GGUF maximum** (`model_info["<arch>.context_length"]` — a ceiling, not an expectation; the official API examples show 131072 native vs 4096 allocated) → the conservative 2048 fallback.
+- Returns every signal it found — `{ contextLength, source, runningContextLength?, parameterContextLength?, nativeContextLength? }` — so "how much headroom could I raise" and "what do I have right now" are both answered. Tag-less model names match their tagged `/api/ps` entries the way Ollama itself resolves them; a 404 from `/api/ps` degrades to the `/api/show` signals instead of failing.
+- Pure pieces exported for callers holding raw responses: `resolveContextLength`, `extractParameterNumCtx`, `findRunningModelContextLength`, `extractNativeContextLength` (the existing capabilities scanner, now public). `ps()` also gained optional `{ signal, timeoutMs }` cancellation; `client.getContextLength` mirrors the models method.
+
+### Sliding-window conversation compaction (`compactConversationHistory` + `session.compact()`)
+
+- **`compactConversationHistory(messages, { maxEstimatedTokens, reserveForReply?, minTailMessages? })`** — pure helper keeping the leading system message(s) plus the newest turns that fit, dropping the oldest in between. Estimates via the same CJK-aware heuristic as the pre-flight checks (message overhead, `tool_calls`, `IMAGE_TOKEN_ESTIMATE` per image included); `minTailMessages` (default 2) guarantees the newest exchange survives even when oversized — the SDK never reproduces the server's silent truncation.
+- **`session.compact(options?)`** applies it in place, defaulting the budget to the session's `num_ctx` (or the 2048 fallback) minus a 10% reply reservation, and returns `{ droppedMessages, estimatedTokensBefore, estimatedTokensAfter, effectiveBudget }`. Cumulative cache tallies are deliberately never reset — the one-turn `evaluatedTokens` spike after compaction is the visible cost of the KV-prefix invalidation, and compaction stays **manual, never automatic** (see ADR 0026 for the tradeoff).
+
+### Model-affinity scheduling (`src/affinity.ts` + `ModelAffinityScheduler`)
+
+- Groups async work into **per-model serial queues** with a **distinct-model cap** (`concurrentModels`, default 1) and **per-model parallelism** (`perModelConcurrency`, default 1 — mirror `OLLAMA_NUM_PARALLEL`). Dispatch is **affinity-sticky**: a queued model that is already active deepens before the next model loads, because deepening avoids an unload/cold-load swap — the anti-thrashing order for `OLLAMA_MAX_LOADED_MODELS`-bounded daemons.
+- **Candidate lists** — `run(['a', 'b'], (model) => …)` picks whichever candidate is already loaded per a TTL-cached `GET /api/ps` (default 30s); single-model tasks never touch `/api/ps`, and a failing lookup degrades to the first candidate without caching the failure.
+- Tasks are caller-owned (no retry/timeout/failover injected); a rejected task rejects only its own `run()`. `stats` exposes `{ activeModels, queuedTasks }`; `dispose()` resolves once every queue drains; invalid options and candidate lists fail fast with `OllamaClientError`.
+
+### Capacity-planning documentation
+
+- New README section mapping the official FAQ's server knobs — `OLLAMA_NUM_PARALLEL` (KV memory scales `NUM_PARALLEL × CONTEXT_LENGTH`), `OLLAMA_MAX_LOADED_MODELS` (3× GPUs), `OLLAMA_MAX_QUEUE` (512 → 503s), `num_ctx` — to their client-side counterparts (`endpointHealth.maxConcurrentPerEndpoint`, `embedBatch`, `ModelAffinityScheduler`, `ToolRegistry.maxConcurrency`, `getContextLength` + pre-flight + compaction), with a note on `OLLAMA_KV_CACHE_TYPE`. One audit-digest claim was stale and is documented as already-covered instead: the SDK's request path has capped and queued per endpoint since `endpointHealth` landed — `maxConcurrentRequests`-style pooling exists as `maxConcurrentPerEndpoint`.
+
 ## [1.10.0] — Production-readiness audit: batched embedding pipeline, client teardown, type-declaration hardening
 
 Three findings from the daily production-readiness audit (see [ADR 0025](./docs/adr/0025-embedding-batching-client-teardown-declaration-portability.md)) — all additive, no breaking changes; 749 pre-existing tests stay green, 29 new tests added.

@@ -28,6 +28,7 @@
  */
 
 import type { OllamaClient } from './client.js';
+import { estimateMessageTokens, OLLAMA_FALLBACK_CONTEXT_LENGTH } from './context-safety.js';
 import type {
   ChatRequestOptions,
   ChatResponse,
@@ -71,6 +72,125 @@ export interface SessionTurn {
   readonly cache: TurnCacheStats;
   /** The full underlying `/api/chat` response (usage, durations, thinking, …). */
   readonly response: ChatResponse;
+}
+
+/** Options for {@link compactConversationHistory} / {@link ConversationSession.compact}. */
+export interface CompactionOptions {
+  /**
+   * Estimated-token budget the compacted history must fit within (including
+   * any retained system message and the 10%-style reply reservation below).
+   * Estimated with the same CJK-aware heuristic as the pre-flight checks
+   * (`estimateMessageTokens` — ±20–30%, message overhead + tool calls +
+   * `IMAGE_TOKEN_ESTIMATE` per image included).
+   */
+  readonly maxEstimatedTokens: number;
+  /**
+   * Tokens subtracted from the budget and reserved for the model's next
+   * reply (default `0` for the pure function; `session.compact()` defaults
+   * to ~10% of the window, mirroring the pre-flight warning threshold's
+   * headroom).
+   */
+  readonly reserveForReply?: number | undefined;
+  /**
+   * Trailing messages always retained, even when they don't fit the budget
+   * (default `2` — the latest user/assistant exchange). Guarantees a
+   * compacted conversation never loses its most recent context; an
+   * oversized tail is retained deliberately rather than truncated, because
+   * silent truncation is the server's failure mode, not one this SDK
+   * reproduces.
+   */
+  readonly minTailMessages?: number | undefined;
+}
+
+/**
+ * Sliding-window history compaction: keep the pinned system message(s) plus
+ * the most recent turns that fit `maxEstimatedTokens`, dropping the oldest
+ * turns in between.
+ *
+ * Deliberately **not** automatic anywhere in the SDK: compaction rewrites the
+ * prompt prefix, so the next request's KV-cache hit rate drops to zero and
+ * the whole retained suffix re-evaluates. That tradeoff (latency + recompute
+ * for a window that now fits) is sometimes exactly right — long-running
+ * agent threads that would otherwise silently lose their oldest turns — and
+ * sometimes catastrophic (a hot cache-friendly session that never actually
+ * overflows). `ConversationSession.cacheStats` makes the "session no longer
+ * fits" case visible; this function is the explicit, caller-initiated fix.
+ *
+ * Semantics:
+ *
+ *   - **Leading `system` messages are always retained** and count against
+ *     the budget (they consume context too).
+ *   - Non-system messages are walked newest → oldest; each is retained while
+ *     it fits the remaining budget, or while fewer than `minTailMessages`
+ *     have been retained.
+ *   - Mid-conversation `system`/`tool` messages are ordinary tailable
+ *     history (only the *leading* system block is pinned).
+ *   - Returns a new array; the input is never mutated. Message objects are
+ *     reused by reference (sessions freeze them; external arrays are copied
+ *     defensively by the caller if needed).
+ *
+ * ```ts
+ * const kept = compactConversationHistory(session.getMessages(), {
+ *   maxEstimatedTokens: window.contextLength,
+ *   reserveForReply: 512,
+ * });
+ * ```
+ */
+export function compactConversationHistory(
+  messages: readonly Message[],
+  options: CompactionOptions,
+): readonly Message[] {
+  const reserve = Math.max(0, options.reserveForReply ?? 0);
+  const minTail = Math.max(0, options.minTailMessages ?? 2);
+  const budget = Math.max(0, options.maxEstimatedTokens - reserve);
+
+  // Pin the leading system block (zero or more messages).
+  let split = 0;
+  while (split < messages.length && messages[split]!.role === 'system') split += 1;
+  const pinned = messages.slice(0, split);
+  const tail = messages.slice(split);
+
+  let used = 0;
+  for (const message of pinned) used += estimateMessageTokens(message);
+
+  const retained: Message[] = [];
+  for (let i = tail.length - 1; i >= 0; i -= 1) {
+    const message = tail[i]!;
+    const cost = estimateMessageTokens(message);
+    const fits = used + cost <= budget;
+    if (!fits && retained.length >= minTail) break;
+    retained.unshift(message);
+    used += cost;
+  }
+
+  return [...pinned, ...retained];
+}
+
+/** Options for {@link ConversationSession.compact}; all fields optional. */
+export interface SessionCompactionOptions {
+  /**
+   * Token budget for the compacted history. Defaults to the session's own
+   * window: `options.num_ctx` from the session config, or Ollama's
+   * conservative 2048 fallback when unset — pair with
+   * `client.models.getContextLength()` to program against the real window.
+   */
+  readonly maxEstimatedTokens?: number | undefined;
+  /** Reply reservation; defaults to ~10% of the (derived) budget. */
+  readonly reserveForReply?: number | undefined;
+  /** Trailing messages always kept (default `2`). See {@link CompactionOptions}. */
+  readonly minTailMessages?: number | undefined;
+}
+
+/** What {@link ConversationSession.compact} did. */
+export interface SessionCompactionResult {
+  /** Number of messages dropped from the front of the tailable history. */
+  readonly droppedMessages: number;
+  /** Estimated tokens of the whole history before compaction. */
+  readonly estimatedTokensBefore: number;
+  /** Estimated tokens of the retained history after compaction. */
+  readonly estimatedTokensAfter: number;
+  /** The budget that was applied (after the reply reservation). */
+  readonly effectiveBudget: number;
 }
 
 /** Per-turn overrides — none of these touch the history prefix, so they are KV-safe. */
@@ -223,6 +343,52 @@ export class ConversationSession {
    */
   getMessages(): readonly Message[] {
     return this.history.map((message) => message);
+  }
+
+  /**
+   * Compacts the session's history in place: pinned system prompt plus the
+   * most recent turns that fit the budget, oldest tailable turns dropped.
+   *
+   * This is the explicit escape hatch for sessions that outgrew their
+   * window — `cacheStats.hitRate` collapsing toward zero while history grows
+   * is the usual symptom, and the pre-flight warnings on `chat()` fire once
+   * the prompt estimate crosses the threshold. After compaction the next
+   * turn's prompt prefix differs from everything before it, so the KV cache
+   * starts cold — visible as a one-turn `evaluatedTokens` spike in
+   * `cacheStats`. Cumulative cache tallies are deliberately **not** reset:
+   * they are observations, and the spike is part of the story.
+   *
+   * Returns the before/after estimates and the drop count. No-op (zero
+   * drops, equal before/after estimates) when the history already fits.
+   */
+  compact(options: SessionCompactionOptions = {}): SessionCompactionResult {
+    const window =
+      options.maxEstimatedTokens ?? this.config.options?.num_ctx ?? OLLAMA_FALLBACK_CONTEXT_LENGTH;
+    const reserve = options.reserveForReply ?? Math.ceil(window * 0.1);
+    const estimatedTokensBefore = this.history.reduce(
+      (sum, message) => sum + estimateMessageTokens(message),
+      0,
+    );
+    const compacted = compactConversationHistory(this.history, {
+      maxEstimatedTokens: window,
+      reserveForReply: reserve,
+      ...(options.minTailMessages !== undefined
+        ? { minTailMessages: options.minTailMessages }
+        : {}),
+    });
+    const estimatedTokensAfter = compacted.reduce(
+      (sum, message) => sum + estimateMessageTokens(message),
+      0,
+    );
+    const droppedMessages = this.history.length - compacted.length;
+    this.history.length = 0;
+    this.history.push(...compacted);
+    return {
+      droppedMessages,
+      estimatedTokensBefore,
+      estimatedTokensAfter,
+      effectiveBudget: window - reserve,
+    };
   }
 
   /**

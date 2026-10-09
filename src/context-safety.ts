@@ -85,10 +85,12 @@ export function estimateTokens(text: string): number {
   return Math.ceil(cjk + other / CHARS_PER_TOKEN);
 }
 
-/** Rough per-message framing overhead: role tags, chat-template delimiters. */
-const MESSAGE_OVERHEAD_TOKENS = 4;
+/**
+ * Rough per-message framing overhead: role tags, chat-template delimiters.
+ */
+export const MESSAGE_OVERHEAD_TOKENS = 4;
 
-function estimateMessageTokens(message: Message): number {
+export function estimateMessageTokens(message: Message): number {
   let total = MESSAGE_OVERHEAD_TOKENS + estimateTokens(message.content ?? '');
   if (message.thinking !== undefined) total += estimateTokens(message.thinking);
   if (message.tool_calls !== undefined) {
