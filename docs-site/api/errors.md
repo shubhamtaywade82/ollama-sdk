@@ -19,14 +19,14 @@ class OllamaClientError extends Error {
 }
 ```
 
-| Field        | Type                          | Description                                                              |
-| ------------ | ----------------------------- | ------------------------------------------------------------------------ |
-| `code`       | `string`                      | Stable error code (e.g. `'network_error'`, `'rate_limited'`).            |
-| `status`     | `number \| undefined`         | HTTP status code, when the error came from a response.                   |
-| `retryable`  | `boolean`                     | Whether retrying the same request might succeed.                         |
-| `request`    | `{ method?, url?, model? }`   | The request that triggered the error (best-effort).                      |
-| `response`   | `{ status?, headers?, body? }`| The response that triggered the error (when applicable).                 |
-| `cause`      | `unknown`                     | The underlying error (via `Error.cause`).                                |
+| Field       | Type                           | Description                                                   |
+| ----------- | ------------------------------ | ------------------------------------------------------------- |
+| `code`      | `string`                       | Stable error code (e.g. `'network_error'`, `'rate_limited'`). |
+| `status`    | `number \| undefined`          | HTTP status code, when the error came from a response.        |
+| `retryable` | `boolean`                      | Whether retrying the same request might succeed.              |
+| `request`   | `{ method?, url?, model? }`    | The request that triggered the error (best-effort).           |
+| `response`  | `{ status?, headers?, body? }` | The response that triggered the error (when applicable).      |
+| `cause`     | `unknown`                      | The underlying error (via `Error.cause`).                     |
 
 ## Error hierarchy
 
@@ -217,6 +217,20 @@ class OllamaAgentMaxToolCallsError extends OllamaClientError {
 
 An `Agent` run exceeded `maxToolCalls` (the total tool-call budget across the whole run).
 
+#### `OllamaAgentToolLoopError`
+
+```typescript
+class OllamaAgentToolLoopError extends OllamaClientError {
+  readonly toolName: string;
+  readonly repeatedExecutions: number;
+  readonly maxRepeatedToolCalls: number;
+  readonly signature: string;
+  // code: 'agent_tool_loop_detected', retryable: false
+}
+```
+
+An `Agent` run with cycle detection enabled (`maxRepeatedToolCalls`) would execute the same tool call — identical name and identical arguments — more times than the budget allows: the model is stuck re-emitting one call instead of reacting to its results. `signature` carries the canonical `name(args)` form (argument keys recursively sorted, truncated at 200 chars). Thrown before the offending batch executes.
+
 ### Contract / runtime validation errors
 
 #### `OllamaRequestValidationError`
@@ -274,7 +288,8 @@ Thrown when `enforceVersion: 'strict'` is set and the runtime couldn't obtain a 
 
 ```typescript
 class OllamaMcpError extends OllamaClientError {
-  readonly mcpMethod: 'listTools' | 'callTool' | 'tools/call' | 'tasks/get' | 'tasks/result' | 'tasks/cancel';
+  readonly mcpMethod:
+    'listTools' | 'callTool' | 'tools/call' | 'tasks/get' | 'tasks/result' | 'tasks/cancel';
   readonly toolName?: string;
   readonly issues?: unknown;
   // code: 'mcp_error', retryable: varies
@@ -364,13 +379,20 @@ try {
 } catch (err) {
   if (err instanceof OllamaClientError) {
     switch (err.code) {
-      case 'not_found':       return handleNotFound(err);
-      case 'rate_limited':    return handleRateLimited(err);
-      case 'auth_error':      return handleAuth(err);
-      case 'network_error':   return handleNetwork(err);
-      case 'timeout':         return handleTimeout(err);
-      case 'aborted':         return; // expected
-      default:                return handleOther(err);
+      case 'not_found':
+        return handleNotFound(err);
+      case 'rate_limited':
+        return handleRateLimited(err);
+      case 'auth_error':
+        return handleAuth(err);
+      case 'network_error':
+        return handleNetwork(err);
+      case 'timeout':
+        return handleTimeout(err);
+      case 'aborted':
+        return; // expected
+      default:
+        return handleOther(err);
     }
   }
   throw err;
@@ -387,7 +409,7 @@ try {
 } catch (err) {
   if (err instanceof OllamaToolValidationError) {
     console.error('Schema validation failed:');
-    for (const issue of (err.issues as never[])) {
+    for (const issue of err.issues as never[]) {
       console.error(`  - ${issue.path?.join('.')}: ${issue.message}`);
     }
   }
@@ -399,10 +421,15 @@ try {
 Maps arbitrary thrown exceptions into structured `OllamaClientError` instances:
 
 ```typescript
-import { mapError, OllamaClientError, OllamaAbortError, OllamaNetworkError } from '@nemesis-oss/ollama-sdk';
+import {
+  mapError,
+  OllamaClientError,
+  OllamaAbortError,
+  OllamaNetworkError,
+} from '@nemesis-oss/ollama-sdk';
 
 try {
-  await fetch('https://ollama.example.com/api/chat', { /* ... */ });
+  await fetch('https://ollama.example.com/api/chat', {/* ... */});
 } catch (err) {
   const mapped = mapError(err, { request: { method: 'POST', url: '...' } });
   // mapped is always an OllamaClientError:
@@ -432,31 +459,32 @@ const DEFAULT_FAILOVER_CODES = [
 
 ## Quick reference table
 
-| Class                              | `code`                          | `retryable` | Thrown when                                                                                                                                                                                                                                              |
-| ---------------------------------- | ------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OllamaNetworkError`               | `network_error`                 | `true`      | Request failed before a response was received.                                                                                                                                                                            |
-| `OllamaTimeoutError`               | `timeout`                       | `true`      | Request exceeded `timeoutMs`.                                                                                                                                                                                                                        |
-| `OllamaAuthError`                  | `auth_error`                    | `false`     | Endpoint returned `401`/`403`.                                                                                                                                                                                                                       |
-| `OllamaNotFoundError`              | `not_found`                     | `false`     | Endpoint returned `404` (e.g. unknown model).                                                                                                                                                                                                        |
-| `OllamaRateLimitError`             | `rate_limited`                  | `true`      | Endpoint returned `429`.                                                                                                                                                                                                                             |
-| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` would exceed a configured budget (client-side).                                                                                                                                          |
-| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured endpoint is authorized for the requested model (client-side).                                                                                                                                      |
-| `OllamaServerError`                | `server_error`                  | `true`      | Endpoint returned `5xx`.                                                                                                                                                                                                                             |
-| `OllamaAbortError`                 | `aborted`                       | `false`     | Request cancelled via `AbortSignal`.                                                                                                                                                                                                             |
-| `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | Tool arguments or `chatWithSchema`/`generateWithSchema` result failed Zod validation.                                                                                                                                                       |
-| `OllamaToolTimeoutError`           | `tool_timeout`                  | `false`     | Tool call exceeded `timeoutMs`.                                                                                                                                                                                                                       |
-| `OllamaUnsupportedCapabilityError` | `unsupported_capability`        | `false`     | Request asked for an unsupported capability (e.g. `format` against Ollama Cloud). In `DEFAULT_FAILOVER_CODES`. |
-| `OllamaIncompatibleModelError`     | `incompatible_model`            | `false`     | Tool-enabled `Agent` run blocked by capability preflight (`/api/show` doesn't advertise `tools`).                                                                                                                                            |
-| `OllamaAgentMaxIterationsError`    | `agent_max_iterations_exceeded` | `false`     | `Agent` run exceeded `maxIterations`.                                                                                                                                                                                |
-| `OllamaAgentMaxToolCallsError`     | `agent_max_tool_calls_exceeded` | `false`     | `Agent` run exceeded `maxToolCalls`.                                                                                                                                                                                 |
-| `OllamaRequestValidationError`     | `request_validation_error`      | `false`     | `validateRequests: true` and request failed Zod validation (no HTTP call made).                                                                                                                                                                       |
-| `OllamaResponseValidationError`    | `response_validation_error`     | `false`     | `validateResponses: true` and response failed Zod validation.                                                                                                                                                                       |
-| `OllamaRequestTooLargeError`       | `request_too_large`             | `false`     | Request body exceeds `constraints.maxRequestBytes` (no HTTP call made).                                                                                                                                                                       |
-| `OllamaServerVersionUnknownError`  | `server_version_unknown`        | `false`     | `enforceVersion: 'strict'` and `/api/version` was unreachable.                                                                                                                                                                       |
-| `OllamaMcpError`                   | `mcp_error`                     | varies      | MCP `listTools`/`callTool`/task call failed.                                                                                                                                                                                                               |
-| `OllamaSkillNotFoundError`         | `skill_not_found`               | `false`     | `applySkill` referenced an unregistered skill.                                                                                                                                                                                                   |
-| `OllamaSkillInvalidError`          | `skill_invalid`                 | `false`     | Skill frontmatter/contents failed to parse.                                                                                                                                                                                                   |
-| `OllamaGenericClientError`         | `client_error`                  | `false`     | Any other non-2xx response not covered above.                                                                                                                                                                                                            |
+| Class                              | `code`                          | `retryable` | Thrown when                                                                                                                        |
+| ---------------------------------- | ------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `OllamaNetworkError`               | `network_error`                 | `true`      | Request failed before a response was received.                                                                                     |
+| `OllamaTimeoutError`               | `timeout`                       | `true`      | Request exceeded `timeoutMs`.                                                                                                      |
+| `OllamaAuthError`                  | `auth_error`                    | `false`     | Endpoint returned `401`/`403`.                                                                                                     |
+| `OllamaNotFoundError`              | `not_found`                     | `false`     | Endpoint returned `404` (e.g. unknown model).                                                                                      |
+| `OllamaRateLimitError`             | `rate_limited`                  | `true`      | Endpoint returned `429`.                                                                                                           |
+| `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` would exceed a configured budget (client-side).                                                    |
+| `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured endpoint is authorized for the requested model (client-side).                                                        |
+| `OllamaServerError`                | `server_error`                  | `true`      | Endpoint returned `5xx`.                                                                                                           |
+| `OllamaAbortError`                 | `aborted`                       | `false`     | Request cancelled via `AbortSignal`.                                                                                               |
+| `OllamaToolValidationError`        | `tool_validation_error`         | `false`     | Tool arguments or `chatWithSchema`/`generateWithSchema` result failed Zod validation.                                              |
+| `OllamaToolTimeoutError`           | `tool_timeout`                  | `false`     | Tool call exceeded `timeoutMs`.                                                                                                    |
+| `OllamaUnsupportedCapabilityError` | `unsupported_capability`        | `false`     | Request asked for an unsupported capability (e.g. `format` against Ollama Cloud). In `DEFAULT_FAILOVER_CODES`.                     |
+| `OllamaIncompatibleModelError`     | `incompatible_model`            | `false`     | Tool-enabled `Agent` run blocked by capability preflight (`/api/show` doesn't advertise `tools`).                                  |
+| `OllamaAgentMaxIterationsError`    | `agent_max_iterations_exceeded` | `false`     | `Agent` run exceeded `maxIterations`.                                                                                              |
+| `OllamaAgentMaxToolCallsError`     | `agent_max_tool_calls_exceeded` | `false`     | `Agent` run exceeded `maxToolCalls`.                                                                                               |
+| `OllamaAgentToolLoopError`         | `agent_tool_loop_detected`      | `false`     | Cycle detection (`maxRepeatedToolCalls`): the model would repeat one identical tool call beyond the budget — stuck in a tool loop. |
+| `OllamaRequestValidationError`     | `request_validation_error`      | `false`     | `validateRequests: true` and request failed Zod validation (no HTTP call made).                                                    |
+| `OllamaResponseValidationError`    | `response_validation_error`     | `false`     | `validateResponses: true` and response failed Zod validation.                                                                      |
+| `OllamaRequestTooLargeError`       | `request_too_large`             | `false`     | Request body exceeds `constraints.maxRequestBytes` (no HTTP call made).                                                            |
+| `OllamaServerVersionUnknownError`  | `server_version_unknown`        | `false`     | `enforceVersion: 'strict'` and `/api/version` was unreachable.                                                                     |
+| `OllamaMcpError`                   | `mcp_error`                     | varies      | MCP `listTools`/`callTool`/task call failed.                                                                                       |
+| `OllamaSkillNotFoundError`         | `skill_not_found`               | `false`     | `applySkill` referenced an unregistered skill.                                                                                     |
+| `OllamaSkillInvalidError`          | `skill_invalid`                 | `false`     | Skill frontmatter/contents failed to parse.                                                                                        |
+| `OllamaGenericClientError`         | `client_error`                  | `false`     | Any other non-2xx response not covered above.                                                                                      |
 
 ## Next steps
 

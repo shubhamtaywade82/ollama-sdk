@@ -5,6 +5,7 @@
 import {
   OllamaAgentMaxIterationsError,
   OllamaAgentMaxToolCallsError,
+  OllamaAgentToolLoopError,
   OllamaIncompatibleModelError,
 } from '../errors.js';
 import {
@@ -18,14 +19,12 @@ import {
 } from '../telemetry/index.js';
 import { ensureToolCallIds } from '../tools/tool-call-id.js';
 import type { ModelCapabilities } from '../capabilities/capabilities.js';
-import type { Message, ModelOptions, ThinkValue, ToolDefinition } from '../types.js';
+import type { Message, ModelOptions, ThinkValue, ToolCall, ToolDefinition } from '../types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { AgentConfig, AgentHooks, AgentResult, AgentRunInput, AgentTurn } from './types.js';
 
 export interface AgentChatClient {
-  capabilities?:
-    | ((model: string, signal?: AbortSignal) => Promise<ModelCapabilities>)
-    | undefined;
+  capabilities?: ((model: string, signal?: AbortSignal) => Promise<ModelCapabilities>) | undefined;
   chat(request: {
     readonly model: string;
     readonly messages: readonly Message[];
@@ -35,6 +34,48 @@ export interface AgentChatClient {
     readonly stream?: false | undefined;
     readonly signal?: AbortSignal | undefined;
   }): Promise<{ readonly message: Message }>;
+}
+
+/** Cap on the `signature` carried by {@link OllamaAgentToolLoopError} — enough to
+ * identify the call, small enough not to bloat logs with a huge payload. */
+const SIGNATURE_REPORT_LIMIT = 200;
+
+/** `JSON.stringify` with recursively sorted object keys, so key order never
+ * splits one logical value into several distinct strings. `undefined` maps
+ * to `'null'` to keep the output a valid JSON fragment. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'null';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(',')}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`);
+  return `{${entries.join(',')}}`;
+}
+
+/**
+ * Canonical signature of a tool call for cycle detection: `name(args)` with
+ * recursively key-sorted arguments, so the same call re-emitted by a model
+ * in a different argument key order collapses to one signature instead of
+ * counting as two "distinct" calls.
+ *
+ * ```ts
+ * canonicalToolCallSignature({ function: { name: 'search', arguments: { q: 'x' } } })
+ * // 'search({"q":"x"})'
+ * ```
+ */
+export function canonicalToolCallSignature(toolCall: ToolCall): string {
+  return `${toolCall.function.name}(${stableStringify(toolCall.function.arguments)})`;
+}
+
+function reportableSignature(signature: string): string {
+  return signature.length <= SIGNATURE_REPORT_LIMIT
+    ? signature
+    : `${signature.slice(0, SIGNATURE_REPORT_LIMIT)}…`;
 }
 
 /**
@@ -53,6 +94,7 @@ export class Agent {
   private readonly tools?: ToolRegistry | undefined;
   private readonly maxIterations: number;
   private readonly maxToolCalls?: number | undefined;
+  private readonly maxRepeatedToolCalls?: number | undefined;
   private readonly hooks?: AgentHooks | undefined;
   private readonly validateToolCapability: boolean;
   private readonly toolContextSize: number;
@@ -62,9 +104,19 @@ export class Agent {
     this.tools = config.tools;
     this.maxIterations = config.maxIterations ?? 10;
     this.maxToolCalls = config.maxToolCalls;
+    this.maxRepeatedToolCalls = config.maxRepeatedToolCalls;
     this.hooks = config.hooks;
-    if (this.maxToolCalls !== undefined && (!Number.isInteger(this.maxToolCalls) || this.maxToolCalls < 0)) {
+    if (
+      this.maxToolCalls !== undefined &&
+      (!Number.isInteger(this.maxToolCalls) || this.maxToolCalls < 0)
+    ) {
       throw new RangeError('Agent maxToolCalls must be a non-negative integer');
+    }
+    if (
+      this.maxRepeatedToolCalls !== undefined &&
+      (!Number.isInteger(this.maxRepeatedToolCalls) || this.maxRepeatedToolCalls < 1)
+    ) {
+      throw new RangeError('Agent maxRepeatedToolCalls must be a positive integer');
     }
     this.validateToolCapability = config.validateToolCapability ?? true;
     this.toolContextSize = config.toolContextSize ?? 32768;
@@ -124,6 +176,9 @@ export class Agent {
       : input.options;
 
     let toolCallsExecuted = 0;
+    /** Canonical-signature execution counts for cycle detection — one entry per
+     * distinct `name(args)` pair this run has handed to the registry. */
+    const signatureCounts = new Map<string, number>();
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
       const outcome = await withSpan(
@@ -157,11 +212,39 @@ export class Agent {
             return { done: true as const, finalMessage: assistantMessage };
           }
 
-          if (this.maxToolCalls !== undefined && toolCallsExecuted + toolCalls.length > this.maxToolCalls) {
+          if (
+            this.maxToolCalls !== undefined &&
+            toolCallsExecuted + toolCalls.length > this.maxToolCalls
+          ) {
             throw new OllamaAgentMaxToolCallsError(
               `Agent exceeded max tool calls (${this.maxToolCalls})`,
               { maxToolCalls: this.maxToolCalls, toolCallsExecuted },
             );
+          }
+
+          // Cycle detection: prospective per-signature counts for this batch
+          // (duplicate calls within one batch see each other). Checked before
+          // any of the batch executes and before onToolCallStart fires, so hook
+          // pairing stays consistent and the doomed batch is never started —
+          // mirroring the maxToolCalls semantics above.
+          if (this.maxRepeatedToolCalls !== undefined) {
+            for (const tc of toolCalls) {
+              const signature = canonicalToolCallSignature(tc);
+              const executions = (signatureCounts.get(signature) ?? 0) + 1;
+              if (executions > this.maxRepeatedToolCalls) {
+                throw new OllamaAgentToolLoopError(
+                  `Agent would repeat tool call "${tc.function.name}" ${executions} times ` +
+                    `(max ${this.maxRepeatedToolCalls}) without changing arguments — stuck in a tool loop`,
+                  {
+                    toolName: tc.function.name,
+                    repeatedExecutions: executions,
+                    maxRepeatedToolCalls: this.maxRepeatedToolCalls,
+                    signature: reportableSignature(signature),
+                  },
+                );
+              }
+              signatureCounts.set(signature, executions);
+            }
           }
 
           for (const tc of toolCalls) {

@@ -35,6 +35,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0024](./0024-digest-upgrades-vision-responses-sessions-context-blobs.md)    | Digest Upgrades — Vision Resolver, Dual-Mode Responses Bridge, KV-Cache Sessions, Context Safety, Blob Publishing |
 | [0025](./0025-embedding-batching-client-teardown-declaration-portability.md) | Embedding Batching, Client Teardown, Declaration Portability                                                      |
 | [0026](./0026-context-discovery-history-compaction-model-affinity.md)        | Context-Window Discovery, History Compaction, Model-Affinity Scheduling                                           |
+| [0027](./0027-agent-cycle-detection-url-join-history-hygiene.md)             | Agent Cycle Detection, URL-Join Hardening, Vision-History Hygiene                                                 |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives

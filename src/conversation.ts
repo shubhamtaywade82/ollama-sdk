@@ -166,6 +166,88 @@ export function compactConversationHistory(
   return [...pinned, ...retained];
 }
 
+/** Options for {@link sanitizeHistoryForNextTurn}; all fields optional. */
+export interface HistorySanitizeOptions {
+  /**
+   * Messages — counted from the **end** of the array — whose `images` are
+   * preserved. Default `1`: only the final message keeps its image payload,
+   * which is the rolling one-image window long-running vision chats almost
+   * always want (sanitize after appending the newest turn, and every prior
+   * base64 payload is gone by the next request). `0` evicts images
+   * everywhere; negative values clamp to `0`.
+   */
+  readonly keepImagesOnLastMessages?: number | undefined;
+  /**
+   * Optional note appended to the `content` of each evicted message so the
+   * model can still tell an image used to be there — e.g.
+   * `"[image from an earlier turn removed to save context]"`. When omitted
+   * (default) the `images` field is dropped and the text is untouched,
+   * matching the wire behavior of never having sent the image at all.
+   */
+  readonly imagePlaceholder?: string | undefined;
+}
+
+/**
+ * Vision-history hygiene: returns a copy of `messages` with image payloads
+ * evicted from every message outside the trailing keep-window, conversation
+ * text fully preserved.
+ *
+ * Ollama's `/api/chat` is stateless — each request re-sends and re-bills the
+ * whole history, base64 images included (each one costing real context
+ * tokens via `IMAGE_TOKEN_ESTIMATE` in the pre-flight estimators). A
+ * consumer-managed `messages` array therefore re-uploads every image from
+ * every prior turn on every request, long after the model has already
+ * answered the question that needed them. This helper is the explicit fix:
+ *
+ * ```ts
+ * history.push({ role: 'user', content: 'What is in THIS photo?', images: [nextImage] });
+ * await client.chat({ model, messages: sanitizeHistoryForNextTurn(history) });
+ * ```
+ *
+ * Same philosophy as {@link compactConversationHistory}: caller-initiated,
+ * never automatic. Two deliberate tradeoffs, both documented in ADR 0027:
+ *
+ *   - **The model loses access to evicted images** — it keeps the
+ *     conversation text (and the optional `imagePlaceholder` note) but can
+ *     no longer "see" earlier pictures. That is the point: a bounded
+ *     payload in exchange for fading visual memory.
+ *   - **KV-prefix invalidation** — evicting rewrites the message at that
+ *     position, so the next turn's prompt prefix diverges and the cache
+ *     re-evaluates from that point. A hot cache-friendly session shouldn't
+ *     sanitize; a growing vision session should.
+ *
+ * Pure: the input array is never mutated, and messages that keep their
+ * images are reused by reference (identity-stable for the untouched ones,
+ * fresh copies only where eviction happened).
+ */
+export function sanitizeHistoryForNextTurn(
+  messages: readonly Message[],
+  options: HistorySanitizeOptions = {},
+): readonly Message[] {
+  const keep = Math.max(0, options.keepImagesOnLastMessages ?? 1);
+  const placeholder = options.imagePlaceholder;
+  const cutoff = messages.length - keep;
+
+  const sanitized: Message[] = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]!;
+    if (index >= cutoff || !message.images || message.images.length === 0) {
+      sanitized.push(message);
+      continue;
+    }
+    const { images: _evicted, ...rest } = message;
+    if (placeholder === undefined) {
+      sanitized.push(rest as Message);
+    } else {
+      sanitized.push({
+        ...rest,
+        content: rest.content === '' ? placeholder : `${rest.content}\n\n${placeholder}`,
+      } as Message);
+    }
+  }
+  return sanitized;
+}
+
 /** Options for {@link ConversationSession.compact}; all fields optional. */
 export interface SessionCompactionOptions {
   /**
