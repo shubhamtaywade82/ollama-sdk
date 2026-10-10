@@ -6,6 +6,16 @@
 
 > Production-grade TypeScript SDK for Ollama. Built with native fetch, high availability failover, multi-turn tool calling, structured outputs with Zod, reasoning stream tokens, OpenAI & Anthropic compatibility bridges, MCP integration, and Web Stream adapters.
 
+### How this compares
+
+| Need | Typical choice |
+|------|----------------|
+| Default Ollama integration in JS/TS | Official [`ollama`](https://www.npmjs.com/package/ollama) client (`ollama/ollama-js`) |
+| Vercel AI SDK (`ai` package) apps | [`ai-sdk-ollama`](https://www.npmjs.com/package/ai-sdk-ollama) |
+| Agent runtime, MCP bridge, HA failover, context safety, structured outputs | **This package** — powers [Nexum](https://github.com/shubhamtaywade82/nexum) |
+
+Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `minicpm5:2b` with 100% pass on `tool-calling`, `output-format`, and `agentic-looping` categories. See [nexum/docs/guide/benchmarks.md](../nexum/docs/guide/benchmarks.md) and [validation.md](../nexum/docs/guide/validation.md).
+
 ---
 
 ## Key Features
