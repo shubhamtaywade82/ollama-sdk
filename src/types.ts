@@ -152,6 +152,21 @@ export interface RequestCancellationOptions {
   readonly timeoutMs?: number | undefined;
 }
 
+/**
+ * Result of {@link OllamaClient.ping} — the ultra-lightweight `HEAD /` root
+ * liveness probe Ollama's documentation defines for load-balancer health checks.
+ * `healthy: false` carries a human-readable `error` (connection refused, timeout,
+ * …); the probe resolves instead of throwing so monitoring loops can treat it as
+ * a datapoint rather than an exception path.
+ */
+export interface PingResult {
+  readonly healthy: boolean;
+  readonly latencyMs: number;
+  /** Base URL of the concrete endpoint that was probed. */
+  readonly baseUrl: string;
+  readonly error?: string | undefined;
+}
+
 export interface ChatRequestOptions extends RequestCancellationOptions {
   readonly model: string;
   readonly messages: readonly Message[];

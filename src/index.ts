@@ -53,6 +53,7 @@ export type {
   CopyRequestOptions,
   StatusResponse,
   VersionResponse,
+  PingResult,
   PsResponse,
   WebSearchRequestOptions,
   WebSearchResult,
@@ -401,6 +402,12 @@ export {
 } from './providers/endpoint-registry.js';
 export { checkEndpointHealth, type EndpointHealthCheckResult } from './providers/health-check.js';
 export {
+  ModelAffinityRouter,
+  type AffinityRunningModel,
+  type ModelAffinityRoutingOptions,
+  type ModelAffinitySnapshot,
+} from './providers/model-affinity-router.js';
+export {
   detectModelCapabilities,
   inferRuntimeMode,
   listAvailableModels,
@@ -434,6 +441,9 @@ export {
   ATTR_OLLAMA_AGENT_MAX_ITERATIONS,
   ATTR_OLLAMA_AGENT_ITERATION,
   GEN_AI_SYSTEM_OLLAMA,
+  formatTelemetry,
+  type FormattedTelemetry,
+  type RawOllamaMetrics,
 } from './telemetry/index.js';
 
 // Utilities
@@ -492,6 +502,7 @@ export {
   extractNativeContextLength,
   extractParameterNumCtx,
   findRunningModelContextLength,
+  isModelResident,
   resolveContextLength,
   type ContextDiscoveryRequestOptions,
   type ContextLengthSignals,
