@@ -1227,7 +1227,8 @@ The design never trades latency for affinity (see
   from being re-probed on every request.
 - **No probes at all unless configured.** Without `modelAffinity`, the router isn't even
   constructed — zero overhead, and no `/api/ps` traffic.
-- **Composes with everything above.** Affinity reorders _within_ the runnable set:
+- **Composes with everything above.** Affinity reorders _within each priority tier_ of
+  the runnable set (a higher-priority host is always tried first, resident or not):
   priority tiers, `least-connections` ordering, capacity caps, and `models`-scoped
   credentials keep working exactly as before, and single-endpoint-pinned operations
   (model/blob management, `capabilities()`) are never moved to a different host.

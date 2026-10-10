@@ -22,8 +22,9 @@
  *   registry's synchronous `candidates()`/`filterWithCapacity()` and the
  *   endpoint's `acquire()` — no `await` in between — so the strategy's
  *   no-two-calls-pick-the-same-idle-endpoint guarantee is untouched. Affinity
- *   only reorders *within* the runnable set; priority tiers and per-strategy
- *   ordering stay intact inside the resident/non-resident groups.
+ *   only reorders *within each priority tier* of the runnable set: a
+ *   higher-priority endpoint is always tried before a lower-priority one, and
+ *   per-strategy ordering is kept inside the resident/non-resident groups.
  * - **Best-effort, never blocking, never failing a request.** A probe failure is
  *   recorded with a short backoff (`failureRetryMs`) and never cached as data;
  *   the affected endpoint is simply treated as unknown until a probe succeeds.
@@ -116,9 +117,10 @@ export class ModelAffinityRouter {
   }
 
   /**
-   * Synchronously reorders `candidates` so endpoints whose fresh `/api/ps`
+   * Synchronously reorders `candidates` so that, within each priority tier
+   * (run of consecutive equal `priority`), endpoints whose fresh `/api/ps`
    * snapshot shows `model` resident come first (relative order preserved within
-   * each group). Returns the input unchanged — and kicks a background refresh —
+   * each group). Never moves an endpoint across tiers. Returns the input unchanged — and kicks a background refresh —
    * when any candidate's snapshot is missing or stale: a wrong reorder is worse
    * than no reorder, and the first request after a cache miss simply isn't
    * reordered. No-op without a `model` or with fewer than two candidates.
@@ -140,13 +142,34 @@ export class ModelAffinityRouter {
     }
     if (!allFresh) return candidates;
 
-    const resident = candidates.filter((ep) => {
+    const isResident = (ep: OllamaEndpoint): boolean => {
       const entry = this.cache.get(ep.name);
       return entry !== undefined && isModelResident(entry.models, model);
-    });
-    if (resident.length === 0 || resident.length === candidates.length) return candidates;
-    const residentSet = new Set(resident.map((ep) => ep.name));
-    return [...resident, ...candidates.filter((ep) => !residentSet.has(ep.name))];
+    };
+
+    // Affinity only breaks ties *within* a priority tier: a higher-priority
+    // endpoint is always tried before a lower-priority one, resident or not.
+    // Tiers are runs of consecutive equal `priority` (unset = 0, as in the
+    // registry), so whatever order the registry produced between runs —
+    // priority-sorted, or the fail-open recovery order — is kept as-is.
+    const reordered: OllamaEndpoint[] = [];
+    let changed = false;
+    for (let start = 0; start < candidates.length;) {
+      const tierPriority = candidates[start]!.priority ?? 0;
+      let end = start + 1;
+      while (end < candidates.length && (candidates[end]!.priority ?? 0) === tierPriority) end++;
+      const tier = candidates.slice(start, end);
+      const resident = tier.filter(isResident);
+      if (resident.length === 0 || resident.length === tier.length) {
+        reordered.push(...tier);
+      } else {
+        const tierOrder = [...resident, ...tier.filter((ep) => !isResident(ep))];
+        changed ||= tierOrder.some((ep, i) => ep !== tier[i]);
+        reordered.push(...tierOrder);
+      }
+      start = end;
+    }
+    return changed ? reordered : candidates;
   }
 
   /**

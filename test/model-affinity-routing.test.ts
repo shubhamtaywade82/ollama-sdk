@@ -207,6 +207,57 @@ describe('ModelAffinityRouter (unit)', () => {
     expect(fetchPs).toHaveBeenCalledTimes(6);
     expect(router.status(EPS).find((s) => s.endpointName === 'gpu-a')?.fetchedAt).toBe(1_000);
   });
+
+  describe('priority tiers', () => {
+    const tiered = (...specs: ReadonlyArray<[string, number | undefined]>): OllamaEndpoint[] =>
+      specs.map(([name, priority]) => ({
+        name,
+        baseUrl: `http://${name}:11434`,
+        ...(priority !== undefined ? { priority } : {}),
+      }));
+
+    async function warmedRouter(resident: readonly string[], eps: readonly OllamaEndpoint[]) {
+      const fetchPs = vi.fn(async (ep: OllamaEndpoint) =>
+        resident.includes(ep.name) ? psOf('llama3:latest') : psOf(),
+      );
+      const router = new ModelAffinityRouter(fetchPs, { now: () => 1_000 });
+      await router.warm(eps);
+      return router;
+    }
+
+    it('never moves a resident lower-priority host ahead of a higher-priority tier', async () => {
+      const eps = tiered(['high', 10], ['low', 1]);
+      const router = await warmedRouter(['low'], eps);
+      expect(names(router.reorder(eps, 'llama3'))).toEqual(['high', 'low']);
+    });
+
+    it('reorders by residency within each tier independently', async () => {
+      // Tiers: [h1, h2] (10) then [l1, l2, l3] (1); h2 and l3 hold the model.
+      const eps = tiered(['h1', 10], ['h2', 10], ['l1', 1], ['l2', 1], ['l3', 1]);
+      const router = await warmedRouter(['h2', 'l3'], eps);
+      expect(names(router.reorder(eps, 'llama3'))).toEqual(['h2', 'h1', 'l3', 'l1', 'l2']);
+    });
+
+    it('treats an unset priority as 0, the same as the registry does', async () => {
+      const eps = tiered(['explicit-zero', 0], ['unset', undefined]);
+      const router = await warmedRouter(['unset'], eps);
+      expect(names(router.reorder(eps, 'llama3'))).toEqual(['unset', 'explicit-zero']);
+    });
+
+    it('only groups consecutive equal priorities, preserving the order between runs', async () => {
+      // Non-monotonic input (e.g. the registry's fail-open order, sorted by
+      // recovery time): the run boundaries are kept exactly as given.
+      const eps = tiered(['a', 1], ['b', 5], ['c', 1], ['d', 1]);
+      const router = await warmedRouter(['d', 'b'], eps);
+      expect(names(router.reorder(eps, 'llama3'))).toEqual(['a', 'b', 'd', 'c']);
+    });
+
+    it('returns the input array itself when no tier changes', async () => {
+      const eps = tiered(['high', 10], ['low', 1]);
+      const router = await warmedRouter(['high'], eps);
+      expect(router.reorder(eps, 'llama3')).toBe(eps);
+    });
+  });
 });
 
 describe('OllamaClient model-affinity routing (integration)', () => {
@@ -316,6 +367,23 @@ describe('OllamaClient model-affinity routing (integration)', () => {
     await client.chat({ model: 'llama3', messages: [{ role: 'user', content: 'hi' }] });
     expect(state.chatCalls.ep2).toBe(1); // routed straight to the resident host
     expect(state.chatCalls.ep1).toBe(0);
+  });
+
+  it('keeps a higher-priority host first even when only a lower-priority host holds the model', async () => {
+    const { fetchMock, state } = routingFetch('ep2'); // llama3 lives on ep2 (low priority)
+    const client = new OllamaClient({
+      endpoints: [
+        { name: 'ep1', baseUrl: 'http://ep1:11434', priority: 10 },
+        { name: 'ep2', baseUrl: 'http://ep2:11434', priority: 1 },
+      ],
+      fetch: fetchMock as unknown as typeof fetch,
+      endpointHealth: { modelAffinity: {} },
+    });
+
+    await client.warmModelAffinity();
+    await client.chat({ model: 'llama3', messages: [{ role: 'user', content: 'hi' }] });
+    expect(state.chatCalls.ep1).toBe(1); // priority wins across tiers
+    expect(state.chatCalls.ep2).toBe(0);
   });
 
   it('degrades gracefully when one host cannot answer /api/ps', async () => {
