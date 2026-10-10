@@ -88,6 +88,40 @@ export function extractParameterNumCtx(parameters?: string | undefined): number 
 }
 
 /**
+ * Whether one `/api/ps` running-model entry is the same model `model` refers to.
+ * Matching mirrors Ollama's own model resolution: exact match on the entry's
+ * `name`/`model`, or — when `model` carries no tag — any entry whose name starts
+ * with `<model>:`. Shared by context-window discovery
+ * (`findRunningModelContextLength`) and multi-host model-affinity routing
+ * (`ModelAffinityRouter`) so the two can never disagree on what "loaded" means.
+ * Fields are optional because raw wire payloads (the generated `Ps` model) mark
+ * them so; the hand-written `ModelResponse` (required fields) is assignable too.
+ */
+function matchesModelReference(
+  entry: { readonly name?: string | undefined; readonly model?: string | undefined },
+  model: string,
+): boolean {
+  const exact = entry.name === model || entry.model === model;
+  const taglessPrefix =
+    !model.includes(':') &&
+    ((entry.name !== undefined && entry.name.startsWith(`${model}:`)) ||
+      (entry.model !== undefined && entry.model.startsWith(`${model}:`)));
+  return exact || taglessPrefix;
+}
+
+/**
+ * Whether `model` is currently resident (loaded in VRAM) per a `GET /api/ps`
+ * response — exact or tag-less-prefix match, same resolution rules as Ollama
+ * itself applies to model names. See {@link matchesModelReference}.
+ */
+export function isModelResident(
+  psModels: readonly { readonly name?: string | undefined; readonly model?: string | undefined }[],
+  model: string,
+): boolean {
+  return psModels.some((entry) => matchesModelReference(entry, model));
+}
+
+/**
  * Finds the context window Ollama actually allocated for `model`, from a
  * `GET /api/ps` response. Matching mirrors Ollama's own model resolution:
  * exact match on the entry's `name`/`model`, or — when `model` carries no
@@ -101,11 +135,7 @@ export function findRunningModelContextLength(
   model: string,
 ): number | undefined {
   for (const entry of psModels) {
-    const exact = entry.name === model || entry.model === model;
-    const taglessPrefix =
-      !model.includes(':') &&
-      (entry.name.startsWith(`${model}:`) || entry.model.startsWith(`${model}:`));
-    if (exact || taglessPrefix) {
+    if (matchesModelReference(entry, model)) {
       return typeof entry.context_length === 'number' &&
         Number.isFinite(entry.context_length) &&
         entry.context_length > 0

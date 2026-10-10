@@ -3,6 +3,7 @@
  */
 
 import { OllamaAbortError } from '../errors.js';
+import type { ModelAffinityRoutingOptions } from './model-affinity-router.js';
 
 export interface OllamaEndpoint {
   readonly name: string;
@@ -73,6 +74,18 @@ export interface EndpointRegistryOptions {
    * any other in-flight request — it never blocks indefinitely on its own.
    */
   readonly maxConcurrentPerEndpoint?: number | undefined;
+  /**
+   * Dynamic model-affinity routing across endpoints: reorder each request's
+   * candidates so endpoints whose `GET /api/ps` shows the requested model already
+   * resident in VRAM are tried first — avoiding unload/cold-load swaps on
+   * `OLLAMA_MAX_LOADED_MODELS`-bounded daemons. Off unless set.
+   *
+   * Implemented by `OllamaClient`'s request path (`executeWithFailover` + a
+   * TTL-cached `ModelAffinityRouter`), not by this registry — the registry is a
+   * pure, HTTP-free data structure and simply ignores this key. See
+   * `src/providers/model-affinity-router.ts` and ADR 0028.
+   */
+  readonly modelAffinity?: ModelAffinityRoutingOptions | undefined;
 }
 
 interface CapacityWaiter {

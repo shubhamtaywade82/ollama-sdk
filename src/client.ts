@@ -21,8 +21,17 @@ import {
   OllamaUnsupportedCapabilityError,
 } from './errors.js';
 import { createConsoleLogger, NOOP_LOGGER, type Logger } from './logger.js';
-import { EndpointRegistry, type EndpointHealth } from './providers/endpoint-registry.js';
+import {
+  EndpointRegistry,
+  type EndpointHealth,
+  type OllamaEndpoint,
+} from './providers/endpoint-registry.js';
 import { checkEndpointHealth, type EndpointHealthCheckResult } from './providers/health-check.js';
+import {
+  ModelAffinityRouter,
+  type AffinityRunningModel,
+  type ModelAffinitySnapshot,
+} from './providers/model-affinity-router.js';
 import {
   detectModelCapabilities,
   inferRuntimeMode,
@@ -101,8 +110,10 @@ import type {
   WebSearchRequestOptions,
   WebSearchResponse,
   BalanceRequestOptions,
+  PingResult,
 } from './types.js';
 import type { BalanceResponse, UsageResponse } from './generated/models/index.js';
+import { disposableTimer } from './utils.js';
 
 let logicalRequestSequence = 0;
 
@@ -177,6 +188,17 @@ export class OllamaClient {
    * (streams, via `executeWithFailover`'s `holdUntil` release path).
    */
   private readonly activeRequests = new Set<AbortController>();
+  /**
+   * Dynamic multi-host model-affinity routing, active only when
+   * `config.endpointHealth.modelAffinity` is set — see
+   * `src/providers/model-affinity-router.ts` and ADR 0028. `undefined` means
+   * the request path skips reordering entirely (zero overhead, and no `/api/ps`
+   * probes are ever issued).
+   */
+  private readonly modelAffinity: ModelAffinityRouter | undefined;
+
+  /** Default timeout for one-off probe requests (`ping`, affinity `/api/ps` refreshes). */
+  private static readonly PROBE_TIMEOUT_MS = 5000;
 
   constructor(config: OllamaClientConfig = {}) {
     this.cloudApiKey = resolveApiKey(config.apiKey);
@@ -212,6 +234,14 @@ export class OllamaClient {
     this.defaultContextLength = config.defaultContextLength;
     this.contextWarningThreshold = config.contextWarningThreshold;
     this.onContextOverflow = config.onContextOverflow ?? 'warn';
+    const modelAffinityOptions = config.endpointHealth?.modelAffinity;
+    this.modelAffinity =
+      modelAffinityOptions !== undefined
+        ? new ModelAffinityRouter(
+            (endpoint) => this.fetchEndpointRunningModels(endpoint),
+            modelAffinityOptions,
+          )
+        : undefined;
     this.models = new ModelsClient((op, opts) => this.executeWithFailover(op, opts));
   }
 
@@ -518,7 +548,18 @@ export class OllamaClient {
           continue;
         }
 
-        for (const [attemptIndex, endpoint] of runnable.entries()) {
+        // Dynamic model-affinity routing: a synchronous, cache-only reorder of the
+        // runnable set (endpoints whose fresh GET /api/ps snapshot shows the target
+        // model resident come first). Deliberately no `await` between here and the
+        // `acquire()` below — see ModelAffinityRouter's module docs and ADR 0028;
+        // the 'least-connections' race-free guarantee depends on it. No-op (and no
+        // /api/ps probes at all) unless `endpointHealth.modelAffinity` is configured.
+        const ordered =
+          this.modelAffinity !== undefined
+            ? this.modelAffinity.reorder(runnable, options?.model)
+            : runnable;
+
+        for (const [attemptIndex, endpoint] of ordered.entries()) {
           this.logger.debug(`Executing on endpoint "${endpoint.name}" (${endpoint.baseUrl})`);
           const http = new HttpClient({
             baseUrl: endpoint.baseUrl,
@@ -1126,8 +1167,116 @@ export class OllamaClient {
         ),
     );
   }
+
+  /**
+   * Ultra-lightweight liveness probe against the client's current best
+   * endpoint: `HEAD /` — the root ping Ollama's documentation defines for
+   * load-balancer health checks (HTTP 200; the daemon answers `GET /` with the
+   * plain-text body "Ollama is running", which a HEAD request doesn't transfer).
+   *
+   * Deliberately a *single-endpoint, single-shot* probe — no failover to other
+   * candidates, no retry — so the answer reflects one concrete host, not "some
+   * endpoint eventually answered". To audit every configured endpoint, use
+   * {@link healthCheck} (which probes all of them, and also reports the server
+   * version at the cost of the heavier `GET /api/version` round trip).
+   *
+   * Resolves — never throws — with `{ healthy: false, error }` for connection
+   * failures and timeouts; only caller-initiated cancellation (`signal`/
+   * `destroy()`) rejects, mirroring how any other aborted request behaves.
+   */
+  async ping(options?: RequestCancellationOptions): Promise<PingResult> {
+    const endpoint = this.registry.candidates()[0];
+    if (endpoint === undefined) {
+      return { healthy: false, latencyMs: 0, baseUrl: '', error: 'No configured endpoints' };
+    }
+    const http = new HttpClient({
+      baseUrl: endpoint.baseUrl,
+      ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
+      ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
+      fetch: this.fetchImpl,
+      middleware: this.middleware,
+      onLifecycleEvent: this.onLifecycleEvent,
+    });
+
+    const timeout = createTimeoutSignal(
+      options?.timeoutMs ?? OllamaClient.PROBE_TIMEOUT_MS,
+      options?.signal,
+    );
+    const startTime = Date.now();
+    try {
+      await http.request<void>({ path: '/', method: 'HEAD', signal: timeout.signal });
+      return { healthy: true, latencyMs: Date.now() - startTime, baseUrl: endpoint.baseUrl };
+    } catch (err) {
+      if (options?.signal?.aborted) {
+        // Caller-initiated cancellation is not an unhealthiness signal.
+        throw err instanceof Error ? err : new Error(String(err));
+      }
+      return {
+        healthy: false,
+        latencyMs: Date.now() - startTime,
+        baseUrl: endpoint.baseUrl,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    } finally {
+      timeout.cancel();
+    }
+  }
+
+  /**
+   * Affinity-cache snapshots for every configured endpoint — which models each
+   * host held in VRAM at the last successful `/api/ps` probe, when that was, and
+   * whether it's still fresh. Empty when `endpointHealth.modelAffinity` isn't
+   * configured (no probes are ever issued, so there is nothing to report).
+   */
+  modelAffinityStatus(): readonly ModelAffinitySnapshot[] {
+    return this.modelAffinity?.status(this.registry.list()) ?? [];
+  }
+
+  /**
+   * Explicitly refreshes the model-affinity cache for every configured endpoint
+   * (deduped with any in-flight background refresh). No-op — resolves
+   * immediately — when `endpointHealth.modelAffinity` isn't configured. Use it
+   * to warm the cache at startup so the very first request already routes by
+   * residency instead of waiting for the self-warming first-round refresh.
+   */
+  async warmModelAffinity(): Promise<void> {
+    await this.modelAffinity?.warm(this.registry.list());
+  }
+
   endpointStatus(): EndpointHealth[] {
     return this.registry.status();
+  }
+
+  /**
+   * Fetches one endpoint's `GET /api/ps` running-model list for the affinity
+   * router. Bypasses `executeWithFailover` deliberately: probes must not
+   * reenter the routing machinery they inform, must not touch the registry's
+   * circuit-breaker/failure bookkeeping (a dead host's probe failing must not
+   * cool it down harder than its real traffic already does), and must not fail
+   * over to a different host (the answer is per-host by definition). Failures
+   * propagate to the router, which records a short backoff and retries later.
+   */
+  private async fetchEndpointRunningModels(
+    endpoint: OllamaEndpoint,
+  ): Promise<readonly AffinityRunningModel[]> {
+    const http = new HttpClient({
+      baseUrl: endpoint.baseUrl,
+      ...(endpoint.apiKey !== undefined ? { apiKey: endpoint.apiKey } : {}),
+      ...(endpoint.headers !== undefined ? { headers: endpoint.headers } : {}),
+      fetch: this.fetchImpl,
+      middleware: this.middleware,
+      onLifecycleEvent: this.onLifecycleEvent,
+    });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OllamaClient.PROBE_TIMEOUT_MS);
+    using _timer = disposableTimer(timer);
+    const res = await http.request<{ models?: readonly AffinityRunningModel[] }>({
+      path: '/api/ps',
+      method: 'GET',
+      signal: controller.signal,
+    });
+    return res.models ?? [];
   }
 
   /**
