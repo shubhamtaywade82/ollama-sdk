@@ -23,3 +23,5 @@ export {
   ATTR_OLLAMA_AGENT_ITERATION,
   GEN_AI_SYSTEM_OLLAMA,
 } from './tracer.js';
+
+export { formatTelemetry, type RawOllamaMetrics, type FormattedTelemetry } from './metrics.js';

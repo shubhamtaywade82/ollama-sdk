@@ -8,11 +8,11 @@
 
 ### How this compares
 
-| Need | Typical choice |
-|------|----------------|
-| Default Ollama integration in JS/TS | Official [`ollama`](https://www.npmjs.com/package/ollama) client (`ollama/ollama-js`) |
-| Vercel AI SDK (`ai` package) apps | [`ai-sdk-ollama`](https://www.npmjs.com/package/ai-sdk-ollama) |
-| Agent runtime, MCP bridge, HA failover, context safety, structured outputs | **This package** — powers [Nexum](https://github.com/shubhamtaywade82/nexum) |
+| Need                                                                       | Typical choice                                                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Default Ollama integration in JS/TS                                        | Official [`ollama`](https://www.npmjs.com/package/ollama) client (`ollama/ollama-js`) |
+| Vercel AI SDK (`ai` package) apps                                          | [`ai-sdk-ollama`](https://www.npmjs.com/package/ai-sdk-ollama)                        |
+| Agent runtime, MCP bridge, HA failover, context safety, structured outputs | **This package** — powers [Nexum](https://github.com/shubhamtaywade82/nexum)          |
 
 Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `minicpm5:2b` with 100% pass on `tool-calling`, `output-format`, and `agentic-looping` categories. See [nexum/docs/guide/benchmarks.md](../nexum/docs/guide/benchmarks.md) and [validation.md](../nexum/docs/guide/validation.md).
 
@@ -39,6 +39,9 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🧠 **Dynamic Context-Window Discovery**: `client.models.getContextLength({ model })` resolves the real window from the server — the allocated window of the running instance (`/api/ps`), the Modelfile `num_ctx` default, and the native GGUF maximum (`model_info`), in precedence order — so applications stop hardcoding 2048/4096 guesses.
 - 🔁 **Model-Affinity Scheduling**: `ModelAffinityScheduler` runs multi-model workloads through per-model serial queues with a distinct-model cap (default 1), deepening the already-hot model before loading the next — the anti-thrashing order for `OLLAMA_NUM_PARALLEL`/`OLLAMA_MAX_LOADED_MODELS`-bounded daemons — and routes candidate lists to whichever model is already loaded.
 - 🛡️ **Agent Loop Guardrails**: `Agent` is a boundary-checked runner out of the box — `maxIterations` (default 10), an opt-in `maxToolCalls` budget, and opt-in **cycle detection** (`maxRepeatedToolCalls`) that fails fast with `OllamaAgentToolLoopError` the moment the model re-emits one identical tool call instead of burning the whole iteration budget on it; tool rejections (including unregistered names) are always encapsulated as `role: 'tool'` results, never loop crashes.
+- 📊 **Standardized Telemetry (`formatTelemetry`)**: One pure call turns Ollama's raw nanosecond counters into the summary humans want — ms latencies, `tokensPerSecond`/`promptTokensPerSecond` per the official Usage-doc formulas, and the KV `cacheHitRatio` — accepting any response object structurally (`chat`, `generate`, stream final events, `embed`), with missing counters reading as `0`, never `NaN`.
+- 🧲 **Dynamic Host Model-Affinity Routing**: With several interchangeable endpoints, opt-in `endpointHealth.modelAffinity` reorders each request's candidates so the host already holding the requested model in VRAM (`GET /api/ps`, TTL-cached, zero added request latency) is tried first — no more forced unload/cold-load swaps under `OLLAMA_MAX_LOADED_MODELS`.
+- 🩺 **Root Liveness Probe (`ping`)**: `client.ping()` is the official ultra-lightweight `HEAD /` health check — single-shot (no retry, no failover: the answer is about one concrete host), resolves instead of throwing, reports latency; `healthCheck()` remains the fleet-wide audit.
 - 🧼 **Vision History Hygiene**: `sanitizeHistoryForNextTurn()` evicts stale base64 image payloads from consumer-managed multi-turn vision histories — every `/api/chat` request re-sends the whole history, so old images silently bloat payload, context, and heap; the helper keeps images only on the trailing window you choose, conversation text fully preserved.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
@@ -946,6 +949,11 @@ const client = new OllamaClient({
 // Active health check probe
 const health = await client.healthCheck();
 console.log(health);
+
+// Ultra-lightweight single-host liveness probe — the official `HEAD /` root
+// ping (no retry, no failover: an answer about one concrete host).
+const { healthy, latencyMs } = await client.ping();
+console.log(healthy, `${latencyMs}ms`);
 ```
 
 Failover applies to inference calls (`chat`, `generate`, `embed`, `embeddings`,
@@ -1174,6 +1182,64 @@ initial HTTP round trip:
   between turns, outside any `chat()` call, so a slow tool never ties up one of your
   scarce concurrent-request accounts.
 
+#### Model-affinity routing across hosts (prefer the resident host)
+
+With several _interchangeable_ endpoints serving the same models — the fleet-of-workstations
+case, not the per-credential Cloud case — sending a request to a host that doesn't currently
+hold the model forces that host to evict something and cold-load it: the multi-host version
+of the thrashing `ModelAffinityScheduler` prevents inside one client. Opt in with
+`endpointHealth.modelAffinity` and each request's candidates are reordered so hosts whose
+`GET /api/ps` shows the requested model already resident in VRAM are tried first:
+
+```typescript
+const client = new OllamaClient({
+  endpoints: [
+    { name: 'gpu-a', baseUrl: 'http://gpu-a.internal:11434' },
+    { name: 'gpu-b', baseUrl: 'http://gpu-b.internal:11434' },
+    { name: 'gpu-c', baseUrl: 'http://gpu-c.internal:11434' },
+  ],
+  endpointHealth: {
+    strategy: 'least-connections',
+    modelAffinity: { ttlMs: 30_000 }, // /api/ps snapshot freshness (default 30s)
+  },
+});
+
+// Optional but recommended at startup: pre-warm the residency cache so even the
+// first request routes to the host already holding the model.
+await client.warmModelAffinity();
+
+await client.chat({ model: 'llama3.2', messages }); // → the host with llama3.2 in VRAM
+
+// Observability: what each host held, when it was last probed, whether it's fresh.
+console.log(client.modelAffinityStatus());
+```
+
+The design never trades latency for affinity (see
+[ADR 0028](./docs/adr/0028-telemetry-normalization-host-affinity-root-ping.md)):
+
+- **Zero added request latency.** Reordering is synchronous and consults only cached
+  `/api/ps` snapshots. A request never waits for a probe: on a cache miss it proceeds
+  with the unchanged order while a background refresh warms the cache for the next one.
+- **Partial knowledge suppresses the reorder.** If any candidate's snapshot is stale or
+  unknown (a host was just rebooted, a probe failed), the original order stands —
+  routing on partial residency data risks exactly the cold-load swap this exists to
+  avoid. Probe failures are never cached as data and a 5s backoff keeps a dead host
+  from being re-probed on every request.
+- **No probes at all unless configured.** Without `modelAffinity`, the router isn't even
+  constructed — zero overhead, and no `/api/ps` traffic.
+- **Composes with everything above.** Affinity reorders _within_ the runnable set:
+  priority tiers, `least-connections` ordering, capacity caps, and `models`-scoped
+  credentials keep working exactly as before, and single-endpoint-pinned operations
+  (model/blob management, `capabilities()`) are never moved to a different host.
+  Residency matching follows Ollama's own name resolution (`llama3` matches
+  `llama3:latest` but never `llama3.1`), shared with context-window discovery so the
+  two features can't disagree about what "loaded" means.
+
+For the _single-host_ counterpart — per-model serial queues that deepen the already-hot
+model before loading the next one — see
+[Model-Affinity Scheduling](#model-affinity-scheduling-multi-model-anti-thrashing); the
+two compose: a scheduler per host, affinity routing between hosts.
+
 ### Client Teardown: `destroy()`
 
 Inside `node:worker_threads` tasks, CLI runners, serverless handlers, and other
@@ -1206,6 +1272,60 @@ if you want a hard cut), and calling it on an idle client is a no-op that
 returns `0`.
 
 ---
+
+### Standardized Telemetry (`formatTelemetry`)
+
+Ollama reports every duration on its generation responses as an **integer in
+nanoseconds** (`total_duration`, `load_duration`, `prompt_eval_duration`, `eval_duration`)
+alongside token counters (`prompt_eval_count`, `prompt_eval_cached_count`, `eval_count`).
+Turning those into the numbers humans actually want — milliseconds, tokens/second, cache
+hit rate — is the same division-and-rounding math every consumer would otherwise
+hand-roll (and the easy mistakes are real: `NaN` on missing counters, integer division,
+a cache ratio that divides by the wrong denominator). `formatTelemetry` is that math,
+once, with the official Usage-doc formulas:
+
+```typescript
+import { OllamaClient, formatTelemetry } from '@nemesis-oss/ollama-sdk';
+
+const client = new OllamaClient();
+
+const res = await client.chat({
+  model: 'llama3.2',
+  messages: [{ role: 'user', content: 'Why is the sky blue?' }],
+});
+
+// Any response object works as-is — chat, generate, the final stream event,
+// embed. No plucking required: the counters are read structurally.
+const t = formatTelemetry(res);
+console.log(t);
+// {
+//   totalLatencyMs: 3712.5,       // total_duration / 1e6, 2 decimals
+//   modelLoadMs: 250,             // cold-load into VRAM (0 when resident)
+//   promptEvalMs: 1000,           // prompt pre-fill
+//   generationMs: 2400,           // token generation
+//   tokensPerSecond: 50,          // eval_count / (eval_duration / 1e9) — official formula
+//   promptTokensPerSecond: 200,   // prompt_eval_count / (prompt_eval_duration / 1e9)
+//   cacheHitRatio: 0.429          // cached / (cached + evaluated), 3 decimals
+// }
+```
+
+Two behaviors worth knowing:
+
+- **Missing counters read as `0`** — partial payloads (stream final events, older
+  servers without `prompt_eval_cached_count`, embeddings) format cleanly instead of
+  producing `NaN`/`Infinity`, and zero durations never divide into rates.
+- **`cacheHitRatio` uses `cached / (cached + evaluated)`**, not
+  `cached / prompt_eval_count`: Ollama reports `prompt_eval_count: 0` on a _full_ cache
+  hit, so dividing by it alone would read a perfect cache as "no caching at all". This
+  is the same semantics as [`ConversationSession`'s
+  `cacheStats.hitRate`](#kv-cache-aware-conversation-sessions), so the two surfaces can
+  never disagree.
+
+`formatTelemetry` is pure — no fetching, no throwing, no mutation — so it drops
+straight into log lines, dashboards, and streaming pipelines alike. For span-based
+instrumentation of requests themselves, see
+[Observability with OpenTelemetry](#observability-with-opentelemetry) below; the two
+compose (spans for _where/when_, `formatTelemetry` for _how fast_).
 
 ### Observability with OpenTelemetry
 

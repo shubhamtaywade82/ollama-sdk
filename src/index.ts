@@ -63,6 +63,7 @@ export type {
   UsageScope,
   UsageRequestOptions,
   BalanceRequestOptions,
+  PingResult,
   UsageResponse,
   UsageMetrics,
   UsageBucket,
@@ -436,6 +437,13 @@ export {
   GEN_AI_SYSTEM_OLLAMA,
 } from './telemetry/index.js';
 
+// Standardized telemetry normalizer — raw nanosecond counters to ms/tok-s/cache-ratio
+export {
+  formatTelemetry,
+  type RawOllamaMetrics,
+  type FormattedTelemetry,
+} from './telemetry/index.js';
+
 // Utilities
 export { encodeImage } from './utils.js';
 
@@ -492,6 +500,7 @@ export {
   extractNativeContextLength,
   extractParameterNumCtx,
   findRunningModelContextLength,
+  isModelResident,
   resolveContextLength,
   type ContextDiscoveryRequestOptions,
   type ContextLengthSignals,
@@ -507,6 +516,15 @@ export {
   type ModelAffinitySchedulerOptions,
   type ModelAffinityStats,
 } from './affinity.js';
+
+// Multi-host model-affinity routing — prefer the endpoint already holding the
+// model in VRAM (GET /api/ps, TTL-cached, zero added request latency)
+export {
+  ModelAffinityRouter,
+  type AffinityRunningModel,
+  type ModelAffinityRoutingOptions,
+  type ModelAffinitySnapshot,
+} from './providers/model-affinity-router.js';
 
 // Batch-constrained embedding pipeline for high-volume ingestion (RAG/vector indexing)
 export {
