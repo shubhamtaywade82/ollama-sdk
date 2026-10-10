@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.12.1] — Fix: model-affinity routing respects priority tiers
+
+### Fixed
+
+- **`endpointHealth.modelAffinity` no longer overrides endpoint `priority`.** In 1.12.0, `ModelAffinityRouter.reorder()` moved every host holding the requested model to the front of the _whole_ candidate list, so a lower-priority host with the model in VRAM was tried before a higher-priority host without it. That contradicted the README and ADR 0028, which state that priority tiers keep working. Affinity now reorders only within each priority tier (runs of consecutive equal `priority`, unset = `0`, as in the registry): a higher-priority endpoint is always tried first, and residency only breaks ties inside a tier. The order between tiers, including the registry's fail-open recovery order, is unchanged.
+- **Behavior change for configurations that mix `priority` values with `modelAffinity`:** requests that 1.12.0 sent to a resident lower-priority host now go to the higher-priority host first. Pools where every endpoint has the same priority (the documented fleet-of-workstations setup) are unaffected.
+- 6 new tests: tier isolation, independent per-tier reordering, unset priority as `0`, consecutive-run grouping, an unchanged input returned as-is, and an end-to-end `OllamaClient` routing check.
+- `package-lock.json` root version corrected (it still read `1.8.0`).
+
 ## [1.12.0] — Daemon liveness & telemetry standardization: formatTelemetry, dynamic host model-affinity routing, root ping
 
 The October 10 documentation digest ("Daemon Liveness & Telemetry Standardization") reviewed the official operational surfaces — the root liveness probe (`HEAD /` → 200, body "Ollama is running"), `GET /api/version`, `GET /api/ps` runner introspection, and the nanosecond duration counters on every generation response. Verified against the codebase first (see [ADR 0028](./docs/adr/0028-telemetry-normalization-host-affinity-root-ping.md)): two of the digest's gap assessments were stale — multi-host pooling with least-connections routing, capacity caps, and 503/`OLLAMA_MAX_QUEUE` saturation failover already exist (`endpoints` + `endpointHealth` + `DEFAULT_FAILOVER_CODES`), so the proposed `LoadBalancedOllamaClient` was **not** added (it would fork the existing routing engine); the real gaps — telemetry math, dynamic multi-host affinity, and the root ping — are implemented, all additive, no breaking changes. 865 pre-existing tests stay green, 33 new tests added.

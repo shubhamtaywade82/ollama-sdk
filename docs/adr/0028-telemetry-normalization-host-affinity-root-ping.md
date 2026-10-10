@@ -190,3 +190,12 @@ request.
   answered with docs + tests, e.g. declining `runToolLoop`)
 - ADR 0008 — single-endpoint pinning for endpoint-targeting operations
   (why affinity never reorders a `capabilities()` call)
+
+## Amendment (1.12.1, 2026-10-10)
+
+As shipped in 1.12.0, `reorder()` moved resident endpoints to the front of the
+_whole_ runnable set, so a lower-priority host holding the model was tried before
+a higher-priority host that did not. That contradicted the "priority ... decisions
+stay intact" statement above. 1.12.1 reorders within each priority tier (runs of
+consecutive equal `priority`, unset = 0) and never moves an endpoint across
+tiers, which makes the statement true.
