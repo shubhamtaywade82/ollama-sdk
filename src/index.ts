@@ -53,7 +53,6 @@ export type {
   CopyRequestOptions,
   StatusResponse,
   VersionResponse,
-  PingResult,
   PsResponse,
   WebSearchRequestOptions,
   WebSearchResult,
@@ -64,6 +63,7 @@ export type {
   UsageScope,
   UsageRequestOptions,
   BalanceRequestOptions,
+  PingResult,
   UsageResponse,
   UsageMetrics,
   UsageBucket,
@@ -402,12 +402,6 @@ export {
 } from './providers/endpoint-registry.js';
 export { checkEndpointHealth, type EndpointHealthCheckResult } from './providers/health-check.js';
 export {
-  ModelAffinityRouter,
-  type AffinityRunningModel,
-  type ModelAffinityRoutingOptions,
-  type ModelAffinitySnapshot,
-} from './providers/model-affinity-router.js';
-export {
   detectModelCapabilities,
   inferRuntimeMode,
   listAvailableModels,
@@ -441,9 +435,13 @@ export {
   ATTR_OLLAMA_AGENT_MAX_ITERATIONS,
   ATTR_OLLAMA_AGENT_ITERATION,
   GEN_AI_SYSTEM_OLLAMA,
+} from './telemetry/index.js';
+
+// Standardized telemetry normalizer — raw nanosecond counters to ms/tok-s/cache-ratio
+export {
   formatTelemetry,
-  type FormattedTelemetry,
   type RawOllamaMetrics,
+  type FormattedTelemetry,
 } from './telemetry/index.js';
 
 // Utilities
@@ -518,6 +516,15 @@ export {
   type ModelAffinitySchedulerOptions,
   type ModelAffinityStats,
 } from './affinity.js';
+
+// Multi-host model-affinity routing — prefer the endpoint already holding the
+// model in VRAM (GET /api/ps, TTL-cached, zero added request latency)
+export {
+  ModelAffinityRouter,
+  type AffinityRunningModel,
+  type ModelAffinityRoutingOptions,
+  type ModelAffinitySnapshot,
+} from './providers/model-affinity-router.js';
 
 // Batch-constrained embedding pipeline for high-volume ingestion (RAG/vector indexing)
 export {

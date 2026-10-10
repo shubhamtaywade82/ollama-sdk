@@ -8,11 +8,11 @@
 
 ### How this compares
 
-| Need | Typical choice |
-|------|----------------|
-| Default Ollama integration in JS/TS | Official [`ollama`](https://www.npmjs.com/package/ollama) client (`ollama/ollama-js`) |
-| Vercel AI SDK (`ai` package) apps | [`ai-sdk-ollama`](https://www.npmjs.com/package/ai-sdk-ollama) |
-| Agent runtime, MCP bridge, HA failover, context safety, structured outputs | **This package** — powers [Nexum](https://github.com/shubhamtaywade82/nexum) |
+| Need                                                                       | Typical choice                                                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Default Ollama integration in JS/TS                                        | Official [`ollama`](https://www.npmjs.com/package/ollama) client (`ollama/ollama-js`) |
+| Vercel AI SDK (`ai` package) apps                                          | [`ai-sdk-ollama`](https://www.npmjs.com/package/ai-sdk-ollama)                        |
+| Agent runtime, MCP bridge, HA failover, context safety, structured outputs | **This package** — powers [Nexum](https://github.com/shubhamtaywade82/nexum)          |
 
 Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `minicpm5:2b` with 100% pass on `tool-calling`, `output-format`, and `agentic-looping` categories. See [nexum/docs/guide/benchmarks.md](../nexum/docs/guide/benchmarks.md) and [validation.md](../nexum/docs/guide/validation.md).
 
@@ -1184,7 +1184,7 @@ initial HTTP round trip:
 
 #### Model-affinity routing across hosts (prefer the resident host)
 
-With several *interchangeable* endpoints serving the same models — the fleet-of-workstations
+With several _interchangeable_ endpoints serving the same models — the fleet-of-workstations
 case, not the per-credential Cloud case — sending a request to a host that doesn't currently
 hold the model forces that host to evict something and cold-load it: the multi-host version
 of the thrashing `ModelAffinityScheduler` prevents inside one client. Opt in with
@@ -1227,7 +1227,7 @@ The design never trades latency for affinity (see
   from being re-probed on every request.
 - **No probes at all unless configured.** Without `modelAffinity`, the router isn't even
   constructed — zero overhead, and no `/api/ps` traffic.
-- **Composes with everything above.** Affinity reorders *within* the runnable set:
+- **Composes with everything above.** Affinity reorders _within_ the runnable set:
   priority tiers, `least-connections` ordering, capacity caps, and `models`-scoped
   credentials keep working exactly as before, and single-endpoint-pinned operations
   (model/blob management, `capabilities()`) are never moved to a different host.
@@ -1235,7 +1235,7 @@ The design never trades latency for affinity (see
   `llama3:latest` but never `llama3.1`), shared with context-window discovery so the
   two features can't disagree about what "loaded" means.
 
-For the *single-host* counterpart — per-model serial queues that deepen the already-hot
+For the _single-host_ counterpart — per-model serial queues that deepen the already-hot
 model before loading the next one — see
 [Model-Affinity Scheduling](#model-affinity-scheduling-multi-model-anti-thrashing); the
 two compose: a scheduler per host, affinity routing between hosts.
@@ -1315,7 +1315,7 @@ Two behaviors worth knowing:
   servers without `prompt_eval_cached_count`, embeddings) format cleanly instead of
   producing `NaN`/`Infinity`, and zero durations never divide into rates.
 - **`cacheHitRatio` uses `cached / (cached + evaluated)`**, not
-  `cached / prompt_eval_count`: Ollama reports `prompt_eval_count: 0` on a *full* cache
+  `cached / prompt_eval_count`: Ollama reports `prompt_eval_count: 0` on a _full_ cache
   hit, so dividing by it alone would read a perfect cache as "no caching at all". This
   is the same semantics as [`ConversationSession`'s
   `cacheStats.hitRate`](#kv-cache-aware-conversation-sessions), so the two surfaces can
@@ -1325,7 +1325,7 @@ Two behaviors worth knowing:
 straight into log lines, dashboards, and streaming pipelines alike. For span-based
 instrumentation of requests themselves, see
 [Observability with OpenTelemetry](#observability-with-opentelemetry) below; the two
-compose (spans for *where/when*, `formatTelemetry` for *how fast*).
+compose (spans for _where/when_, `formatTelemetry` for _how fast_).
 
 ### Observability with OpenTelemetry
 
