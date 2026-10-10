@@ -1,9 +1,18 @@
 name: CI
 
 on:
+  # PR branches are covered by `pull_request` (which tests the merge result);
+  # `push` only runs for main so each PR commit triggers one CI run, not two.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+
+# A newer commit on the same PR cancels its in-flight run. Pushes to main are
+# grouped per commit SHA, so no main run is ever cancelled or superseded while
+# pending (a shared group would drop queued runs) and every merge gets a result.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
