@@ -32,6 +32,23 @@ describe('strict Ollama compatibility request types', () => {
       tools: [],
       reasoning_effort: 'low',
     };
+    const vision: OllamaOpenAIChatCompletionRequest = {
+      model: 'qwen3-vl:8b',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: "What's in this image?" },
+            { type: 'image_url', image_url: 'data:image/png;base64,iVBORw0KGgo=' },
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/png;base64,iVBORw0KGgo=', detail: 'low' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(vision.messages).toHaveLength(1);
     const completion: OllamaOpenAICompletionRequest = {
       model: 'm',
       prompt: 'p',
@@ -92,7 +109,17 @@ describe('strict Ollama compatibility request types', () => {
       messages: [],
       tool_choice: { type: 'auto' },
     };
-    expect([a, b, c, d, e, f, g, h, i, j, k, l]).toHaveLength(12);
+    const remoteImage: OllamaOpenAIChatCompletionRequest = {
+      model: 'm',
+      messages: [
+        {
+          role: 'user',
+          // @ts-expect-error remote image URLs are unsupported on /v1/chat/completions
+          content: [{ type: 'image_url', image_url: 'https://example.com/cat.png' }],
+        },
+      ],
+    };
+    expect([a, b, c, d, e, f, g, h, i, j, k, l, remoteImage]).toHaveLength(13);
   });
 
   it('keep the broad interop types permissive for drop-in OpenAI payloads', () => {

@@ -11,7 +11,7 @@ export interface UsageResponse {
   readonly range: '24h' | '7d' | '30d';
   /** Selected usage scope. */
   readonly scope: 'self' | 'team';
-  /** Set automatically - hour for 24h, day for 7d and 30d. */
+  /** Set automatically: hour for 24h, day for 7d and 30d. */
   readonly granularity: 'hour' | 'day';
   /** Start of the range in UTC, inclusive. */
   readonly from: string;

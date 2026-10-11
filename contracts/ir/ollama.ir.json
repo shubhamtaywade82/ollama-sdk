@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "1634f24f0698b054",
+  "sourceHash": "7bd793fc82f0fec9",
   "operations": [
     {
       "id": "balance",
@@ -2805,7 +2805,7 @@
           },
           "criteria": {
             "type": "object",
-            "description": "Optional descriptions for the two outcomes. Omitted entries use No and Yes.",
+            "description": "Optional descriptions for the two outcomes. Omitted entries use model-specific defaults.",
             "properties": {
               "false": {
                 "type": "string",
@@ -3028,7 +3028,7 @@
           },
           "criteria": {
             "type": "array",
-            "description": "Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1.",
+            "description": "Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1. The maximum number of levels depends on the model.",
             "minItems": 2,
             "maxItems": 26,
             "items": {
@@ -3314,7 +3314,7 @@
               "hour",
               "day"
             ],
-            "description": "Set automatically - hour for 24h, day for 7d and 30d."
+            "description": "Set automatically: hour for 24h, day for 7d and 30d."
           },
           "from": {
             "type": "string",

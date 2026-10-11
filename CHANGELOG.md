@@ -19,6 +19,9 @@ A full re-read of docs.ollama.com (API reference, capability guides, integration
 - **`createWebTools(client, options?)`** (plus `createWebSearchTool`, `createWebFetchTool`, `formatWebSearchResult`, `formatWebFetchResult`): Ollama Cloud web search/fetch as model-callable `web_search`/`web_fetch` tools for `ToolRegistry`/`Agent` — the documented "Building a search agent" pattern. Arguments are validated at the registry boundary (`query`/`url` non-empty, `max_results` 1–10) before any network call; the abort signal propagates; output is bounded by `maxOutputChars` (default `2000 * 4`, as in the docs) by trimming content fields so it always stays valid JSON; `web_fetch` caps links (`maxLinks`, default 25). New example: `examples/web-search-agent.ts`.
 - Tests for direct Ollama Cloud access through the bridges (`https://ollama.com/v1/chat/completions`, `/v1/responses`, `/v1/messages` with `Authorization: Bearer` and `anthropic-version: 2023-06-01`), docs-parser regression tests against the pinned markdown, and strict-type compile tests.
 
+- **Strict chat images are base64-only.** `OllamaOpenAIChatContentPart.image_url` is now `` `data:${string}` `` (string or `{ url, detail? }`), so a remote `http(s)://` image URL — documented as unsupported on `/v1/chat/completions` — is a compile error. `OllamaOpenAIChatMessage`, `OllamaOpenAIChatContentPart`, and `OllamaOpenAIImageDataUrl` are now exported from the package root.
+- OpenAPI source descriptions synced with upstream (System One `noul`/`score` criteria, `UsageResponse.granularity`). The one remaining intentional deviation — nullable `ModelSummary.details.families`, because the server serializes a nil slice as `null` — is documented in the source header and pinned by a test.
+
 ### Documentation
 
 - README and docs-site OpenAI/Anthropic guides: per-endpoint supported vs documented-unsupported tables, direct cloud access sections, and a web search agent section.
