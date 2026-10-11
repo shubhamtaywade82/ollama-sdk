@@ -268,6 +268,28 @@ const registry = new ToolRegistry({
 
 If a tool exceeds its `timeoutMs`, the registry throws `OllamaToolTimeoutError` _and_ feeds a timeout message back to the model — the model can choose to retry or use a different tool.
 
+## Web search agent
+
+`createWebTools(client)` returns ready-made `web_search` and `web_fetch` tools backed by Ollama Cloud's hosted `/api/web_search` and `/api/web_fetch` — the [search-agent pattern](https://docs.ollama.com/capabilities/web-search#building-a-search-agent) from the Ollama docs. Requires an Ollama API key (`apiKey` or `OLLAMA_API_KEY`); web calls always go to `https://ollama.com`, independent of where inference runs.
+
+```typescript
+import { Agent, OllamaClient, ToolRegistry, createWebTools } from '@nemesis-oss/ollama-sdk';
+
+const client = new OllamaClient({ apiKey: process.env.OLLAMA_API_KEY });
+const agent = new Agent(client, {
+  tools: new ToolRegistry(createWebTools(client, { maxOutputChars: 8000 })),
+  maxIterations: 8,
+});
+
+const result = await agent.run({
+  model: 'qwen3:4b',
+  messages: [{ role: 'user', content: "what is ollama's new engine" }],
+  think: true,
+});
+```
+
+Model-visible output is bounded (`maxOutputChars`, default `2000 * 4` as in the docs) by trimming snippet/page content, so it stays valid JSON; `web_fetch` also caps returned links (`maxLinks`, default 25). `max_results` is validated to 1–10 at the registry boundary before any network call. Search results run to thousands of tokens — use a context window of at least ~32k.
+
 ## Mixing models and credentials
 
 For multi-model agents (e.g. a planner model + a coder model), use one `OllamaClient` with [per-endpoint `models` allow-lists](./failover#model-scoped-endpoints-per-model-api-keys). The client resolves the right credential from the model name; `Agent` itself stays unaware of credentials:

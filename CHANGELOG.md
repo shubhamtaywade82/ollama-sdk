@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.13.0] — docs.ollama.com re-audit: parity verifier reads checkbox state, strict compat types, web-search agent tools
+
+A full re-read of docs.ollama.com (API reference, capability guides, integrations, OpenAPI spec) against the SDK. The native API was already at parity except for two upstream changes; the real defect was in the compatibility-parity tooling, which had been reporting fields Ollama documents as unsupported as "supported".
+
+### Fixed
+
+- **Contract-parity verifier ignored `[ ]` (unsupported) checkboxes.** `verify:contract-parity` fetched the rendered HTML docs, which drop checkbox state, and the pinned fallback had been rewritten to `[Input]` markers — so every listed field read as supported and the OpenAI overlay claimed support for `tool_choice`, `logit_bias`, `user`, `n` and logprobs (chat), `best_of`, `echo`, `logit_bias`, `user`, `n` and logprobs (completions), `user` (embeddings) and `truncation` (responses). The fetcher now prefers the Mintlify markdown twin (`<page>.md`), endpoint sections are bounded by heading level (backticked headings supported), unchecked feature items (`* [ ] Logprobs`) read as unsupported, and unchecked request-field items count as explicit unsupported evidence. The overlay and IR are corrected (`logprobs` capability is now `unsupported` on `/v1/chat/completions` and `/v1/completions`), and the pinned fallbacks are re-pinned from the live markdown with checkbox state intact.
+- **Strict compatibility request types now exclude documented-unsupported fields.** `OllamaOpenAIChatCompletionRequest` drops `tool_choice`, `logit_bias`, `user`, `n`, `logprobs`, `top_logprobs`; `OllamaOpenAICompletionRequest` drops `best_of`, `echo`, `logit_bias`, `user`, `n`, `logprobs`; `OllamaOpenAIEmbeddingRequest` drops `user` and narrows `input` to `string | string[]`; `OllamaOpenAIResponsesRequest` also drops `truncation`. Passing them is now a compile error (pinned by `@ts-expect-error` tests run under `npm run typecheck`). **Type-level breaking change only for code that opted into the strict types** — the broad `OpenAI*` interop types are unchanged.
+
+### Upstream API changes picked up
+
+- **System One `choice` criteria limit raised from 26 to 255** (model-dependent) — generated Zod schema and request type updated; `score` stays at 2–26.
+- **`/api/copy` documents a JSON `{ "status": "success" }` body** plus 400/404 error responses — the generated `NativeApi.copy()` now returns `StatusResponse` instead of `unknown`.
+
+### Added
+
+- **`createWebTools(client, options?)`** (plus `createWebSearchTool`, `createWebFetchTool`, `formatWebSearchResult`, `formatWebFetchResult`): Ollama Cloud web search/fetch as model-callable `web_search`/`web_fetch` tools for `ToolRegistry`/`Agent` — the documented "Building a search agent" pattern. Arguments are validated at the registry boundary (`query`/`url` non-empty, `max_results` 1–10) before any network call; the abort signal propagates; output is bounded by `maxOutputChars` (default `2000 * 4`, as in the docs) by trimming content fields so it always stays valid JSON; `web_fetch` caps links (`maxLinks`, default 25). New example: `examples/web-search-agent.ts`.
+- Tests for direct Ollama Cloud access through the bridges (`https://ollama.com/v1/chat/completions`, `/v1/responses`, `/v1/messages` with `Authorization: Bearer` and `anthropic-version: 2023-06-01`), docs-parser regression tests against the pinned markdown, and strict-type compile tests.
+
+- **Strict chat images are base64-only.** `OllamaOpenAIChatContentPart.image_url` is now `` `data:${string}` `` (string or `{ url, detail? }`), so a remote `http(s)://` image URL — documented as unsupported on `/v1/chat/completions` — is a compile error. `OllamaOpenAIChatMessage`, `OllamaOpenAIChatContentPart`, and `OllamaOpenAIImageDataUrl` are now exported from the package root.
+- OpenAPI source descriptions synced with upstream (System One `noul`/`score` criteria, `UsageResponse.granularity`). The one remaining intentional deviation — nullable `ModelSummary.details.families`, because the server serializes a nil slice as `null` — is documented in the source header and pinned by a test.
+
+### Documentation
+
+- README and docs-site OpenAI/Anthropic guides: per-endpoint supported vs documented-unsupported tables, direct cloud access sections, and a web search agent section.
+
 ## [1.12.1] — Fix: model-affinity routing respects priority tiers
 
 ### Fixed

@@ -64,6 +64,7 @@ export const requestSchemas: Readonly<Record<string, z.ZodType>> = {
 export const responseSchemas: Readonly<Record<string, z.ZodType>> = {
   balance: BalanceResponseSchema,
   chat: ChatResponseSchema,
+  copy: StatusResponseSchema,
   create: StatusResponseSchema,
   embed: EmbedResponseSchema,
   generate: GenerateResponseSchema,

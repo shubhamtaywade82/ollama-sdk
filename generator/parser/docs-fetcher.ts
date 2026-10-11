@@ -20,6 +20,7 @@ function normalizedHeadingText(line: string): string {
   return line
     .trim()
     .replace(/^#{1,6}\s+/, '')
+    .replace(/`/g, '')
     .replace(/\s+/g, ' ')
     .toLowerCase();
 }
@@ -102,7 +103,9 @@ export function supportedFeatureStatus(docs: string, aliases: readonly string[])
         );
       })
     ) {
-      return 'supported';
+      // An unchecked markdown task item (`* [ ] Logprobs`) lists the feature as
+      // explicitly unsupported; only a checked or untagged item counts as support.
+      return /^[-*]\s+\[\s\]/.test(line.trim()) ? 'unsupported' : 'supported';
     }
   }
 
@@ -166,8 +169,15 @@ export function nestedFieldName(path: string): string {
   return segments[segments.length - 1] ?? path;
 }
 
+function headingLevel(line: string): number {
+  const match = /^(#{1,6})\s+/.exec(line.trim());
+  return match ? (match[1] as string).length : 0;
+}
+
 function isEndpointCandidate(line: string, endpoint: string): boolean {
-  const trimmed = line.trim();
+  // Mintlify markdown wraps endpoint paths in backticks (`### \`/v1/messages\``,
+  // `` `POST /v1/responses` ``); compare on the bare text.
+  const trimmed = line.trim().replace(/`/g, '');
   if (!trimmed || trimmed.includes('http')) return false;
   const escaped = escapeRegExp(endpoint);
   if (new RegExp('^POST\\s+' + escaped + '(?:\\s|$)', 'i').test(trimmed)) return true;
@@ -184,8 +194,26 @@ export function endpointSection(docs: string, endpoint: string): string {
     .filter((index) => index >= 0);
   if (candidates.length === 0) return '';
   const start = candidates[0] as number;
-  const end = candidates.find((index) => index > start);
-  return lines.slice(start, end ?? lines.length).join('\n');
+
+  // The section runs until the next heading at the same or a higher level than the
+  // heading that owns the endpoint (for a bare `POST /path` line, the nearest heading
+  // above it). Without this bound, a section would swallow every later endpoint on a
+  // multi-endpoint page and pick up their checkbox lists.
+  let ownerLevel = headingLevel(lines[start] ?? '');
+  for (let index = start - 1; ownerLevel === 0 && index >= 0; index -= 1) {
+    ownerLevel = headingLevel(lines[index] ?? '');
+  }
+  let end = lines.length;
+  if (ownerLevel > 0) {
+    for (let index = start + 1; index < lines.length; index += 1) {
+      const level = headingLevel(lines[index] ?? '');
+      if (level > 0 && level <= ownerLevel) {
+        end = index;
+        break;
+      }
+    }
+  }
+  return lines.slice(start, end).join('\n');
 }
 
 /** Strip HTML down to a markdown-ish plain-text form. */
@@ -210,8 +238,42 @@ export function normalizeHtmlDocs(html: string): string {
     .replace(/&amp;/g, '&');
 }
 
-/** Fetch a docs URL and return its body as normalized plain text. */
+/**
+ * Markdown twin of a docs.ollama.com page. Mintlify serves every page as raw
+ * markdown at `<page>.md`; unlike the rendered HTML, it preserves the `[x]`/`[ ]`
+ * checkbox state that distinguishes supported from explicitly unsupported fields.
+ */
+export function markdownDocsUrl(url: string): string | undefined {
+  const parsed = new URL(url);
+  if (parsed.hostname !== 'docs.ollama.com') return undefined;
+  if (/\.(md|mdx|ya?ml|json|txt)$/i.test(parsed.pathname)) return undefined;
+  parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '.md';
+  parsed.hash = '';
+  return parsed.toString();
+}
+
+/**
+ * Fetch a docs URL and return its body as markdown (preferred) or normalized plain
+ * text. The markdown variant is tried first because the HTML render drops checkbox
+ * state, which would make every listed field look supported.
+ */
 export async function fetchDocs(url: string): Promise<string> {
+  const markdownUrl = markdownDocsUrl(url);
+  if (markdownUrl !== undefined) {
+    try {
+      const response = await fetch(markdownUrl, {
+        headers: { Accept: 'text/markdown, text/plain' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const contentType = response.headers.get('content-type') ?? '';
+      if (response.ok && !contentType.includes('text/html')) {
+        return await response.text();
+      }
+    } catch {
+      // Fall through to the rendered HTML page.
+    }
+  }
+
   const response = await fetch(url, {
     headers: { Accept: 'text/html, text/markdown, text/plain, */*' },
     signal: AbortSignal.timeout(15_000),

@@ -254,6 +254,19 @@ const req: OllamaAnthropicMessagesRequest = {
 await client.anthropic.messages(req);
 ```
 
+## Direct Ollama Cloud access
+
+Point the client at `https://ollama.com` with an API key; the bridge calls `https://ollama.com/v1/messages` with `Authorization: Bearer <key>` and `anthropic-version: 2023-06-01`. The hosted endpoint rejects `x-api-key`-only auth and `anthropic-version` values older than `2023-06-01` — the SDK always sends the bearer header and that version. Use hosted model identifiers such as `gemma4:31b` (through a signed-in local server, use `gemma4:cloud`).
+
+```typescript
+const cloud = new OllamaClient({ baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY });
+const msg = await cloud.anthropic.messages({
+  model: 'gemma4:31b',
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: 'Say hello in one sentence.' }],
+});
+```
+
 ## Failover and routing
 
 Anthropic compat requests participate in the same [failover and routing layer](./failover) as native inference calls. The `model` field is used for `endpoints`/`models` allow-list routing, and capacity slots are held for as long as a streaming response is being consumed.

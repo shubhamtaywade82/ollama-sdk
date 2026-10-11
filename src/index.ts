@@ -217,6 +217,21 @@ export {
   type ToolRegistryOptions,
 } from './tools/index.js';
 
+// Ollama web search / web fetch as model-callable tools (search-agent pattern)
+export {
+  createWebTools,
+  createWebSearchTool,
+  createWebFetchTool,
+  formatWebSearchResult,
+  formatWebFetchResult,
+  WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  type WebToolsClient,
+  type WebToolsOptions,
+  type WebSearchToolParams,
+  type WebFetchToolParams,
+} from './tools/web-tools.js';
+
 // Tool-call streaming accumulator (defensive merge for multi-chunk tool_calls)
 export {
   ToolCallAccumulator,
@@ -341,6 +356,9 @@ export {
   type OpenAIResponseFormat,
   type OpenAIChatCompletionRequest,
   type OllamaOpenAIChatCompletionRequest,
+  type OllamaOpenAIChatMessage,
+  type OllamaOpenAIChatContentPart,
+  type OllamaOpenAIImageDataUrl,
   type OpenAIChatCompletionChoice,
   type OpenAIChatCompletionResponse,
   type OpenAIUsage,

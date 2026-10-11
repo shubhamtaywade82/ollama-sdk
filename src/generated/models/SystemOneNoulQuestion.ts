@@ -9,7 +9,7 @@ import type { SystemOneContent } from './index.js';
 export interface SystemOneNoulQuestion {
   readonly type: 'noul';
   readonly instructions: SystemOneContent;
-  /** Optional descriptions for the two outcomes. Omitted entries use No and Yes. */
+  /** Optional descriptions for the two outcomes. Omitted entries use model-specific defaults. */
   readonly criteria?:
     | {
         readonly false?: string | undefined;

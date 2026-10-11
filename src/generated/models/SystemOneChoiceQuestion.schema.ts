@@ -12,7 +12,7 @@ export const SystemOneChoiceQuestionSchema = z.object({
     .object({})
     .catchall(z.union([z.string(), z.null()]))
     .refine((v) => Object.keys(v).length >= 2, { message: 'must have at least 2 properties' })
-    .refine((v) => Object.keys(v).length <= 26, { message: 'must have at most 26 properties' })
+    .refine((v) => Object.keys(v).length <= 255, { message: 'must have at most 255 properties' })
     .refine((v) => Object.keys(v).every((k) => new RegExp('\\S').test(k)), {
       message: 'property names must match pattern "\\S"',
     }),

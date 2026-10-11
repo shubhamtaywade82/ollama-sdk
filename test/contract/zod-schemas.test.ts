@@ -5,6 +5,7 @@ import {
   GenerateRequestSchema,
   EmbedRequestSchema,
   VersionResponseSchema,
+  ListResponseSchema,
 } from '../../src/generated/models/schemas.js';
 
 describe('Wave 9: generated Zod schemas — happy path', () => {
@@ -113,5 +114,20 @@ describe('Wave 9: generated Zod schemas — schema metadata', () => {
       expect(typeof schema.parse).toBe('function');
       expect(typeof schema.safeParse).toBe('function');
     }
+  });
+});
+
+describe('intentional deviation: /api/tags details.families is nullable', () => {
+  // Upstream OpenAPI types `families` as `array`, but the server serializes a nil Go
+  // slice as JSON `null` for models without family metadata. The pinned source keeps
+  // `[array, null]` so real /api/tags payloads validate (see the header comment in
+  // contracts/sources/ollama.openapi.yaml).
+  it('accepts families: null and families: string[]', () => {
+    const model = (families: string[] | null) => ({
+      name: 'm:latest',
+      details: { format: 'gguf', family: 'llama', families },
+    });
+    expect(ListResponseSchema.safeParse({ models: [model(null)] }).success).toBe(true);
+    expect(ListResponseSchema.safeParse({ models: [model(['llama'])] }).success).toBe(true);
   });
 });

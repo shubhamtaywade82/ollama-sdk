@@ -52,6 +52,7 @@ import {
   explicitlyUnsupported,
   nestedFieldName,
   supportedFeatureStatus,
+  endpointSection,
 } from '../generator/parser/docs-fetcher.js';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..');
@@ -248,8 +249,7 @@ async function verifyOperationLiveDocs(
       if (requestStatus === 'supported') return false;
 
       const featureAliases = parity.request!.featureAliases?.[field] ?? [];
-      if (featureAliasCheck(docs!, featureAliases)) return false;
-      if (featureAliasCheck(fallbackDocs, featureAliases)) return false;
+      if (featureAliasCheck(endpointSection(docs!, op.path) || docs!, featureAliases)) return false;
       return true;
     });
     if (missingDocs.length > 0) {
@@ -264,6 +264,19 @@ async function verifyOperationLiveDocs(
     const unsupportedEvidence = unsupportedSection || fallbackUnsupportedSection;
     const invalidUnsupported = parity.request.unsupportedFields.filter((field) => {
       const aliases = parity.request!.docAliases?.[field] ?? [field];
+      // An unchecked `* [ ] \`field\`` item in the endpoint's request-field list (or an
+      // unchecked "Supported features" entry) is explicit unsupported evidence.
+      const fallbackRequestFields = requestFieldSection(fallbackDocs, op.path) || fallbackDocs;
+      if (firstKnownStatus(requestFieldSection(docs!, op.path), fallbackRequestFields, aliases) === 'unsupported') {
+        return false;
+      }
+      const featureAliases = parity.request!.featureAliases?.[field] ?? [];
+      if (
+        featureAliases.length > 0 &&
+        supportedFeatureStatus(endpointSection(docs!, op.path) || docs!, featureAliases) === 'unsupported'
+      ) {
+        return false;
+      }
       return (
         !docsMentionField(unsupportedEvidence, aliases) &&
         !explicitlyUnsupported(unsupportedEvidence, aliases) &&

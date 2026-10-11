@@ -206,26 +206,32 @@ const res = await client.openai.chatCompletions({
 });
 ```
 
-Ollama accepts both data URLs and the standard OpenAI `{ url: string, detail?: 'auto' | 'low' | 'high' | 'original' }` object.
+Images must be base64 `data:` URLs — either as a string or inside the standard OpenAI `{ url, detail? }` object. Ollama documents remote `http(s)://` image URLs as **unsupported** on `/v1/chat/completions`; resolve them to base64 first (`resolveImageInput`) or use native `chat()` with `images`.
 
 ## What's supported vs. ignored
 
-The bridge types every standard OpenAI field, but Ollama's compat layer doesn't honor all of them:
+Status mirrors the checkbox lists at [docs.ollama.com/api/openai-compatibility](https://docs.ollama.com/api/openai-compatibility) and is enforced by `npm run verify:contract-parity`. The broad `OpenAI*` request types accept every field for drop-in interop; the strict `OllamaOpenAI*` types reject the unsupported ones at compile time.
 
-| Field              | Supported by Ollama? | Notes                                                                                                |
-| ------------------ | -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `tools`            | ✅ Yes                | Tool calling works natively.                                                                          |
-| `tool_choice`      | ⚠️ Accepted, ignored | Every tool given to the model remains callable regardless of this value.                              |
-| `parallel_tool_calls` | ⚠️ Accepted, ignored | Ollama's compat layer doesn't enforce parallel-call limits.                                          |
-| `n`                | ⚠️ Accepted, ignored | Ollama generates one completion.                                                                      |
-| `logprobs`         | ✅ Yes (for supported models) | Reasoning/chat models may emit logprobs.                                                              |
-| `top_logprobs`     | ✅ Yes (for supported models) | Requires `logprobs: true`.                                                                            |
-| `user`             | ⚠️ Accepted, ignored | Ollama doesn't enforce per-user rate limits.                                                          |
-| `logit_bias`       | ⚠️ Accepted, ignored |                                                                                                       |
-| `seed`             | ✅ Yes                | Deterministic sampling for the same prompt.                                                           |
-| `previous_response_id` | ⚠️ Accepted, ignored | `/v1/responses` is non-stateful in Ollama.                                                            |
+| Endpoint               | Supported request fields                                                                                                                                                                 | Documented as unsupported                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/v1/chat/completions` | `model`, `messages` (text, base64 image, content-part arrays), `frequency_penalty`, `presence_penalty`, `response_format`, `seed`, `stop`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `tools`, `reasoning_effort`, `reasoning.effort` | `tool_choice`, `logit_bias`, `user`, `n`, logprobs, image URLs |
+| `/v1/completions`      | `model`, `prompt` (string only), `frequency_penalty`, `presence_penalty`, `seed`, `stop`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `suffix`      | `best_of`, `echo`, `logit_bias`, `user`, `n`, logprobs      |
+| `/v1/embeddings`       | `model`, `input` (string or string array), `encoding_format`, `dimensions`                                                                                                              | token / token-array `input`, `user`                         |
+| `/v1/responses`        | `model`, `input`, `instructions`, `tools`, `stream`, `temperature`, `top_p`, `max_output_tokens`, `reasoning.effort`, `think` (Ollama extension)                                        | `previous_response_id`, `conversation`, `truncation`        |
 
-For compile-time enforcement of the supported subset, the package also exports strict request types: `OllamaOpenAIChatCompletionRequest`, `OllamaOpenAIResponsesRequest`, `OllamaOpenAIEmbeddingRequest`. Use these when you want TypeScript to reject fields Ollama ignores.
+`parallel_tool_calls` and `top_logprobs` are SDK-typed for interop but not part of Ollama's documented surface. For token log probabilities, use native `chat()`/`generate()` with `logprobs: true` and `top_logprobs`.
+
+### Direct Ollama Cloud access
+
+No local server is needed: point the client at `https://ollama.com` with an API key and the bridge calls `https://ollama.com/v1/...` with `Authorization: Bearer <key>`. Use the hosted model identifiers from `https://ollama.com/api/tags` (e.g. `gemma4:31b`). The cloud API does not support stateful Responses, built-in web search through `/v1/responses`, or custom/freeform tool-call replay.
+
+```typescript
+const cloud = new OllamaClient({ baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY });
+const res = await cloud.openai.chatCompletions({
+  model: 'gemma4:31b',
+  messages: [{ role: 'user', content: 'Say hello in one sentence.' }],
+});
+```
 
 ## Failover and routing
 
@@ -257,13 +263,15 @@ const req: OllamaOpenAIChatCompletionRequest = {
   model: 'qwen3',
   messages: [{ role: 'user', content: 'Hello' }],
   temperature: 0.7,
-  // tool_choice: 'auto' — ❌ TypeScript error: Ollama doesn't honor this
+  // tool_choice: 'auto' — ❌ TypeScript error: documented as unsupported by Ollama
+  // n: 2               — ❌ TypeScript error
+  // logprobs: true     — ❌ TypeScript error (use native chat({ logprobs: true }))
 };
 
 await client.openai.chatCompletions(req);
 ```
 
-The broader `OpenAIChatCompletionRequest` type remains available for pass-through interoperability with vendor-specific fields.
+Also available: `OllamaOpenAICompletionRequest`, `OllamaOpenAIEmbeddingRequest`, and `OllamaOpenAIResponsesRequest`. The broader `OpenAIChatCompletionRequest` type remains available for pass-through interoperability with vendor-specific fields.
 
 ## Cancellation
 

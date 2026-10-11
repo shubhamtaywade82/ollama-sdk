@@ -1,4 +1,4 @@
-#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-07 (source SHA: 675c8bb59da99c32aabee4900f358ac074999c16). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carries for those schemas (`[24h, 7d, 30d]`, `[hour, day]`).
+#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-07 (source SHA: 675c8bb59da99c32aabee4900f358ac074999c16). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carries for those schemas (`[24h, 7d, 30d]`, `[hour, day]`). The 2026-10-11 refresh raises the System One choice-criteria limit to 255 (model-dependent) and adds the documented /api/copy JSON status body and 400/404 errors. One intentional deviation from upstream remains: `ModelSummary.details.families` is typed `[array, null]` (upstream says `array`) because the server serializes a nil Go slice as JSON `null` for models without family metadata, and a strict array schema would reject real /api/tags responses.
 
 openapi: 3.1.0
 info:
@@ -902,10 +902,10 @@ components:
         criteria:
           type: object
           description:
-            Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank;
-            ties follow the model's option order.
+            Option keys mapped to descriptions, or null for a bare label. Keys must not be blank; ties follow
+            the model's option order. The option limit depends on the model.
           minProperties: 2
-          maxProperties: 26
+          maxProperties: 255
           propertyNames:
             pattern: \S
           additionalProperties:
@@ -927,7 +927,7 @@ components:
           $ref: '#/components/schemas/SystemOneContent'
         criteria:
           type: object
-          description: Optional descriptions for the two outcomes. Omitted entries use No and Yes.
+          description: Optional descriptions for the two outcomes. Omitted entries use model-specific defaults.
           properties:
             'false':
               type: string
@@ -954,7 +954,7 @@ components:
           type: array
           description:
             Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the
-            number of criteria minus 1.
+            number of criteria minus 1. The maximum number of levels depends on the model.
           minItems: 2
           maxItems: 26
           items:
@@ -1190,7 +1190,7 @@ components:
           enum:
             - hour
             - day
-          description: Set automatically - hour for 24h, day for 7d and 30d.
+          description: 'Set automatically: hour for 24h, day for 7d and 30d.'
         from:
           type: string
           format: date-time
@@ -1922,6 +1922,24 @@ paths:
       responses:
         '200':
           description: Model successfully copied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              example:
+                status: success
+        '400':
+          description: Model could not be copied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/pull:
     post:
       summary: Pull a model
