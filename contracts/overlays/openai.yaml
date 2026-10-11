@@ -6,10 +6,11 @@
 # fields are supported, which are explicitly unsupported, which the SDK
 # forwards for interop even though Ollama doesn't document them.
 #
-# In Wave 1 this overlay is structural metadata only — field-level parity
-# still lives in docs/api-parity.json and is verified by the legacy
-# scripts/verify-api-parity.ts. Wave 5 migrates the field-level contract
-# into this overlay.
+# Field status mirrors the checkbox lists at
+# https://docs.ollama.com/api/openai-compatibility.md: `[x]` entries are
+# `fields`, `[ ]` entries are `unsupportedFields` (still typed on the broad
+# OpenAI* request interfaces for drop-in interop, excluded from the strict
+# OllamaOpenAI* request types).
 
 version: 1
 service: ollama
@@ -30,7 +31,7 @@ operations:
       tools: model-dependent
       thinking: model-dependent
       structuredOutput: supported
-      logprobs: supported
+      logprobs: unsupported
       vision: model-dependent
     notes:
       - 'Ollama exposes a subset of the OpenAI Chat Completions request fields; see docs/upstream/ollama-openai-compatibility.mdx.'
@@ -58,6 +59,7 @@ operations:
           - 'tools'
           - 'reasoning_effort'
           - 'reasoning'
+        unsupportedFields:
           - 'tool_choice'
           - 'logit_bias'
           - 'user'
@@ -65,6 +67,7 @@ operations:
           - 'logprobs'
         sdkOnlyFields:
           - 'parallel_tool_calls'
+          - 'top_logprobs'
         featureAliases:
           'logprobs': ['Logprobs']
   openaiCompletions:
@@ -78,7 +81,7 @@ operations:
       local: supported
       cloud: supported
     capabilities:
-      logprobs: supported
+      logprobs: unsupported
 
     parity:
       legacySurfaceId: 'openai-completions'
@@ -100,6 +103,7 @@ operations:
           - 'top_p'
           - 'max_tokens'
           - 'suffix'
+        unsupportedFields:
           - 'best_of'
           - 'echo'
           - 'logit_bias'
@@ -132,6 +136,7 @@ operations:
           - 'input'
           - 'encoding_format'
           - 'dimensions'
+        unsupportedFields:
           - 'user'
         docAliases:
           'encoding_format': ['encoding_format', 'encoding format']
@@ -167,12 +172,12 @@ operations:
           - 'temperature'
           - 'top_p'
           - 'max_output_tokens'
-          - 'truncation'
           - 'reasoning'
           - 'think'
         unsupportedFields:
           - 'previous_response_id'
           - 'conversation'
+          - 'truncation'
         sdkOnlyFields:
           - 'parallel_tool_calls'
       stream:

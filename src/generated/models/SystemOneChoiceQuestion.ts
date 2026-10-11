@@ -9,7 +9,7 @@ import type { SystemOneContent } from './index.js';
 export interface SystemOneChoiceQuestion {
   readonly type: 'choice';
   readonly instructions: SystemOneContent;
-  /** Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order. */
+  /** Option keys mapped to descriptions, or null for a bare label. Keys must not be blank; ties follow the model's option order. The option limit depends on the model. */
   readonly criteria: {
     [key: string]: string | null;
   };

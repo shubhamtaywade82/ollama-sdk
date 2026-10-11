@@ -103,11 +103,18 @@ export interface OpenAIChatCompletionRequest {
   readonly seed?: number | undefined;
   readonly presence_penalty?: number | undefined;
   readonly frequency_penalty?: number | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly user?: string | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly logit_bias?: Record<string, number> | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly n?: number | undefined;
-  /** Ollama exposes log probabilities for supported reasoning/chat models. */
+  /**
+   * @remarks Logprobs are documented as unsupported on Ollama's `/v1/chat/completions`.
+   * Use native `chat({ logprobs: true, top_logprobs })` for token log probabilities.
+   */
   readonly logprobs?: boolean | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly top_logprobs?: number | undefined;
   readonly tools?: readonly OpenAITool[] | undefined;
   /**
@@ -144,7 +151,11 @@ export type OllamaOpenAIChatContentPart =
   | OpenAITextContentPart
   | {
       readonly type: 'image_url';
-      /** Ollama's current compatibility docs accept an image URL string, including data URLs. */
+      /**
+       * A base64 `data:image/...;base64,` URL. Ollama documents remote image URLs as
+       * unsupported on `/v1/chat/completions`; resolve remote images to base64 first
+       * (e.g. with {@link resolveImageInput}) or use the native `images` field.
+       */
       readonly image_url: string;
     };
 
@@ -159,10 +170,25 @@ export type OllamaOpenAIChatMessage = Omit<OpenAIMessage, 'content'> & {
   readonly content: string | readonly OllamaOpenAIChatContentPart[];
 };
 
-/** Strict Ollama-documented Chat Completions request; excludes only the SDK-only parallel tool flag. */
+/**
+ * Strict Ollama-documented Chat Completions request. Excludes the fields
+ * https://docs.ollama.com/api/openai-compatibility marks unsupported (`tool_choice`,
+ * `logit_bias`, `user`, `n`, `logprobs`/`top_logprobs`) and the SDK-only
+ * `parallel_tool_calls` flag, so passing any of them is a compile-time error instead of
+ * a silently ignored request field.
+ */
 export type OllamaOpenAIChatCompletionRequest = Omit<
   OpenAIChatCompletionRequest,
-  'messages' | 'parallel_tool_calls' | 'reasoning_effort' | 'reasoning'
+  | 'messages'
+  | 'parallel_tool_calls'
+  | 'reasoning_effort'
+  | 'reasoning'
+  | 'tool_choice'
+  | 'logit_bias'
+  | 'user'
+  | 'n'
+  | 'logprobs'
+  | 'top_logprobs'
 > & {
   readonly messages: readonly OllamaOpenAIChatMessage[];
   readonly reasoning_effort?: OllamaOpenAIReasoningEffort | undefined;
@@ -253,7 +279,10 @@ export interface OpenAICompletionRequest {
   readonly model: string;
   /** Ollama currently accepts a string prompt for /v1/completions. */
   readonly prompt: string;
-  /** Number of log probability alternatives requested for completion tokens. */
+  /**
+   * @remarks Logprobs are documented as unsupported on Ollama's `/v1/completions`. Use
+   * native `generate({ logprobs: true, top_logprobs })` for token log probabilities.
+   */
   readonly logprobs?: number | undefined;
   readonly frequency_penalty?: number | undefined;
   readonly presence_penalty?: number | undefined;
@@ -265,15 +294,27 @@ export interface OpenAICompletionRequest {
   readonly top_p?: number | undefined;
   readonly max_tokens?: number | undefined;
   readonly suffix?: string | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly best_of?: number | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly echo?: boolean | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly logit_bias?: Record<string, number> | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly user?: string | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly n?: number | undefined;
 }
 
 /** Strict Ollama-documented Completions request. */
-export type OllamaOpenAICompletionRequest = OpenAICompletionRequest;
+/**
+ * Strict Ollama-documented Completions request: excludes `best_of`, `echo`,
+ * `logit_bias`, `user`, `n`, and `logprobs`, which Ollama documents as unsupported.
+ */
+export type OllamaOpenAICompletionRequest = Omit<
+  OpenAICompletionRequest,
+  'best_of' | 'echo' | 'logit_bias' | 'user' | 'n' | 'logprobs'
+>;
 
 export interface OpenAICompletionChoice {
   readonly text: string;
@@ -325,11 +366,19 @@ export interface OpenAIEmbeddingRequest {
   readonly input: OpenAIEmbeddingInput;
   readonly encoding_format?: 'float' | 'base64' | undefined;
   readonly dimensions?: number | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
   readonly user?: string | undefined;
 }
 
 /** Strict Ollama-documented Embeddings request. */
-export type OllamaOpenAIEmbeddingRequest = OpenAIEmbeddingRequest;
+/**
+ * Strict Ollama-documented Embeddings request: `input` is a string or an array of
+ * strings (token and token-array inputs are documented as unsupported), and `user` is
+ * excluded.
+ */
+export type OllamaOpenAIEmbeddingRequest = Omit<OpenAIEmbeddingRequest, 'input' | 'user'> & {
+  readonly input: string | readonly string[];
+};
 
 export interface OpenAIEmbeddingItem {
   readonly object: 'embedding';
@@ -369,17 +418,21 @@ export interface OpenAIResponsesRequest {
   readonly previous_response_id?: string | undefined;
   /** @remarks Not supported by Ollama, which is stateless across calls — accepted but ignored. */
   readonly conversation?: string | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted but ignored. */
   readonly truncation?: string | undefined;
   readonly reasoning?: { readonly effort?: OpenAIReasoningEffort | undefined } | undefined;
   /** Ollama extension: boolean, model-defined string, or null for model default. */
   readonly think?: boolean | string | null | undefined;
 }
 
-/** Strict Ollama-documented Responses request; excludes stateful and SDK-only request fields. */
-/** Strict Ollama-documented Responses request; excludes only unsupported stateful fields. */
+/**
+ * Strict Ollama-documented Responses request: excludes the stateful fields
+ * (`previous_response_id`, `conversation`) and `truncation`, which Ollama documents as
+ * unsupported.
+ */
 export type OllamaOpenAIResponsesRequest = Omit<
   OpenAIResponsesRequest,
-  'previous_response_id' | 'conversation'
+  'previous_response_id' | 'conversation' | 'truncation'
 >;
 
 export type OpenAIResponsesStatus = 'completed' | 'failed' | 'in_progress' | 'cancelled' | 'queued' | 'incomplete';

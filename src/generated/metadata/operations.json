@@ -462,7 +462,7 @@
         "tools": "model-dependent",
         "vision": "model-dependent",
         "structuredOutput": "supported",
-        "logprobs": "supported"
+        "logprobs": "unsupported"
       },
       "constraints": {},
       "status": {
@@ -487,7 +487,7 @@
         "streamingDefault": false
       },
       "capabilities": {
-        "logprobs": "supported"
+        "logprobs": "unsupported"
       },
       "constraints": {},
       "status": {

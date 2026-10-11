@@ -9,7 +9,7 @@ import { SystemOneResponseSchema } from '../src/generated/models/SystemOneRespon
  * Zod schemas must enforce at runtime:
  *
  *   - SystemOneRequest.questions: 1–64 properties, non-empty names
- *   - SystemOneChoiceQuestion.criteria: 2–26 properties, non-empty names
+ *   - SystemOneChoiceQuestion.criteria: 2–255 properties (model-dependent), non-empty names
  *   - SystemOneScoreQuestion.criteria: 2–26 items
  *   - SystemOneContent: non-empty string (pattern \S)
  *
@@ -111,9 +111,9 @@ describe('Wave 13: System One boundary validation — choice criteria', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts choice with exactly 26 criteria (boundary)', () => {
+  it('accepts choice with 27 criteria (limit raised from 26 to 255 upstream)', () => {
     const criteria: Record<string, string> = {};
-    for (let i = 1; i <= 26; i++) {
+    for (let i = 1; i <= 27; i++) {
       criteria[`c${i}`] = `Option ${i}`;
     }
     const result = SystemOneRequestSchema.safeParse({
@@ -126,9 +126,24 @@ describe('Wave 13: System One boundary validation — choice criteria', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects choice with 27 criteria (maxProperties: 26)', () => {
+  it('accepts choice with exactly 255 criteria (boundary)', () => {
     const criteria: Record<string, string> = {};
-    for (let i = 1; i <= 27; i++) {
+    for (let i = 1; i <= 255; i++) {
+      criteria[`c${i}`] = `Option ${i}`;
+    }
+    const result = SystemOneRequestSchema.safeParse({
+      model: 'tev1:4b',
+      state: 'test',
+      questions: {
+        q1: { type: 'choice', instructions: 'Pick', criteria },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects choice with 256 criteria (maxProperties: 255)', () => {
+    const criteria: Record<string, string> = {};
+    for (let i = 1; i <= 256; i++) {
       criteria[`c${i}`] = `Option ${i}`;
     }
     const result = SystemOneRequestSchema.safeParse({

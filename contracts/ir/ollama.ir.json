@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "2355ff8e72335ae2",
+  "sourceHash": "1634f24f0698b054",
   "operations": [
     {
       "id": "balance",
@@ -159,6 +159,9 @@
       "path": "/api/copy",
       "request": {
         "$ref": "#/schemas/CopyRequest"
+      },
+      "response": {
+        "$ref": "#/schemas/StatusResponse"
       },
       "environment": {
         "local": true,
@@ -971,7 +974,7 @@
         "tools": "model-dependent",
         "vision": "model-dependent",
         "structuredOutput": "supported",
-        "logprobs": "supported"
+        "logprobs": "unsupported"
       },
       "status": {
         "documented": true
@@ -1000,16 +1003,18 @@
             "max_tokens",
             "tools",
             "reasoning_effort",
-            "reasoning",
+            "reasoning"
+          ],
+          "unsupportedFields": [
             "tool_choice",
             "logit_bias",
             "user",
             "n",
             "logprobs"
           ],
-          "unsupportedFields": [],
           "sdkOnlyFields": [
-            "parallel_tool_calls"
+            "parallel_tool_calls",
+            "top_logprobs"
           ],
           "nestedUnsupportedFields": [],
           "docAliases": {},
@@ -1037,7 +1042,7 @@
         "streamingDefault": false
       },
       "capabilities": {
-        "logprobs": "supported"
+        "logprobs": "unsupported"
       },
       "status": {
         "documented": true
@@ -1060,7 +1065,9 @@
             "temperature",
             "top_p",
             "max_tokens",
-            "suffix",
+            "suffix"
+          ],
+          "unsupportedFields": [
             "best_of",
             "echo",
             "logit_bias",
@@ -1068,7 +1075,6 @@
             "n",
             "logprobs"
           ],
-          "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
           "docAliases": {},
@@ -1110,10 +1116,11 @@
             "model",
             "input",
             "encoding_format",
-            "dimensions",
+            "dimensions"
+          ],
+          "unsupportedFields": [
             "user"
           ],
-          "unsupportedFields": [],
           "sdkOnlyFields": [],
           "nestedUnsupportedFields": [],
           "docAliases": {
@@ -1215,13 +1222,13 @@
             "temperature",
             "top_p",
             "max_output_tokens",
-            "truncation",
             "reasoning",
             "think"
           ],
           "unsupportedFields": [
             "previous_response_id",
-            "conversation"
+            "conversation",
+            "truncation"
           ],
           "sdkOnlyFields": [
             "parallel_tool_calls"
@@ -2693,9 +2700,9 @@
           },
           "criteria": {
             "type": "object",
-            "description": "Option keys mapped to descriptions. A null description uses the key itself. Keys must not be blank; ties follow the model's option order.",
+            "description": "Option keys mapped to descriptions, or null for a bare label. Keys must not be blank; ties follow the model's option order. The option limit depends on the model.",
             "minProperties": 2,
-            "maxProperties": 26,
+            "maxProperties": 255,
             "propertyNames": {
               "pattern": "\\S"
             },

@@ -74,7 +74,7 @@ export class NativeApi {
     });
   }
 
-  copy(request: CopyRequest): Promise<unknown> {
+  copy(request: CopyRequest): Promise<StatusResponse> {
     return this.runtime.invoke({
       operation: copyOp,
       body: request,

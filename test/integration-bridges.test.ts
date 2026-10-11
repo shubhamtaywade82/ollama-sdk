@@ -217,3 +217,87 @@ describe('Compatibility endpoint routing and streaming lifecycle', () => {
     expect(client.endpointStatus()[0]?.activeRequests).toBe(0);
   });
 });
+
+describe('Direct Ollama Cloud access through the compatibility bridges', () => {
+  // https://docs.ollama.com/api/introduction#base-urls — OpenAI clients use
+  // https://ollama.com/v1, Anthropic clients use https://ollama.com (+ /v1/messages),
+  // both authenticated with `Authorization: Bearer $OLLAMA_API_KEY` (x-api-key alone
+  // is rejected by the hosted Anthropic endpoint).
+  function jsonFetch(body: unknown) {
+    return vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+  }
+
+  it('sends OpenAI chat completions to https://ollama.com/v1 with a bearer token', async () => {
+    const fetchMock = jsonFetch({
+      id: 'x',
+      object: 'chat.completion',
+      created: 0,
+      model: 'gemma4:31b',
+      choices: [],
+    });
+    const client = new OllamaClient({
+      baseUrl: 'https://ollama.com',
+      apiKey: 'cloud-key',
+      fetch: fetchMock as never,
+    });
+
+    await client.openai.chatCompletions({
+      model: 'gemma4:31b',
+      messages: [{ role: 'user', content: 'Say hello in one sentence.' }],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(url).toBe('https://ollama.com/v1/chat/completions');
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer cloud-key');
+  });
+
+  it('sends Anthropic messages to https://ollama.com/v1/messages with bearer auth and anthropic-version 2023-06-01', async () => {
+    const fetchMock = jsonFetch({
+      id: 'msg_1',
+      type: 'message',
+      role: 'assistant',
+      model: 'gemma4:31b',
+      content: [{ type: 'text', text: 'Hello.' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const client = new OllamaClient({
+      baseUrl: 'https://ollama.com',
+      apiKey: 'cloud-key',
+      fetch: fetchMock as never,
+    });
+
+    await client.anthropic.messages({
+      model: 'gemma4:31b',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: 'Say hello in one sentence.' }],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(url).toBe('https://ollama.com/v1/messages');
+    const headers = new Headers(init.headers);
+    expect(headers.get('authorization')).toBe('Bearer cloud-key');
+    expect(headers.get('anthropic-version')).toBe('2023-06-01');
+  });
+
+  it('sends stateless OpenAI Responses requests to https://ollama.com/v1/responses', async () => {
+    const fetchMock = jsonFetch({
+      id: 'resp_1',
+      object: 'response',
+      created_at: 0,
+      model: 'gemma4:31b',
+      status: 'completed',
+      output: [],
+    });
+    const client = new OllamaClient({
+      baseUrl: 'https://ollama.com',
+      apiKey: 'cloud-key',
+      fetch: fetchMock as never,
+    });
+
+    await client.openai.responses({ model: 'gemma4:31b', input: 'Say hello in one sentence.' });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe('https://ollama.com/v1/responses');
+  });
+});

@@ -28,7 +28,7 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, active health checks, and per-endpoint `models` allow-lists for routing several model-specific API keys through one client.
 - 🔌 **Model Context Protocol (MCP)**: First-class, transport-neutral `McpBridge` for converting MCP tool descriptors into Ollama function definitions and registering executable MCP-backed tools.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
-- 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl`.
+- 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl` — and `createWebTools(client)` exposes them as model-callable `web_search`/`web_fetch` tools with bounded, valid-JSON output for the documented search-agent pattern.
 - 💳 **Ollama Cloud Usage & Balance**: `usage()`/`balance()` wrap Ollama's hosted account endpoints (`GET /api/usage`, `GET /api/balance`) — request counts, USD spend, cached-token totals bucketed by hour/day, and remaining included/purchased credits (including the legacy session/weekly plan shapes) — with the same fixed-cloud-host, API-key, timeout, and retry semantics as the web tools.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent, and offers a one-call `compact()` sliding-window escape hatch when a session outgrows its window.
@@ -681,6 +681,21 @@ const page = await client.webFetch({ url: 'https://ollama.com/blog' });
 console.log(page.title, page.content.slice(0, 200));
 ```
 
+#### Web search agent
+
+`createWebTools(client)` turns the two endpoints into `web_search` / `web_fetch` tools for `ToolRegistry`/`Agent` — the [search-agent pattern](https://docs.ollama.com/capabilities/web-search#building-a-search-agent) from the Ollama docs. Arguments are validated (`query` non-empty, `max_results` 1–10) before any network call, the abort signal propagates, and output is trimmed to `maxOutputChars` (default `2000 * 4`, as in the docs) while staying valid JSON:
+
+```typescript
+import { Agent, ToolRegistry, createWebTools } from '@nemesis-oss/ollama-sdk';
+
+const agent = new Agent(client, { tools: new ToolRegistry(createWebTools(client)) });
+const { finalMessage } = await agent.run({
+  model: 'qwen3:4b',
+  messages: [{ role: 'user', content: "what is ollama's new engine" }],
+  think: true,
+});
+```
+
 These two methods don't participate in the multi-endpoint failover below — there's only ever the one cloud host to call — but they do use the same default `timeoutMs` and retry policy as everything else.
 
 ### Cloud Usage & Balance (Ollama Cloud account)
@@ -925,9 +940,28 @@ await client.openai.chatCompletions({
 });
 ```
 
-`tool_choice` and `parallel_tool_calls` are also typed on the request so a standard
-OpenAI request object type-checks unmodified, but Ollama's compat layer does not honor
-either — see the `@remarks` on each field in `OpenAIChatCompletionRequest`.
+Fields Ollama documents as **unsupported** — `tool_choice`, `logit_bias`, `user`, `n`
+and logprobs on `/v1/chat/completions`; `best_of`, `echo`, `logit_bias`, `user`, `n` and
+logprobs on `/v1/completions`; `user` and token inputs on `/v1/embeddings`;
+`previous_response_id`, `conversation` and `truncation` on `/v1/responses`; `tool_choice`
+and `metadata` on `/v1/messages` — stay typed on the broad `OpenAI*`/`Anthropic*` request
+types so a standard request object type-checks unmodified, and are compile-time errors on
+the strict `OllamaOpenAI*`/`OllamaAnthropicMessagesRequest` types. For token log
+probabilities use native `chat()`/`generate()` with `logprobs: true`.
+
+**Direct Ollama Cloud access** needs no local server — the bridges speak to
+`https://ollama.com/v1/...` with `Authorization: Bearer` (the hosted Anthropic endpoint
+rejects `x-api-key`-only auth; the SDK always sends the bearer header plus
+`anthropic-version: 2023-06-01`):
+
+```typescript
+const cloud = new OllamaClient({ baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY });
+await cloud.openai.chatCompletions({ model: 'gemma4:31b', messages: [{ role: 'user', content: 'Hi' }] });
+await cloud.anthropic.messages({ model: 'gemma4:31b', max_tokens: 1024, messages: [{ role: 'user', content: 'Hi' }] });
+```
+
+The cloud API does not support stateful Responses, built-in web search through
+`/v1/responses`, or custom/freeform tool-call replay.
 
 ### Multi-Endpoint High Availability Failover
 
