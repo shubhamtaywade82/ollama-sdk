@@ -1,6 +1,6 @@
 {
   "name": "@nemesis-oss/ollama-sdk",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "Production-grade TypeScript SDK for Ollama with native fetch, high availability failover, multi-turn tool calling, structured outputs, reasoning stream tokens, OpenAI/Anthropic bridges, MCP, Web Stream adapters, and a contract-first hybrid architecture that generates TypeScript types, API classes, MCP tools, and Zod schemas from a single canonical IR.",
   "keywords": [
     "ollama",
@@ -57,6 +57,16 @@
       "require": {
         "types": "./dist/skills.d.cts",
         "default": "./dist/skills.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
       }
     },
     "./package.json": "./package.json",
@@ -125,6 +135,9 @@
     "*": {
       "skills": [
         "dist/skills.d.ts"
+      ],
+      "testing": [
+        "dist/testing.d.ts"
       ],
       "mcp/stdio": [
         "dist/mcp-stdio.d.ts"

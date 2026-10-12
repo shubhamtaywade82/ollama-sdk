@@ -380,11 +380,22 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly modelfile?: string | undefined;
   readonly stream?: boolean | undefined;
   readonly quantize?: string | undefined;
-  /** Quantization level to apply to draft weights during import. */
+  /**
+   * Quantization level to apply to draft weights during import, independently of the
+   * primary `quantize` (e.g. `'nvfp4'`, `'mxfp8'`, `'q8_0'`). Speculative decoding
+   * only — draft tokens are verified, not returned, so aggressive compression of the
+   * draft network is usually safe.
+   */
   readonly draft_quantize?: string | undefined;
   readonly from?: string | undefined;
   readonly files?: Record<string, string> | undefined;
-  /** Draft source file names mapped to their SHA-256 digests. */
+  /**
+   * Draft source file names mapped to their SHA-256 digests — the speculative-decoding
+   * draft network's shards. Ollama runs the small draft network first and batch-verifies
+   * its tokens against the primary weights in a single forward pass. Use
+   * {@link ModelsClient.createModelFromGguf}'s `draftGguf` to upload draft shards from
+   * local paths directly.
+   */
   readonly draft_files?: Record<string, string> | undefined;
   readonly adapters?: Record<string, string> | undefined;
   readonly template?: string | undefined;
@@ -392,7 +403,13 @@ export interface CreateRequestOptions extends RequestCancellationOptions {
   readonly parser?: string | undefined;
   readonly license?: string | readonly string[] | undefined;
   readonly system?: string | undefined;
-  /** Modelfile `PARAMETER` instructions, e.g. `{ temperature: 0.7, stop: ['\n'] }`. */
+  /**
+   * Modelfile `PARAMETER` instructions, e.g. `{ temperature: 0.7, stop: ['\n'] }`.
+   * For speculative decoding, set `draft_num_predict` here — how many tokens
+   * the draft network predicts per step (Ollama defaults separate draft
+   * models to 4; `0` disables drafting; models with embedded MTP tensors
+   * require setting it explicitly).
+   */
   readonly parameters?: Record<string, unknown> | undefined;
   readonly messages?: readonly Message[] | undefined;
   /** Minimum Ollama version required by the model. */

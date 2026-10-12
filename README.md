@@ -33,7 +33,8 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent, and offers a one-call `compact()` sliding-window escape hatch when a session outgrows its window.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
-- 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`).
+- 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`) — with **speculative-decoding assembly**: `draftGguf` uploads the draft network's shards into `draft_files`, `draft_quantize` compresses them independently, and `parameters.draft_num_predict` tunes the per-step draft length.
+- 🧪 **In-Memory Mock Server (`@nemesis-oss/ollama-sdk/testing`)**: The SDK's own deterministic test double, promoted public — `createMockOllamaServer()` with scriptable NDJSON routes, built-in liveness/version defaults (so `ping()` works out of the box), request recording for wire-level assertions, mid-stream **in-band error injection** (`{"error": "..."}` frames at HTTP 200, exactly how a real daemon reports GPU OOM), connection drops, and correctly-shaped chunk builders for streaming text and **parallel tool calls** — zero network, zero daemon, CI-deterministic.
 - 🧵 **Batched Embeddings with Backpressure**: `client.embedBatch()` splits corpora of any size into bounded `/api/embed` batches (default 32 inputs × 3 in flight) — order-preserving, fail-fast, progress-reporting — so RAG/vector ingestion can't OOM a local daemon or saturate `OLLAMA_MAX_QUEUE` the way `Promise.all` floods do, with per-string context-window pre-flight against silent truncation.
 - 🧹 **Client Teardown (`destroy()`)**: One call aborts every in-flight request, active stream, and queued capacity waiter with `OllamaAbortError` — the clean-exit path for `worker_threads`, CLI runners, and short-lived scripts where dangling fetch bodies keep the event loop alive.
 - 🧠 **Dynamic Context-Window Discovery**: `client.models.getContextLength({ model })` resolves the real window from the server — the allocated window of the running instance (`/api/ps`), the Modelfile `num_ctx` default, and the native GGUF maximum (`model_info`), in precedence order — so applications stop hardcoding 2048/4096 guesses.
@@ -497,6 +498,45 @@ await client.models.createModelFromGguf('my-model', [
 ]);
 ```
 
+### Speculative Decoding (Draft Models)
+
+Ollama packages speculative decoding as a small **draft network** whose token
+guesses are batch-verified against the primary weights in a single forward
+pass — the draft runs ahead, the primary model confirms. On the wire this is
+`draft_files` (draft GGUF digests) + `draft_quantize` on `/api/create`, the
+`draft_num_predict` Modelfile parameter, and the `draft_num_predict` runtime
+option at generation time. The SDK covers the full flow:
+
+```typescript
+// 1. Assemble: primary + draft shards, draft weights quantized independently
+//    (draft tokens are verified, never returned — aggressive compression is
+//    usually safe). Separate draft models default draft_num_predict to 4;
+//    0 disables drafting; models with embedded MTP tensors require setting
+//    it explicitly.
+await client.models.createModelFromGguf('my-model', '/models/model.gguf', {
+  draftGguf: '/models/draft.gguf',
+  draftQuantize: 'q8_0',
+  parameters: { draft_num_predict: 8 },
+});
+
+// 2. Generate with drafting (also available ad hoc via options at runtime)
+const response = await client.chat({
+  model: 'my-model',
+  messages: [{ role: 'user', content: 'Describe a lighthouse in a storm.' }],
+  options: { draft_num_predict: 8 },
+});
+
+// 3. Measure the speedup with the standardized telemetry
+const t = formatTelemetry(response);
+console.log(`${t.tokensPerSecond} tok/s (load ${t.modelLoadMs}ms)`);
+```
+
+Already have the draft blobs uploaded? Pass the digest map directly —
+`createModel({ draft_files: { 'draft.gguf': digest } })` — or merge both
+(path uploads win on basename collision). A live measurement harness
+comparing `draft_num_predict` settings lives at
+`lab/15-speculative-draft/measure-draft-speedup.ts`.
+
 ### Token Log Probabilities (`logprobs`)
 
 Set `logprobs: true` (optionally with `top_logprobs`) on `chat()`/`generate()` to get per-token log probabilities back — useful for confidence scoring, speculative decoding, or agent routing decisions.
@@ -955,9 +995,19 @@ rejects `x-api-key`-only auth; the SDK always sends the bearer header plus
 `anthropic-version: 2023-06-01`):
 
 ```typescript
-const cloud = new OllamaClient({ baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY });
-await cloud.openai.chatCompletions({ model: 'gemma4:31b', messages: [{ role: 'user', content: 'Hi' }] });
-await cloud.anthropic.messages({ model: 'gemma4:31b', max_tokens: 1024, messages: [{ role: 'user', content: 'Hi' }] });
+const cloud = new OllamaClient({
+  baseUrl: 'https://ollama.com',
+  apiKey: process.env.OLLAMA_API_KEY,
+});
+await cloud.openai.chatCompletions({
+  model: 'gemma4:31b',
+  messages: [{ role: 'user', content: 'Hi' }],
+});
+await cloud.anthropic.messages({
+  model: 'gemma4:31b',
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: 'Hi' }],
+});
 ```
 
 The cloud API does not support stateful Responses, built-in web search through
@@ -1453,6 +1503,62 @@ For budgets that don't match the free tier's cadence, construct `new QuotaManage
 windows: [...] })` directly with your own `windowMs`/`maxTokens`/`maxRequests` per window.
 
 ---
+
+### Testing with the In-Memory Mock Server (`/testing`)
+
+The SDK ships its own deterministic test double as a dedicated subpath —
+`@nemesis-oss/ollama-sdk/testing` — the same engine the SDK's own test suite
+runs against (ADR 0029: promote, don't fork). No daemon, no network, no GPU:
+scriptable NDJSON routes on a real `node:http` server, built-in defaults for
+the official liveness probe and `/api/version`, wire-level request recording,
+and failure injection that covers what static cassettes can't.
+
+```typescript
+import {
+  createMockOllamaServer,
+  mockTextChunks,
+  mockToolCallChunks,
+} from '@nemesis-oss/ollama-sdk/testing';
+import { OllamaClient } from '@nemesis-oss/ollama-sdk';
+
+const server = createMockOllamaServer(); // ephemeral port, defaults on
+await server.start();
+const client = new OllamaClient({ baseUrl: server.baseUrl });
+
+// Defaults answer out of the box: HEAD / (ping) and GET /api/version.
+// Register everything else — register() always wins over the defaults.
+server.register('/api/chat', {
+  chunks: mockToolCallChunks([
+    // Parallel tool calls: one frame, complete calls — the native shape.
+    { name: 'get_weather', arguments: { city: 'Tokyo' } },
+    { name: 'get_time', arguments: { tz: 'Asia/Tokyo' } },
+  ]),
+  chunkDelayMs: 10, // inter-chunk backpressure testing
+});
+
+// Mid-stream failure, GPU-OOM style: HTTP stays 200, the done frame is
+// replaced by an {"error": "..."} frame — the SDK raises OllamaStreamError.
+server.register('/api/generate', {
+  chunks: mockTextChunks('partial answer', { chunkSize: 8 }),
+  injectErrorFrame: { message: 'CUDA out of memory' }, // after: N to move it
+});
+
+// ... run your code against the client ...
+
+// Wire-level assertions: every request was recorded.
+expect(server.requests[0]?.body).toMatchObject({ model: 'llama3.2' });
+server.clearRequests(); // and server.clear() between tests
+
+await server.stop(); // idempotent — safe in afterEach
+```
+
+Per-route controls: `status` (503/502/429 bodies), `chunkDelayMs`,
+`dropConnectionMidStream` (connection reset mid-response), `onRequest`
+(per-route body capture), and `injectErrorFrame.after` (error position).
+Chunk builders: `mockChatChunk` (one frame with counter defaults),
+`mockTextChunks` (chunked text + done frame), `mockToolCallChunks` (parallel
+tool calls + done frame). Node.js only — the subpath builds on `node:http`
+and is never imported from the Edge-safe main entry.
 
 ### Edge Runtime Compatibility
 

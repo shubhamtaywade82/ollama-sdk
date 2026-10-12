@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.14.0] — Speculative-decoding model assembly & the public testing subpath: `draftGguf`, `draft_num_predict` docs, `@nemesis-oss/ollama-sdk/testing`
+
+The October 12 digest ("Speculative Decoding & Draft Model Creation") reviewed the official model-creation surfaces — `draft_files` + `draft_quantize` on `POST /api/create`, the `draft_num_predict` Modelfile parameter and runtime option — and asked for an exportable zero-network mock server. Audited against the codebase first (see [ADR 0029](./docs/adr/0029-public-testing-subpath-speculative-draft-conveniences.md)): the digest's headline typing claims were stale — `draft_files`/`draft_quantize` already shipped on both the generated `CreateRequest` and the hand-written `CreateRequestOptions` (official OpenAPI, 2026-10-07 pin), and `draft_num_predict` was already typed + documented on the runtime `ModelOptions`; the "DRAFT `<model>`" Modelfile instruction the digest describes is not in the current official docs (only the parameter is). The real gaps — a path-based draft upload convenience, wire tests, discoverable documentation, and the not-exported mock server — are closed here. All additive, no breaking changes. 932 pre-existing tests stay green, 28 new tests added.
+
+### Speculative model assembly (`createModelFromGguf` → `draftGguf`)
+
+- **`CreateModelFromGgufOptions.draftGguf`**: pass the draft network's GGUF path(s) alongside the primary shards — each is uploaded as a blob and assembled into `draft_files` under its basename, the same protocol as primary shards. Split draft GGUFs, explicit `draft_files` digest maps (merged; path uploads win on basename collision), and `draft_quantize` passthrough all work; no draft → no `draft_files` key on the wire at all.
+- **Discoverable speculative-decoding docs**: `CreateRequestOptions.parameters` now documents `draft_num_predict` (separate draft models default to 4; `0` disables drafting; embedded MTP tensors require setting it explicitly — official Modelfile reference), and `draft_files`/`draft_quantize` carry the speculative-decoding context with the verification-semantics note that makes aggressive draft compression safe.
+- Wire tests pin the whole contract: `createModel` round-trips `draft_files` + `draft_quantize` + `parameters.draft_num_predict`; `createModelFromGguf` uploads draft blobs separately (HEAD + POST per shard) and never leaks `draftGguf` or empty maps into the request body.
+
+### Public testing subpath (`@nemesis-oss/ollama-sdk/testing`)
+
+- The SDK's internal mock engine is **promoted, not forked** (ADR 0029, same discipline as ADRs 0027/0028): `test/mocks/ollama-mock-server.ts` is now a re-export shim, so the SDK's own suite exercises exactly the code consumers import.
+- **`createMockOllamaServer(options?)`** — the recommended factory. Built-in **default routes** answer the official liveness probe (`HEAD /` → 200, `GET /` → the plain-text body "Ollama is running" byte-for-byte) and `GET /api/version` (configurable version, default `0.14.0`), so `client.ping()` works against a fresh mock with zero setup. `defaultRoutes: false` restores bare 404s; `register()` always wins over the defaults.
+- **Request recording** — `server.requests` captures every request (method, path, parsed body, timestamp), including default-route hits and 404s; `clearRequests()` for `beforeEach` hooks. Wire-level assertions without per-route callbacks.
+- **In-band mid-stream error injection** — `injectErrorFrame: { message, after? }` emits an `{"error": "..."}` NDJSON frame while HTTP stays 200, exactly how a real daemon reports GPU OOM/driver crashes mid-generation. The default injection point is `chunks.length - 1`: every content chunk, then the error frame, with the final `done` frame never emitted — an error frame after `done` would be unread (the stream has already completed cleanly). `after: 0` errors before any content; explicit larger values move the position. The SDK's stream readers raise `OllamaStreamError` with the partial content.
+- **`rawBody`** route option for exact non-NDJSON bodies (the liveness body uses it — no trailing newline).
+- **Chunk builders** producing correctly-shaped `/api/chat` frames: `mockChatChunk` (one frame, counter defaults on the done frame for telemetry paths), `mockTextChunks` (chunked text + done frame), and `mockToolCallChunks` — parallel tool calls in one frame, the documented native shape, followed by the done frame.
+- **Packaging**: dedicated `./testing` entry in the exports map (paired `.d.ts`/`.d.cts`), a new tsup entry, and the consumer-type verification now compiles a real CJS (node16) **and** ESM (nodenext) consumer importing the subpath. Node.js-only by design (`node:http`) — never imported from the Edge-safe main entry, so `verify:edge-runtime` stays clean.
+
+### Lab
+
+- `lab/15-speculative-draft/measure-draft-speedup.ts`: live harness comparing `draft_num_predict` 0/4/8/16 — warm-up per setting, 5 samples each, median `tokensPerSecond` via `formatTelemetry`, and a speedup table against drafting-disabled. Makes "the server has no draft network, the option is being ignored" obvious at a glance.
+
 ## [1.13.0] — docs.ollama.com re-audit: parity verifier reads checkbox state, strict compat types, web-search agent tools
 
 A full re-read of docs.ollama.com (API reference, capability guides, integrations, OpenAPI spec) against the SDK. The native API was already at parity except for two upstream changes; the real defect was in the compatibility-parity tooling, which had been reporting fields Ollama documents as unsupported as "supported".
