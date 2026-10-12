@@ -12,6 +12,10 @@ export default defineConfig({
     'generated-api': 'src/generated/api/index.ts',
     'generated-models-schemas': 'src/generated/models/schemas.ts',
     'mcp-generated': 'src/mcp/generated-bridge.ts',
+    // Public testing utilities (ADR 0029): node:http-backed mock server in a
+    // dedicated entry point — never imported from src/index.ts, so the main
+    // bundle stays Edge/browser-safe.
+    testing: 'src/testing/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

@@ -41,6 +41,11 @@ write_consumer_source() {
   cat > "$1/index.ts" <<'EOF'
 import { OllamaClient, batchEmbed } from '@nemesis-oss/ollama-sdk';
 import { ChatRequestSchema } from '@nemesis-oss/ollama-sdk/generated/models/schemas';
+import {
+  createMockOllamaServer,
+  mockToolCallChunks,
+  type MockRequestRecord,
+} from '@nemesis-oss/ollama-sdk/testing';
 
 const corpus: readonly string[] = ['hello', 'world'];
 
@@ -62,6 +67,15 @@ export async function run(): Promise<number> {
     if (!ChatRequestSchema.safeParse({ model: 'm', messages: [] }).success) {
       throw new Error('schema import broken');
     }
+    // ./testing subpath: constructible + chunk-builder usable under both
+    // module kinds (server is never started here — compile-only check).
+    const mockServer = createMockOllamaServer({ port: 0, defaultRoutes: true });
+    const frames: readonly string[] = mockToolCallChunks([
+      { name: 'get_weather', arguments: { city: 'Tokyo' } },
+    ]);
+    const firstRecord: MockRequestRecord | undefined = mockServer.requests[0];
+    mockServer.register('/api/chat', { chunks: frames });
+    void firstRecord;
     return chat.prompt_eval_count ?? 0 + embeddings.length + standalone.batchCount;
   } finally {
     client.destroy('consumer verification done');

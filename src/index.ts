@@ -558,6 +558,8 @@ export {
 
 // Blob upload result (from ModelsClient's convenience blob helpers)
 export type { BlobUploadResult } from './models-client.js';
+// Speculative-decoding convenience options for createModelFromGguf (draft shards)
+export type { CreateModelFromGgufOptions } from './models-client.js';
 
 // Logger
 export {

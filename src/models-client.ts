@@ -51,6 +51,22 @@ export interface BlobUploadResult {
  * `withRetry` still applies), so a multi-endpoint setup never silently lists/mutates the
  * wrong server just because the intended one had a transient failure. See ADR 0008.
  */
+/** Options for {@link ModelsClient.createModelFromGguf}: every `/api/create` field except identity/source ones, plus the draft-shard path convenience. */
+export interface CreateModelFromGgufOptions extends Omit<
+  CreateRequestOptions,
+  'model' | 'files' | 'from' | 'stream'
+> {
+  /**
+   * Local path(s) to the draft-model GGUF shard(s) for speculative decoding —
+   * each is uploaded as a blob and assembled into `draft_files` under its
+   * basename, the same protocol as the primary shards. Composes with an
+   * explicit `draft_files` digest map (path uploads win on basename
+   * collision). Pair with `parameters.draft_num_predict` and, optionally,
+   * `draft_quantize` to compress the draft weights during ingestion.
+   */
+  readonly draftGguf?: string | readonly string[] | undefined;
+}
+
 export class ModelsClient {
   constructor(private readonly runner: RequestRunner) {}
 
@@ -474,17 +490,34 @@ export class ModelsClient {
    * await client.models.createModelFromGguf('my-model', '/path/to/model.gguf', {
    *   template: '{{ .Prompt }}',
    * });
+   *
+   * // Speculative decoding: primary + draft shards + tuning:
+   * await client.models.createModelFromGguf('my-model', '/path/to/model.gguf', {
+   *   draftGguf: '/path/to/draft.gguf',
+   *   draftQuantize: 'q8_0',
+   *   parameters: { draft_num_predict: 8 },
+   * });
    * ```
+   *
+   * Speculative-decoding models assemble the same way: pass the draft
+   * network's GGUF(s) as `draftGguf` (uploaded into `draft_files`), optionally
+   * set `draft_quantize` to compress the draft weights independently of the
+   * primary model, and set `parameters.draft_num_predict` to tune how many
+   * tokens the draft network predicts per step (Ollama defaults separate
+   * draft models to 4; `0` disables drafting; models with embedded MTP
+   * tensors require setting it explicitly).
    *
    * @param model Name for the new model (e.g. `'my-model:latest'`).
    * @param gguf Path(s) to GGUF file(s) on the local filesystem.
    * @param opts Everything else `/api/create` accepts (`template`, `system`,
-   *   `parameters`, `license`, `quantize`, …) except `files` and `from`.
+   *   `parameters`, `license`, `quantize`, `draftGguf`, …) except `files`,
+   *   `draft_files` (use `draftGguf` for path-based drafts; an explicit digest
+   *   map is still accepted and merged), `from`, and `stream`.
    */
   async createModelFromGguf(
     model: string,
     gguf: string | readonly string[],
-    opts?: Omit<CreateRequestOptions, 'model' | 'files' | 'from' | 'stream'>,
+    opts?: CreateModelFromGgufOptions,
   ): Promise<ProgressResponse> {
     const paths = typeof gguf === 'string' ? [gguf] : gguf;
     if (paths.length === 0) {
@@ -497,14 +530,31 @@ export class ModelsClient {
       const uploaded = await this.createBlobFromFile(path, { signal: opts?.signal });
       files[uploaded.fileName] = uploaded.digest;
     }
+    const draftOpt = opts?.draftGguf;
+    const draftPaths = typeof draftOpt === 'string' ? [draftOpt] : (draftOpt ?? []);
     const {
       model: _model,
       files: _files,
       from: _from,
       stream: _stream,
+      draftGguf: _draftGguf,
+      draft_files: _draftFiles,
       ...rest
-    } = (opts ?? {}) as CreateRequestOptions;
-    return this.create({ ...rest, model, files, stream: false } as CreateRequestOptions & {
+    } = (opts ?? {}) as CreateRequestOptions & {
+      draftGguf?: string | readonly string[] | undefined;
+    };
+    const draftFiles: Record<string, string> = { ...(_draftFiles ?? {}) };
+    for (const path of draftPaths) {
+      const uploaded = await this.createBlobFromFile(path, { signal: opts?.signal });
+      draftFiles[uploaded.fileName] = uploaded.digest;
+    }
+    return this.create({
+      ...rest,
+      model,
+      files,
+      ...(Object.keys(draftFiles).length > 0 ? { draft_files: draftFiles } : {}),
+      stream: false,
+    } as CreateRequestOptions & {
       stream: false;
     });
   }
