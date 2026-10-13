@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   mapError,
+  isNetworkLevelError,
+  NETWORK_ERROR_CODES,
   OllamaAbortError,
   OllamaAuthError,
+  OllamaGenericClientError,
   OllamaNetworkError,
   OllamaNotFoundError,
   OllamaRateLimitError,
@@ -53,5 +56,83 @@ describe('Error Hierarchy & Mapping', () => {
     expect(mapped).toBeInstanceOf(OllamaServerError);
     expect(mapped.code).toBe('server_error');
     expect(mapped.retryable).toBe(true);
+  });
+});
+
+describe('Network-error classification (structural code matching, ADR 0031)', () => {
+  it('maps a raw code-carrying ECONNRESET to OllamaNetworkError (retryable, failover-eligible)', () => {
+    const reset = Object.assign(new Error('connect ECONNRESET 127.0.0.1:11434'), {
+      code: 'ECONNRESET',
+    });
+    const mapped = mapError(reset);
+    expect(mapped).toBeInstanceOf(OllamaNetworkError);
+    expect(mapped.code).toBe('network_error');
+    expect(mapped.retryable).toBe(true);
+    expect((mapped.cause as Error).message).toBe('connect ECONNRESET 127.0.0.1:11434');
+  });
+
+  it('maps undici dispatcher codes (UND_ERR_SOCKET family) the same way', () => {
+    for (const code of ['UND_ERR_SOCKET', 'UND_ERR_CLOSED', 'UND_ERR_CONNECT_TIMEOUT']) {
+      const mapped = mapError(Object.assign(new Error('undici socket failure'), { code }));
+      expect(mapped).toBeInstanceOf(OllamaNetworkError, `code=${code}`);
+      expect(mapped.retryable).toBe(true);
+    }
+  });
+
+  it('walks the cause chain to find network codes nested under wrappers', () => {
+    const nested = new Error('request pipeline failed', {
+      cause: new Error('inner transport failure', {
+        cause: Object.assign(new Error('socket hang up'), { code: 'UND_ERR_SOCKET' }),
+      }),
+    });
+    expect(isNetworkLevelError(nested)).toBe(true);
+    expect(mapError(nested)).toBeInstanceOf(OllamaNetworkError);
+  });
+
+  it('keeps abort-classified errors aborts even though undici shapes them with codes', () => {
+    // UND_ERR_ABORTED is deliberately NOT in the network set: it is the
+    // dispatcher's caller-abort shape; retrying it would re-dispatch a
+    // request the user explicitly cancelled.
+    expect(NETWORK_ERROR_CODES.has('UND_ERR_ABORTED')).toBe(false);
+    const aborted = Object.assign(new Error('The operation was aborted'), {
+      code: 'UND_ERR_ABORTED',
+    });
+    expect(isNetworkLevelError(aborted)).toBe(false);
+    // Not a DOMException AbortError either (custom fetch impl shape) — falls
+    // through to the generic client error, which is NOT retryable.
+    const mapped = mapError(aborted);
+    expect(mapped).toBeInstanceOf(OllamaGenericClientError);
+    expect(mapped.retryable).toBe(false);
+  });
+
+  it('leaves non-network codes to the generic mapping (no retry for EACCES)', () => {
+    const denial = Object.assign(new Error('access denied'), { code: 'EACCES' });
+    expect(isNetworkLevelError(denial)).toBe(false);
+    const mapped = mapError(denial);
+    expect(mapped).toBeInstanceOf(OllamaGenericClientError);
+    expect(mapped.retryable).toBe(false);
+  });
+
+  it('bounds the cause walk: codes deeper than MAX_CAUSE_DEPTH are not classified', () => {
+    let deepest = Object.assign(new Error('level 5'), { code: 'ECONNRESET' });
+    for (let i = 0; i < 5; i += 1) {
+      deepest = new Error(`level ${4 - i}`, { cause: deepest });
+    }
+    expect(isNetworkLevelError(deepest)).toBe(false);
+  });
+
+  it('tolerates cause cycles without spinning', () => {
+    const a: { cause?: unknown; code?: string } = { code: 'ENOENT' };
+    const b = { cause: a };
+    a.cause = b;
+    expect(isNetworkLevelError(a)).toBe(false);
+  });
+
+  it('non-object errors and empty codes are not network failures', () => {
+    expect(isNetworkLevelError(undefined)).toBe(false);
+    expect(isNetworkLevelError(null)).toBe(false);
+    expect(isNetworkLevelError('ECONNRESET')).toBe(false); // string, not an error object
+    expect(isNetworkLevelError({ code: 123 })).toBe(false); // non-string code
+    expect(isNetworkLevelError({ code: 'SOMETHING_ELSE' })).toBe(false);
   });
 });

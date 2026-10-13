@@ -552,6 +552,70 @@ function isDomAbortError(error: unknown): error is DOMException {
   );
 }
 
+/**
+ * Error `code`s that mean the transport never delivered a usable response —
+ * the request died at the socket/connection layer. This is the stale-socket
+ * family: keep-alive connections recycled by a restarting/idle-timeouting
+ * daemon (`ECONNRESET`, `EPIPE`, undici's `UND_ERR_SOCKET`/`UND_ERR_CLOSED`
+ * when the pooled socket is reused after the server closed it), connections
+ * that never established (`ECONNREFUSED`, `EAI_AGAIN`, `ENOTFOUND`), and
+ * connect/header/body timeouts from the undici dispatcher.
+ *
+ * `UND_ERR_ABORTED` is deliberately NOT here: it is the dispatcher's shape
+ * for caller-initiated aborts, which map to `OllamaAbortError` (never
+ * retried) — classifying it as a network failure would re-dispatch requests
+ * the caller explicitly cancelled.
+ */
+export const NETWORK_ERROR_CODES: ReadonlySet<string> = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ECONNABORTED',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_CLOSED',
+]);
+
+/** How many `cause` links to walk looking for a network-level `code`. */
+const MAX_CAUSE_DEPTH = 4;
+
+/**
+ * Structural network-failure detection: looks for a `code` from
+ * {@link NETWORK_ERROR_CODES} on the error itself or anywhere down its
+ * `cause` chain (bounded depth — cause cycles must not spin forever).
+ *
+ * Deliberately does NOT match on message text (`String(err).includes(...)`
+ * style): undici/Node message wording is not a stable contract across
+ * versions, while `error.code` is. Custom `fetch` implementations built on
+ * `node:http` reject with these codes natively (WHATWG `fetch` wraps them in
+ * a `TypeError`, which `mapError` already classifies); this predicate closes
+ * the gap for the non-`TypeError` shapes.
+ */
+export function isNetworkLevelError(error: unknown): boolean {
+  let current: unknown = error;
+  for (
+    let depth = 0;
+    depth < MAX_CAUSE_DEPTH && current !== undefined && current !== null;
+    depth += 1
+  ) {
+    if (typeof current === 'object' && 'code' in current) {
+      const code = (current as { code?: unknown }).code;
+      if (typeof code === 'string' && NETWORK_ERROR_CODES.has(code)) {
+        return true;
+      }
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 function statusToError(
   status: number,
   message: string,
@@ -600,6 +664,19 @@ export function mapError(
   }
   if (isDomAbortError(error)) {
     return new OllamaAbortError(error.message || 'Request was aborted', {
+      cause: error,
+      request: context.request,
+    });
+  }
+  // Socket/connection-level failures — including the non-TypeError shapes a
+  // custom `fetch` implementation produces (`Error` + `code: 'ECONNRESET'`
+  // and friends) and network codes nested in `cause` chains. Checked before
+  // the `TypeError` branch so a code-carrying TypeError maps through the same
+  // specialized construction with a better message. Retryable + failover-eligible.
+  if (isNetworkLevelError(error)) {
+    const message =
+      error instanceof Error && error.message ? error.message : 'Network request failed';
+    return new OllamaNetworkError(message, {
       cause: error,
       request: context.request,
     });

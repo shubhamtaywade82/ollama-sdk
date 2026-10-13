@@ -5,3 +5,4 @@ export * from './ndjson.js';
 export * from './adapters.js';
 export * from './sse.js';
 export * from './progress.js';
+export * from './observe.js';

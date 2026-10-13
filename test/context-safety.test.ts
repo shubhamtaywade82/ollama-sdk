@@ -9,6 +9,7 @@ import {
   estimateChatRequestTokens,
   estimateGenerateRequestTokens,
   estimateTokens,
+  recommendContextWindow,
 } from '../src/context-safety.js';
 
 /**
@@ -258,6 +259,83 @@ describe('OllamaClient pre-flight integration', () => {
 describe('DEFAULT_CONTEXT_WARNING_THRESHOLD', () => {
   it('defaults to 0.9', () => {
     expect(DEFAULT_CONTEXT_WARNING_THRESHOLD).toBe(0.9);
+  });
+});
+
+describe('recommendContextWindow (ADR 0031)', () => {
+  it('returns the 4096 floor for zero, negative, and non-finite inputs', () => {
+    expect(recommendContextWindow(0)).toBe(4096);
+    expect(recommendContextWindow(-100)).toBe(4096);
+    expect(recommendContextWindow(Number.NaN)).toBe(4096);
+    expect(recommendContextWindow(Number.POSITIVE_INFINITY)).toBe(4096);
+  });
+
+  it('returns 4096 while the estimate fits with 30% headroom', () => {
+    // 4096 / 1.3 = ~3150.77 — anything up to 3150 stays at 4096.
+    expect(recommendContextWindow(1)).toBe(4096);
+    expect(recommendContextWindow(3150)).toBe(4096);
+    expect(recommendContextWindow(3151)).toBe(8192); // 3151 * 1.3 > 4096
+  });
+
+  it('doubles to the next power of two that covers estimate * 1.3', () => {
+    expect(recommendContextWindow(4000)).toBe(8192); // 5200 → 8192
+    expect(recommendContextWindow(7000)).toBe(16384); // 9100 → 16384
+    expect(recommendContextWindow(100_000)).toBe(131072); // 130k → 131072
+  });
+
+  it('never returns a non-power-of-two window (loop, not Math.pow/log2)', () => {
+    for (let tokens = 1; tokens <= 100_000; tokens += 997) {
+      const window = recommendContextWindow(tokens);
+      expect(Number.isInteger(Math.log2(window))).toBe(true);
+      expect(window).toBeGreaterThanOrEqual(4096);
+      expect(window).toBeGreaterThanOrEqual(tokens * 1.3);
+      // "Smallest such power of two" only applies above the 4096 floor — the
+      // floor intentionally overrides minimality for small inputs.
+      if (tokens * 1.3 > 4096) {
+        expect(window / 2).toBeLessThan(tokens * 1.3);
+      }
+    }
+  });
+});
+
+describe('ContextCheck.recommendedNumCtx (ADR 0031)', () => {
+  it('is present only when the threshold is exceeded — for every window source', () => {
+    const overflowing = { model: 'm', messages: [{ role: 'user', content: 'x'.repeat(20_000) }] };
+    const within = { model: 'm', messages: [{ role: 'user', content: 'x'.repeat(4000) }] };
+
+    const requestExceeds = checkChatContext({ ...overflowing, options: { num_ctx: 2048 } });
+    expect(requestExceeds.exceedsThreshold).toBe(true);
+    expect(requestExceeds.recommendedNumCtx).toBe(
+      recommendContextWindow(requestExceeds.estimatedPromptTokens),
+    );
+
+    const requestWithin = checkChatContext({ ...within, options: { num_ctx: 4096 } });
+    expect(requestWithin.exceedsThreshold).toBe(false);
+    expect(requestWithin.recommendedNumCtx).toBeUndefined();
+
+    const clientDefaultExceeds = checkChatContext(overflowing, { defaultContextLength: 2048 });
+    expect(clientDefaultExceeds.exceedsThreshold).toBe(true);
+    expect(clientDefaultExceeds.recommendedNumCtx).toBeDefined();
+
+    const serverFallbackExceeds = checkChatContext(overflowing);
+    expect(serverFallbackExceeds.exceedsThreshold).toBe(true);
+    expect(serverFallbackExceeds.recommendedNumCtx).toBeDefined();
+  });
+
+  it('the warning message surfaces the concrete suggestion with the native-ceiling caveat', () => {
+    const check = checkChatContext({
+      model: 'm',
+      messages: [{ role: 'user', content: 'x'.repeat(20_000) }],
+      options: { num_ctx: 2048 },
+    });
+    const message = contextWarningMessage(check, 'chat');
+    expect(check.recommendedNumCtx).toBeDefined();
+    expect(message).toContain(`at least ${check.recommendedNumCtx} tokens`);
+    expect(message).toContain('~30% headroom');
+    expect(message).toContain('getContextLength()');
+    // Existing guidance survives (additive change — older assertions stay green).
+    expect(message).toContain('num_ctx=2048');
+    expect(message).toContain('silently truncate');
   });
 });
 

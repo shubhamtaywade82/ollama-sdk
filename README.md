@@ -46,6 +46,7 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🩺 **Root Liveness Probe (`ping`)**: `client.ping()` is the official ultra-lightweight `HEAD /` health check — single-shot (no retry, no failover: the answer is about one concrete host), resolves instead of throwing, reports latency; `healthCheck()` remains the fleet-wide audit.
 - 🧼 **Vision History Hygiene**: `sanitizeHistoryForNextTurn()` evicts stale base64 image payloads from consumer-managed multi-turn vision histories — every `/api/chat` request re-sends the whole history, so old images silently bloat payload, context, and heap; the helper keeps images only on the trailing window you choose, conversation text fully preserved.
 - 🌊 **Web Stream Adapters**: Drop-in adapters (`toTextStream`, `toDataStream`, `toResponse`) for Next.js Route Handlers and Vercel AI SDK.
+- 👀 **Zero-Copy Stream Observation (`observeStream`)**: The safe multi-sink alternative to `ReadableStream.tee()` — tap any async stream for audit logging, token counting, or telemetry while the primary consumer iterates it: observers run serialized FIFO on microtasks, a slow async sink (a logger waiting on I/O) never delays or backpressures the consumer, and observer throws/rejections route to an `onListenerError` channel instead of poisoning the pipeline or surfacing as unhandled rejections.
 - 📈 **OpenTelemetry Instrumentation**: Automatic spans for HTTP requests, endpoint failover, chat/generate calls, and agent runs — zero-cost when OpenTelemetry isn't installed.
 - 📊 **Client-Side Quota Monitoring**: `QuotaManager` tracks token/request usage against budgets you configure across rolling windows (e.g. Ollama Cloud's 5-hour session / 7-day weekly resets) and fails fast with `OllamaQuotaExceededError` before a request is sent.
 - ⚡ **Edge Runtime Verified**: CI bundles and runs the client in a real Edge Runtime sandbox (Cloudflare Workers/Vercel Edge-compatible) with zero Node.js APIs.
@@ -352,7 +353,7 @@ const client = new OllamaClient({
 //  likely silently truncate …"
 ```
 
-The estimators are exported for custom pipelines: `estimateTokens(text)` (CJK-aware — ~1 token per CJK character, ~4 chars/token elsewhere), `estimateChatRequestTokens(req)` / `estimateGenerateRequestTokens(req)` (message overhead + tool schemas + `IMAGE_TOKEN_ESTIMATE` per image), and the underlying `checkChatContext` / `checkGenerateContext` / `contextWarningMessage`. All are heuristics (±20–30%) — for exact counts, ask the server (`prompt_eval_count`).
+The estimators are exported for custom pipelines: `estimateTokens(text)` (CJK-aware — ~1 token per CJK character, ~4 chars/token elsewhere), `estimateChatRequestTokens(req)` / `estimateGenerateRequestTokens(req)` (message overhead + tool schemas + `IMAGE_TOKEN_ESTIMATE` per image), and the underlying `checkChatContext` / `checkGenerateContext` / `contextWarningMessage`. Every failing check now carries a concrete `recommendedNumCtx` — the smallest power-of-two window with ~30% headroom (via the exported `recommendContextWindow(estimatedTokens)`) — and the warning says so explicitly, with the caveat to verify the model's native ceiling via `getContextLength()` before adopting it. All are heuristics (±20–30%) — for exact counts, ask the server (`prompt_eval_count`).
 
 ### Discovering the Real Context Window
 
@@ -973,6 +974,44 @@ export async function POST(req: Request) {
   return toResponse(stream);
 }
 ```
+
+### Zero-Copy Stream Observation (multi-sink without `tee()`)
+
+Feeding the same stream to a UI _and_ a logger (token counter, audit trail, telemetry exporter) is where `ReadableStream.tee()` bites: both branches share one upstream pull, so a slow branch — a logger waiting on a database write — forces every intermediate chunk to be queued in that branch, throttles the fast branch through shared backpressure, and leaks heap if the slow sink stalls. `observeStream` is the single-pass alternative: one queue, no fork, and a contract that is one-sided in favor of the primary consumer.
+
+```typescript
+import { observeStream } from '@nemesis-oss/ollama-sdk';
+
+const stream = await client.chat({ model: 'llama4', messages, stream: true });
+
+let tokens = 0;
+const observed = observeStream(stream, {
+  // Sync or async — async observers run strictly FIFO, one at a time, and
+  // never delay the consumer below.
+  onChunk: (event) => {
+    if (event.type === 'token') {
+      tokens += 1;
+      auditLog.write(event.data.delta); // slow sink: throttles only itself
+    }
+  },
+  onDone: () => auditLog.flush(), // fires after the last chunk's sink settles
+  onAbandon: () => auditLog.markIncomplete(), // consumer broke early
+  onListenerError: (err, phase) => telemetry.count('audit_failure', { err, phase }),
+});
+
+for await (const event of observed) {
+  ui.render(event); // primary consumer — full speed, full order
+}
+```
+
+The guarantees, in priority order:
+
+- **Never blocks.** Observer callbacks run on a serialized microtask chain off the hot path. A slow async observer delays only its own tail; the consumer receives chunks at source speed.
+- **Never fails.** A sync throw or async rejection in any observer routes to `onListenerError` (with the phase it came from: `chunk` / `done` / `error` / `abandoned`) and is otherwise discarded — observer failures can never poison the pipeline or surface as unhandled rejections. A failing `onListenerError` itself is swallowed the same way.
+- **Ordered.** Observers run strictly FIFO with concurrency of exactly one, and `onDone` is enqueued only after the last chunk's observer settles — the audit log has seen every chunk before its "done" marker.
+- **Full lifecycle.** Natural completion fires `onDone`; a source error fires `onError` and re-throws to the consumer (the observer is transparent, not a circuit breaker); an early `break` in the consuming loop fires `onAbandon` — after the source has already been closed by the iterator-`return()` protocol.
+
+Works over any `AsyncIterable<T>` — `OllamaStream` from streaming `chat`/`generate`, raw NDJSON chunk iterables, or your own sources. (Note `OllamaStream` itself is dual-mode but mode-exclusive — `.on()` listeners can't be combined with `for await`; `observeStream` is the supported way to tap a stream you're already iterating.) Stopping early is a plain `break`; if you need programmatic cancellation of an SDK stream, keep a handle on the original stream's `abort()`. The only state the wrapper retains is one closure per backlogged observer callback — if your sink can stall _forever_, bound it on your side (queue, drop policy), exactly as you would any fire-and-forget log sink.
 
 ### OpenAI & Anthropic Compatibility Bridges
 
@@ -1832,6 +1871,32 @@ Multi-endpoint failover (`endpoints: [...]`) fails open rather than throwing a d
 favor of healthy endpoints for `cooldownMs`, and only used again — sorted soonest-to-recover — if
 every endpoint is cooling down. Call `client.healthCheck()` or inspect the registry's `status()` to
 observe per-endpoint circuit state directly.
+
+#### Stale sockets & automatic network-error recovery
+
+Every SDK-routed request already runs through same-endpoint retry (default 3 attempts, jittered
+exponential backoff — tune or disable per client via `retries`) _and_ cross-endpoint failover. That
+covers the classic daemon-restart hazard: when Ollama is restarted or recycles idle keep-alive
+connections, a pooled socket dies mid-dispatch with `ECONNRESET`/`UND_ERR_SOCKET`, the request is
+re-dispatched on a fresh connection, and the caller never sees the reset — `list()`, `show()`,
+`ps()`, `version()`, and every other call alike.
+
+What counts as a network failure is decided **structurally**, never by message text: `mapError`
+classifies WHATWG `fetch`'s `TypeError` rejections, any error carrying a `code` from
+`NETWORK_ERROR_CODES` (`ECONNRESET`, `ECONNREFUSED`, `EPIPE`, `ETIMEDOUT`, `EAI_AGAIN`,
+`UND_ERR_SOCKET`, `UND_ERR_CONNECT_TIMEOUT`, `UND_ERR_HEADERS_TIMEOUT`, `UND_ERR_BODY_TIMEOUT`,
+`UND_ERR_CLOSED`, …), and codes found nested in `cause` chains (bounded depth) — so custom `fetch`
+implementations built on `node:http`, whose socket errors aren't `TypeError`s, get the same
+automatic retry. The predicate (`isNetworkLevelError`) and the code set are exported for your own
+error handling. Two deliberate exclusions: `UND_ERR_ABORTED` stays an abort (retrying it would
+re-dispatch a request the caller explicitly cancelled), and non-transport codes like `EACCES` stay
+non-retryable (retrying a permission error just burns attempts).
+
+A note on idempotency: the retry window is the pre-response phase — for the daemon-restart scenario
+the inference was lost server-side anyway, so re-dispatch does not double-charge. Requests that
+fail _mid-stream_ (after headers) are never auto-retried: partial generation can't be safely
+replayed. For a manual pre-flight when you'd rather probe than recover (e.g. right after a
+supervised daemon upgrade), `client.ping()` is the single-shot `HEAD /` liveness check.
 
 ---
 
