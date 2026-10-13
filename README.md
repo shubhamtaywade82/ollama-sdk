@@ -34,7 +34,8 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent, and offers a one-call `compact()` sliding-window escape hatch when a session outgrows its window.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
 - 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`) — with **speculative-decoding assembly**: `draftGguf` uploads the draft network's shards into `draft_files`, `draft_quantize` compresses them independently, and `parameters.draft_num_predict` tunes the per-step draft length.
-- 🧪 **In-Memory Mock Server (`@nemesis-oss/ollama-sdk/testing`)**: The SDK's own deterministic test double, promoted public — `createMockOllamaServer()` with scriptable NDJSON routes, built-in liveness/version defaults (so `ping()` works out of the box), request recording for wire-level assertions, mid-stream **in-band error injection** (`{"error": "..."}` frames at HTTP 200, exactly how a real daemon reports GPU OOM), connection drops, and correctly-shaped chunk builders for streaming text and **parallel tool calls** — zero network, zero daemon, CI-deterministic.
+- 🏁 **Speculative Draft Benchmark (`compareDraftPerformance`)**: One call answers "does drafting pay off for _this_ prompt?" — identical prompt on both sides, deterministic sampling (`temperature: 0` + fixed seed), warm-up discard, several samples per side with **medians** compared, throughput via `formatTelemetry` — reported as baseline vs. speculative tok/s, `speedupMultiplier`, and `effectiveGain` past a configurable threshold. A ≈1.0 speedup is itself diagnostic: the model has no draft network, so the server silently ignores the option.
+- 🧪 **In-Memory Mock Server (`@nemesis-oss/ollama-sdk/testing`)**: The SDK's own deterministic test double, promoted public — `createMockOllamaServer()` with scriptable NDJSON routes, built-in liveness/version defaults (so `ping()` works out of the box), request recording for wire-level assertions, **request-aware routes** (`responder` — per-request responses for fail-twice-then-succeed retry drills and body-dependent payloads), mid-stream **in-band error injection** (`{"error": "..."}` frames at HTTP 200, exactly how a real daemon reports GPU OOM), connection drops, and correctly-shaped chunk builders for streaming text and **parallel tool calls** — zero network, zero daemon, CI-deterministic.
 - 🧵 **Batched Embeddings with Backpressure**: `client.embedBatch()` splits corpora of any size into bounded `/api/embed` batches (default 32 inputs × 3 in flight) — order-preserving, fail-fast, progress-reporting — so RAG/vector ingestion can't OOM a local daemon or saturate `OLLAMA_MAX_QUEUE` the way `Promise.all` floods do, with per-string context-window pre-flight against silent truncation.
 - 🧹 **Client Teardown (`destroy()`)**: One call aborts every in-flight request, active stream, and queued capacity waiter with `OllamaAbortError` — the clean-exit path for `worker_threads`, CLI runners, and short-lived scripts where dangling fetch bodies keep the event loop alive.
 - 🧠 **Dynamic Context-Window Discovery**: `client.models.getContextLength({ model })` resolves the real window from the server — the allocated window of the running instance (`/api/ps`), the Modelfile `num_ctx` default, and the native GGUF maximum (`model_info`), in precedence order — so applications stop hardcoding 2048/4096 guesses.
@@ -533,9 +534,40 @@ console.log(`${t.tokensPerSecond} tok/s (load ${t.modelLoadMs}ms)`);
 
 Already have the draft blobs uploaded? Pass the digest map directly —
 `createModel({ draft_files: { 'draft.gguf': digest } })` — or merge both
-(path uploads win on basename collision). A live measurement harness
-comparing `draft_num_predict` settings lives at
-`lab/15-speculative-draft/measure-draft-speedup.ts`.
+(path uploads win on basename collision).
+
+**Does drafting actually pay off?** Upstream emits no draft-token
+acceptance counter — speculative efficiency is only observable as effective
+token throughput, and the signal is noisy: rejected draft predictions _add_
+compute (high-temperature, creative prompts) while accepted drafts slash
+`eval_duration` on predictable workloads (structured code, JSON extraction).
+`compareDraftPerformance()` runs the deterministic A/B for a specific
+prompt — identical prompt both sides, `temperature: 0` + a fixed seed, one
+warm-up generation per setting (pays the model load), several samples per
+side with the **median** compared, throughput derived by `formatTelemetry`:
+
+```typescript
+import { OllamaClient, compareDraftPerformance } from '@nemesis-oss/ollama-sdk';
+
+const comparison = await compareDraftPerformance(new OllamaClient(), {
+  model: 'my-model',
+  prompt: 'Extract the sender, subject, and date from this email as JSON: ...',
+  draftNumPredict: 4, // default; the baseline side always runs with 0
+  samples: 5, // median per side — single runs mislead
+});
+
+console.log(
+  `${comparison.baselineTokensPerSec} → ${comparison.speculativeTokensPerSec} tok/s ` +
+    `(${comparison.speedupMultiplier}x, gain: ${comparison.effectiveGain})`,
+);
+```
+
+`effectiveGain` flips to `true` when the reported multiplier exceeds
+`gainThreshold` (default `1.05` — five percent, past run-to-run noise). A
+speedup of ≈1.0 is itself the diagnosis: the model has no draft network
+(and no embedded MTP tensors), so the server silently ignores
+`draft_num_predict` — the same reading `lab/15-speculative-draft/measure-draft-speedup.ts`
+makes obvious across 0/4/8/16.
 
 ### Token Log Probabilities (`logprobs`)
 
@@ -1552,12 +1584,40 @@ server.clearRequests(); // and server.clear() between tests
 await server.stop(); // idempotent — safe in afterEach
 ```
 
+**Request-aware routes** — `responder` computes the response _per request_
+from the recorded method/path/body, covering the scenario drills a static
+route can't: fail-twice-then-succeed retries, body-dependent payloads,
+call-count behavior:
+
+```typescript
+// Fail twice, then serve — retry/backoff drills:
+let hits = 0;
+server.register('/api/chat', {
+  chunks: mockTextChunks('recovered'),
+  responder: () =>
+    hits++ < 2 ? { status: 503, chunks: ['{"error":"server queue is full"}'] } : undefined,
+});
+
+// Body-dependent — answer differently by what the client sent:
+server.register('/api/generate', {
+  responder: (record) => ({
+    chunks: [frameFor(readDraftSetting(record.body))],
+  }),
+});
+```
+
+Returning `undefined` falls back to the route's static fields; a returned
+response feeds the full emission pipeline, so `chunkDelayMs`,
+`injectErrorFrame`, `dropConnectionMidStream`, and `rawBody` all keep their
+semantics inside responder routes.
+
 Per-route controls: `status` (503/502/429 bodies), `chunkDelayMs`,
 `dropConnectionMidStream` (connection reset mid-response), `onRequest`
 (per-route body capture), and `injectErrorFrame.after` (error position).
 Chunk builders: `mockChatChunk` (one frame with counter defaults),
 `mockTextChunks` (chunked text + done frame), `mockToolCallChunks` (parallel
-tool calls + done frame). Node.js only — the subpath builds on `node:http`
+tool calls + done frame — malformed-argument cases via string
+`arguments`). Node.js only — the subpath builds on `node:http`
 and is never imported from the Edge-safe main entry.
 
 ### Edge Runtime Compatibility

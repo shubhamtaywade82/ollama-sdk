@@ -38,6 +38,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0027](./0027-agent-cycle-detection-url-join-history-hygiene.md)             | Agent Cycle Detection, URL-Join Hardening, Vision-History Hygiene                                                 |
 | [0028](./0028-telemetry-normalization-host-affinity-root-ping.md)            | Telemetry Normalization, Dynamic Host Model-Affinity Routing, Root Liveness Probe                                 |
 | [0029](./0029-public-testing-subpath-speculative-draft-conveniences.md)      | Public Testing Subpath, Speculative-Draft Conveniences                                                            |
+| [0030](./0030-draft-benchmark-request-aware-mock-routes.md)                  | Draft Benchmark Utility, Request-Aware Mock Routes                                                                |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives

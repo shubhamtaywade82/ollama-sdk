@@ -397,3 +397,114 @@ describe('lifecycle', () => {
     }
   });
 });
+
+describe('request-aware routes (responder)', () => {
+  it('computes the response from the request body (draft-aware payloads)', async () => {
+    await server.start();
+    server.register('/api/generate', {
+      responder: (record) => {
+        const draft =
+          (record.body as { options?: { draft_num_predict?: number } }).options
+            ?.draft_num_predict ?? 0;
+        return {
+          chunks: [
+            JSON.stringify({
+              model: 'm',
+              created_at: '2026-10-13T00:00:00.000Z',
+              response: draft > 0 ? 'drafted' : 'plain',
+              done: true,
+            }),
+          ],
+        };
+      },
+    });
+
+    const post = (draft: number) =>
+      fetch(`${server.baseUrl}/api/generate`, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'm', options: { draft_num_predict: draft } }),
+        headers: { 'content-type': 'application/json' },
+      });
+
+    expect(await (await post(0)).json()).toMatchObject({ response: 'plain' });
+    expect(await (await post(8)).json()).toMatchObject({ response: 'drafted' });
+  });
+
+  it('returning undefined falls back to the static route fields (fail twice, then serve)', async () => {
+    await server.start();
+    let hits = 0;
+    server.register('/api/chat', {
+      chunks: [mockChatChunk({ content: 'recovered', done: true })],
+      responder: () =>
+        hits++ < 2 ? { status: 503, chunks: ['{"error":"server queue is full"}'] } : undefined,
+    });
+
+    const post = () =>
+      fetch(`${server.baseUrl}/api/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'm' }),
+        headers: { 'content-type': 'application/json' },
+      });
+
+    expect((await post()).status).toBe(503);
+    expect((await post()).status).toBe(503);
+    const third = await post();
+    expect(third.status).toBe(200);
+    expect(await third.json()).toMatchObject({ message: { content: 'recovered' } });
+  });
+
+  it('composes with injectErrorFrame — responder-supplied frames still crash mid-stream', async () => {
+    await server.start();
+    server.register('/api/chat', {
+      responder: () => ({
+        chunks: mockTextChunks('partial answer'),
+        injectErrorFrame: { message: 'CUDA out of memory' },
+      }),
+    });
+
+    const client = new OllamaClient({ baseUrl: server.baseUrl });
+    const stream = await client.chat({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+    });
+    const tokens: string[] = [];
+    for await (const event of stream) {
+      if (event.type === 'token') tokens.push(event.data.delta);
+      if (event.type === 'error') break;
+    }
+    expect(tokens.join('')).toBe('partial answer');
+    await expect(stream.finalResult).rejects.toThrow('CUDA out of memory');
+  });
+
+  it('recording and onRequest still fire for responder routes', async () => {
+    await server.start();
+    const seen: unknown[] = [];
+    server.register('/api/chat', {
+      onRequest: (body) => seen.push(body),
+      responder: () => ({ chunks: [mockChatChunk({ content: 'hi', done: true })] }),
+    });
+
+    const client = new OllamaClient({ baseUrl: server.baseUrl });
+    await client.chat({ model: 'llama3.2', messages: [{ role: 'user', content: 'q' }] });
+
+    expect(seen).toHaveLength(1);
+    const record = server.requests.at(-1);
+    expect(record?.method).toBe('POST');
+    expect(record?.path).toBe('/api/chat');
+    expect(record?.body).toMatchObject({ model: 'llama3.2', stream: false });
+  });
+
+  it('default routes keep answering while a responder route is registered elsewhere', async () => {
+    await server.start();
+    server.register('/api/generate', {
+      responder: () => ({
+        chunks: [JSON.stringify({ model: 'm', response: 'x', done: true })],
+      }),
+    });
+
+    const client = new OllamaClient({ baseUrl: server.baseUrl });
+    const ping = await client.ping();
+    expect(ping.healthy).toBe(true);
+  });
+});

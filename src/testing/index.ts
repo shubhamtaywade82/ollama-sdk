@@ -28,6 +28,7 @@ export {
 export type {
   MockEndpointOptions,
   MockRequestRecord,
+  MockRouteResponse,
   MockServerOptions,
   MockTextChunksOptions,
   MockToolCallChunksOptions,
