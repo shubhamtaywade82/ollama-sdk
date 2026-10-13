@@ -58,9 +58,11 @@ function pinHeader(url: string, pin: string | undefined, body: string): string {
   const upstream = url;
   const sha = pin ?? 'unknown';
   const bodyHash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+  // YAML comments (`#`), NOT HTML comments: the file is parsed as YAML, and
+  // an HTML comment containing `key: value` pairs hard-fails the parser.
   return [
-    `<!-- Pinned from ${upstream} (source SHA: ${sha}, content hash: ${bodyHash}) on ${today}. -->`,
-    `<!-- Run \`npm run contract:fetch\` to refresh. -->`,
+    `# Pinned from ${upstream} (source SHA: ${sha}, content hash: ${bodyHash}) on ${today}.`,
+    `# Run \`npm run contract:fetch\` to refresh.`,
     '',
   ].join('\n');
 }
