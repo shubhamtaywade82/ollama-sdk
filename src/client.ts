@@ -941,8 +941,10 @@ export class OllamaClient {
   readonly getContextLength = (request: ContextDiscoveryRequestOptions) =>
     this.models.getContextLength(request);
   readonly version = () => this.models.version();
-  readonly createBlob = (digest: string, data: BinaryBody) => this.models.createBlob(digest, data);
-  readonly checkBlob = (digest: string) => this.models.checkBlob(digest);
+  readonly createBlob = (digest: string, data: BinaryBody, request?: RequestCancellationOptions) =>
+    this.models.createBlob(digest, data, request);
+  readonly checkBlob = (digest: string, request?: RequestCancellationOptions) =>
+    this.models.checkBlob(digest, request);
   /**
    * Immediately unloads `model` from VRAM. Convenience alias for
    * {@link ModelsClient.unload} — see that method for the full
