@@ -462,6 +462,15 @@ export {
   type FormattedTelemetry,
 } from './telemetry/index.js';
 
+// Speculative-decoding draft benchmark — deterministic draft_num_predict A/B measurement
+export {
+  compareDraftPerformance,
+  type DraftBenchmarkClient,
+  type CompareDraftPerformanceOptions,
+  type DraftPerformanceComparison,
+  type DraftRunStats,
+} from './draft-benchmark.js';
+
 // Utilities
 export { encodeImage } from './utils.js';
 

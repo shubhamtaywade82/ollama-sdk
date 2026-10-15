@@ -30,6 +30,9 @@
  *     Explicit `register()` calls always win.
  *   - **request recording** (`server.requests`, `clearRequests()`) for
  *     wire-level assertions without per-route callbacks
+ *   - **request-aware routes** (`responder`) — per-request responses computed
+ *     from the recorded method/path/body: fail-twice-then-succeed retry
+ *     drills, body-dependent payloads, call-count scenarios
  *   - NDJSON **chunk builders** ({@link mockChatChunk}, {@link mockTextChunks},
  *     {@link mockToolCallChunks}) that produce correctly-shaped `/api/chat`
  *     frames — including parallel tool calls in one frame, the documented
@@ -86,14 +89,12 @@ export interface MockRequestRecord {
 }
 
 /**
- * A single mock route handler. The server matches on the request path
- * (query string stripped — Ollama's API doesn't use query params for the
- * routes we care about).
- *
- * All fields optional except `chunks` (which defaults to `[]` — useful for
- * testing the "stream closed without any data" case).
+ * The response a mock route emits. {@link MockEndpointOptions} extends this
+ * with hooks, and a {@link MockEndpointOptions.responder} computes one of
+ * these per request. All fields optional — `chunks` defaults to `[]` (useful
+ * for testing the "stream closed without data" case).
  */
-export interface MockEndpointOptions {
+export interface MockRouteResponse {
   /** HTTP status code. Defaults to 200. */
   readonly status?: number | undefined;
   /**
@@ -149,6 +150,14 @@ export interface MockEndpointOptions {
         readonly message: string;
       }
     | undefined;
+}
+
+/**
+ * A single mock route handler. The server matches on the request path
+ * (query string stripped — Ollama's API doesn't use query params for the
+ * routes we care about).
+ */
+export interface MockEndpointOptions extends MockRouteResponse {
   /**
    * Optional callback fired when a request arrives at this route. Receives
    * the parsed request body (or `undefined` if the body wasn't valid JSON).
@@ -156,6 +165,38 @@ export interface MockEndpointOptions {
    * For global capture across routes see {@link OllamaMockServer.requests}.
    */
   readonly onRequest?: ((body: unknown) => void) | undefined;
+  /**
+   * Compute this route's response **per request** — request-aware scenario
+   * scripting without subclassing. Receives the same {@link MockRequestRecord}
+   * that lands in {@link OllamaMockServer.requests} (method, path, parsed
+   * body, timestamp); the return value is the complete response for that
+   * request, or `undefined` to fall back to the route's static fields.
+   * Typical scenarios:
+   *
+   * ```ts
+   * // Fail twice, then serve — retry/backoff drills:
+   * let hits = 0;
+   * server.register('/api/chat', {
+   *   chunks: mockTextChunks('recovered'),
+   *   responder: () =>
+   *     hits++ < 2 ? { status: 503, chunks: ['{"error":"server queue is full"}'] } : undefined,
+   * });
+   *
+   * // Body-dependent — answer differently by request payload:
+   * server.register('/api/generate', {
+   *   responder: (record) => ({
+   *     chunks: [frameFor((record.body as { options?: { draft_num_predict?: number } })
+   *       .options?.draft_num_predict ?? 0)],
+   *   }),
+   * });
+   * ```
+   *
+   * The return value replaces the static response fields for that request
+   * (the fallback only happens on `undefined`), and it feeds the full
+   * emission pipeline — `chunkDelayMs`, `injectErrorFrame`,
+   * `dropConnectionMidStream`, and `rawBody` all keep their semantics.
+   */
+  readonly responder?: ((record: MockRequestRecord) => MockRouteResponse | undefined) | undefined;
 }
 
 /** Options for {@link createMockOllamaServer} and the `OllamaMockServer` constructor. */
@@ -515,12 +556,13 @@ export class OllamaMockServer {
       }
     }
 
-    this.requestLog.push({
+    const record: MockRequestRecord = {
       method,
       path,
       ...(parsedBody !== undefined ? { body: parsedBody } : {}),
       timestamp: nowIso(),
-    });
+    };
+    this.requestLog.push(record);
 
     const route = this.routes.get(path) ?? this.defaultRouteFor(method, path);
 
@@ -532,23 +574,29 @@ export class OllamaMockServer {
 
     route.onRequest?.(parsedBody);
 
-    const status = route.status ?? 200;
-    const chunks = route.chunks ?? [];
-    const chunkDelayMs = route.chunkDelayMs ?? 0;
-    const headers = route.headers ?? { 'content-type': 'application/x-ndjson' };
+    // Request-aware routes: the responder computes the response for THIS
+    // request (method/path/body in, response out); returning `undefined`
+    // falls back to the route's static fields.
+    const response: MockRouteResponse =
+      route.responder !== undefined ? (route.responder(record) ?? route) : route;
+
+    const status = response.status ?? 200;
+    const chunks = response.chunks ?? [];
+    const chunkDelayMs = response.chunkDelayMs ?? 0;
+    const headers = response.headers ?? { 'content-type': 'application/x-ndjson' };
 
     res.writeHead(status, headers);
 
-    if (route.rawBody !== undefined) {
+    if (response.rawBody !== undefined) {
       if (chunkDelayMs > 0) {
         await new Promise((r) => setTimeout(r, chunkDelayMs));
       }
-      res.write(route.rawBody);
+      res.write(response.rawBody);
       res.end();
       return;
     }
 
-    if (route.dropConnectionMidStream) {
+    if (response.dropConnectionMidStream) {
       // Emit the first chunk (if any), then destroy the socket without
       // ending the response — a network drop mid-stream.
       if (chunks.length > 0) {
@@ -562,11 +610,11 @@ export class OllamaMockServer {
     }
 
     // In-band injection point, measured in already-emitted chunks. See
-    // MockEndpointOptions.injectErrorFrame for the default rationale.
-    const errorAt = route.injectErrorFrame
-      ? (route.injectErrorFrame.after ?? Math.max(0, chunks.length - 1))
+    // MockRouteResponse.injectErrorFrame for the default rationale.
+    const errorAt = response.injectErrorFrame
+      ? (response.injectErrorFrame.after ?? Math.max(0, chunks.length - 1))
       : Number.POSITIVE_INFINITY;
-    const errorMessage = route.injectErrorFrame?.message;
+    const errorMessage = response.injectErrorFrame?.message;
 
     for (let i = 0; i < chunks.length; i++) {
       if (i === errorAt && errorMessage !== undefined) {
