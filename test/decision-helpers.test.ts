@@ -18,9 +18,10 @@ function mockFetch(response: unknown): typeof globalThis.fetch {
     })) as unknown as typeof globalThis.fetch;
 }
 
-function mockFetchCapturing(
-  responseFactory: (body: unknown) => unknown,
-): { fetchImpl: typeof globalThis.fetch; getLastBody: () => unknown } {
+function mockFetchCapturing(responseFactory: (body: unknown) => unknown): {
+  fetchImpl: typeof globalThis.fetch;
+  getLastBody: () => unknown;
+} {
   let lastBody: unknown;
   return {
     fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
@@ -157,7 +158,13 @@ describe('Wave 14B: Decision helpers', () => {
           decision: {
             type: 'score',
             score: 2.73,
-            legend: { '0': 'trivial', '1': 'simple', '2': 'moderate', '3': 'complex', '4': 'very_complex' },
+            legend: {
+              '0': 'trivial',
+              '1': 'simple',
+              '2': 'moderate',
+              '3': 'complex',
+              '4': 'very_complex',
+            },
             probabilities: { '0': 0.05, '1': 0.1, '2': 0.2, '3': 0.55, '4': 0.1 },
             confidence: 0.78,
           },
@@ -379,6 +386,334 @@ describe('Wave 14B: Decision helpers', () => {
       const a = client.decision;
       const b = client.decision;
       expect(a).toBe(b);
+    });
+  });
+
+  describe('confidence gates (Oct-15 digest: calibrated decisions for autonomous flows)', () => {
+    it('choice() omits isConfident when minConfidence is not configured', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: {
+              type: 'choice',
+              choice: 'a',
+              probabilities: { a: 0.51, b: 0.49 },
+              confidence: 0.51,
+            },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const result = await client.decision.choice({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Pick',
+        criteria: { a: 'A', b: 'B' },
+      });
+
+      expect('isConfident' in result).toBe(false);
+    });
+
+    it('choice() flags isConfident=false for a barely-majority decision below the gate', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: {
+              type: 'choice',
+              choice: 'execute_trade',
+              probabilities: { execute_trade: 0.51, hold: 0.49 },
+              confidence: 0.51,
+            },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const result = await client.decision.choice({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Pick',
+        criteria: { execute_trade: 'Execute', hold: 'Hold' },
+        minConfidence: 0.8,
+      });
+
+      expect(result.choice).toBe('execute_trade'); // the value is still returned
+      expect(result.isConfident).toBe(false); // …but the caller is told not to act on it
+    });
+
+    it('choice() flags isConfident=true at the exact boundary (>= minConfidence)', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: {
+              type: 'choice',
+              choice: 'a',
+              probabilities: { a: 0.8, b: 0.2 },
+              confidence: 0.8,
+            },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const result = await client.decision.choice({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Pick',
+        criteria: { a: 'A', b: 'B' },
+        minConfidence: 0.8,
+      });
+
+      expect(result.isConfident).toBe(true);
+    });
+
+    it('score() honors minConfidence the same way', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: {
+              type: 'score',
+              score: 1.5,
+              legend: { '0': 'low', '1': 'mid', '2': 'high' },
+              probabilities: { '0': 0.2, '1': 0.6, '2': 0.2 },
+              confidence: 0.6,
+            },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const ungated = await client.decision.score({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Rate',
+        criteria: ['low', 'mid', 'high'],
+      });
+      expect('isConfident' in ungated).toBe(false);
+
+      const gated = await client.decision.score({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Rate',
+        criteria: ['low', 'mid', 'high'],
+        minConfidence: 0.75,
+      });
+      expect(gated.confidence).toBe(0.6);
+      expect(gated.isConfident).toBe(false);
+    });
+
+    it('route() carries isConfident alongside the selected route', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: {
+              type: 'choice',
+              choice: 'support',
+              probabilities: { sales: 0.1, support: 0.85, billing: 0.05 },
+              confidence: 0.85,
+            },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const result = await client.decision.route({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Route this ticket',
+        criteria: { sales: 'Sales', support: 'Support', billing: 'Billing' },
+        minConfidence: 0.8,
+      });
+
+      expect(result.route).toBe('support');
+      expect(result.isConfident).toBe(true);
+    });
+
+    it('rank() flags every result, not just the winner', async () => {
+      // Body-dependent responses: alice's state scores high (confident),
+      // bob's scores lower (not confident) — regardless of fetch race order.
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            state?: { id?: string };
+          };
+          const isAlice = body.state?.id === 'alice';
+          return new Response(
+            JSON.stringify({
+              model: 'tev1:4b',
+              answers: {
+                decision: {
+                  type: 'score',
+                  score: isAlice ? 2.1 : 1.9,
+                  legend: { '0': 'low', '1': 'mid', '2': 'high' },
+                  probabilities: isAlice
+                    ? { '0': 0.1, '1': 0.3, '2': 0.6 }
+                    : { '0': 0.3, '1': 0.5, '2': 0.2 },
+                  confidence: isAlice ? 0.9 : 0.4,
+                },
+              },
+              usage: { input_tokens: 10, output_tokens: 2 },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }) as unknown as typeof globalThis.fetch,
+      });
+
+      const results = await client.decision.rank({
+        model: 'tev1:4b',
+        instructions: 'Rate relevance',
+        criteria: ['low', 'mid', 'high'],
+        candidates: [
+          { id: 'alice' as const, state: { id: 'alice' } },
+          { id: 'bob' as const, state: { id: 'bob' } },
+        ],
+        minConfidence: 0.75,
+      });
+
+      expect(results[0]?.candidate).toBe('alice');
+      expect(results[0]?.isConfident).toBe(true);
+      expect(results[1]?.candidate).toBe('bob');
+      expect(results[1]?.isConfident).toBe(false);
+    });
+
+    it('noul() raises the boolean bar with minProbability', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: { type: 'noul', noul: 0.7 },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const defaultBar = await client.decision.noul({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Is this safe?',
+      });
+      expect(defaultBar.bool).toBe(true); // 0.7 >= 0.5 default
+
+      const raised = await client.decision.noul({
+        model: 'tev1:4b',
+        state: 'test',
+        instructions: 'Is this safe?',
+        minProbability: 0.8,
+      });
+      expect(raised.noul).toBe(0.7);
+      expect(raised.bool).toBe(false); // 0.7 < 0.8 — refuse the irreversible action
+    });
+
+    it('verify() honors minProbability the same way', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {
+            decision: { type: 'noul', noul: 0.6 },
+          },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+      });
+
+      const result = await client.decision.verify({
+        model: 'tev1:4b',
+        claim: 'The refund cleared',
+        evidence: 'Ledger shows no refund',
+        minProbability: 0.9,
+      });
+
+      expect(result.probability).toBe(0.6);
+      expect(result.verified).toBe(false);
+    });
+
+    it.each([0, 1.01, Number.NaN, Number.POSITIVE_INFINITY])(
+      'choice() rejects minConfidence outside (0, 1] (value: %s)',
+      async (bad) => {
+        const client = new OllamaClient({
+          baseUrl: 'http://localhost:11434',
+          fetch: mockFetch({
+            model: 'tev1:4b',
+            answers: {},
+            usage: { input_tokens: 0, output_tokens: 0 },
+          }),
+        });
+
+        await expect(
+          client.decision.choice({
+            model: 'tev1:4b',
+            state: 'test',
+            instructions: 'Pick',
+            criteria: { a: 'A', b: 'B' },
+            minConfidence: bad,
+          }),
+        ).rejects.toThrow(RangeError);
+      },
+    );
+
+    it('noul() rejects minProbability outside (0, 1]', async () => {
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: mockFetch({
+          model: 'tev1:4b',
+          answers: {},
+          usage: { input_tokens: 0, output_tokens: 0 },
+        }),
+      });
+
+      await expect(
+        client.decision.noul({
+          model: 'tev1:4b',
+          state: 'test',
+          instructions: '?',
+          minProbability: 0,
+        }),
+      ).rejects.toThrow(RangeError);
+
+      await expect(
+        client.decision.noul({
+          model: 'tev1:4b',
+          state: 'test',
+          instructions: '?',
+          minProbability: 1.5,
+        }),
+      ).rejects.toThrow(RangeError);
+    });
+
+    it('gates are validated BEFORE any request is sent (fail fast, no round-trip)', async () => {
+      let fetches = 0;
+      const client = new OllamaClient({
+        baseUrl: 'http://localhost:11434',
+        fetch: (async () => {
+          fetches += 1;
+          return new Response('{}', { status: 200 });
+        }) as unknown as typeof globalThis.fetch,
+      });
+
+      await expect(
+        client.decision.route({
+          model: 'tev1:4b',
+          state: 'test',
+          instructions: 'Route',
+          criteria: { a: 'A', b: 'B' },
+          minConfidence: 2,
+        }),
+      ).rejects.toThrow(RangeError);
+
+      expect(fetches).toBe(0);
     });
   });
 });

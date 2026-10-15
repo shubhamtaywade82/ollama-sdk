@@ -166,6 +166,10 @@ export {
   toDataStream,
   toResponse,
   observeStream,
+  onProgress,
+  computeProgressPercent,
+  toPullProgressEvent,
+  createProgressSpeedTracker,
 } from './streaming/index.js';
 export type {
   OllamaStreamEvent,
@@ -183,6 +187,9 @@ export type {
   SseEvent,
   StreamObserverCallbacks,
   StreamObserverPhase,
+  PullProgressEvent,
+  ProgressCallback,
+  ProgressSpeed,
 } from './streaming/index.js';
 
 // Usage

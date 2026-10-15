@@ -12,10 +12,10 @@ import type {
 } from './index.js';
 
 export interface SystemOneRequest {
-  /** Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable runner; cloud and MLX/Safetensors models are not supported. */
+  /** Local model trained for System One, such as nimble. */
   readonly model: string;
   readonly state: SystemOneContent;
-  /** Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision weights. URLs and data URLs are not supported. */
+  /** Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. URLs and data URLs are not supported. */
   readonly images?: readonly string[] | undefined;
   /** Named questions about the shared state. Answers are not passed to later questions. */
   readonly questions: {

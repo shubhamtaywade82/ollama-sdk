@@ -8,5 +8,5 @@ import { SystemOneContentSchema } from './SystemOneContent.schema.js';
 export const SystemOneScoreQuestionSchema = z.object({
   type: z.enum(['score']),
   instructions: SystemOneContentSchema,
-  criteria: z.array(z.string()).min(2).max(26),
+  criteria: z.array(z.string()).min(2).max(10),
 });

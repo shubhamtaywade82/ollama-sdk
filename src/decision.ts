@@ -25,6 +25,20 @@ import type {
 } from './system-one.js';
 
 /**
+ * Validate an optional confidence/probability threshold shared by the decision
+ * helpers. Thresholds are inclusive lower bounds in (0, 1] — `0` would gate
+ * nothing and values above `1` can never pass.
+ *
+ * @throws {RangeError} When the threshold is outside (0, 1].
+ */
+function validateThreshold(value: number | undefined, name: string): void {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 1) {
+    throw new RangeError(`${name} must be a number in (0, 1] — got ${String(value)}`);
+  }
+}
+
+/**
  * Result of a choice decision: the selected option key + probability
  * distribution + confidence.
  */
@@ -35,6 +49,14 @@ export interface ChoiceDecision {
   readonly probabilities: Record<string, number>;
   /** Distribution concentration (0–1). NOT a guarantee of correctness. */
   readonly confidence: number;
+  /**
+   * Present only when `minConfidence` was configured: `true` when
+   * `confidence >= minConfidence`. Autonomous flows should treat `false` as
+   * "do not act on this decision" — the official System One docs warn that a
+   * high confidence does not guarantee correctness, and a barely-majority
+   * choice (e.g. 0.51) is rarely safe to act on unattended.
+   */
+  readonly isConfident?: boolean;
   /** Token usage for the call. */
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
 }
@@ -46,7 +68,11 @@ export interface ChoiceDecision {
 export interface NoulDecision {
   /** Probability of true (0–1). */
   readonly noul: number;
-  /** Boolean decision: true if noul >= 0.5, false otherwise. */
+  /**
+   * Boolean decision: `true` if `noul >= minProbability` (default 0.5).
+   * Raise the bar for safety gates with `minProbability` — e.g. 0.8 for
+   * irreversible actions.
+   */
   readonly bool: boolean;
   /** Token usage for the call. */
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
@@ -66,6 +92,8 @@ export interface ScoreDecision {
   readonly probabilities: Record<string, number>;
   /** Distribution concentration (0–1). NOT a guarantee of correctness. */
   readonly confidence: number;
+  /** Present only when `minConfidence` was configured: `confidence >= minConfidence`. */
+  readonly isConfident?: boolean;
   /** Token usage for the call. */
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
 }
@@ -78,6 +106,8 @@ export interface RankResult<T extends string> {
   readonly candidate: T;
   readonly score: number;
   readonly confidence: number;
+  /** Present only when `minConfidence` was configured: `confidence >= minConfidence`. */
+  readonly isConfident?: boolean;
 }
 
 /**
@@ -119,6 +149,12 @@ export interface Decision {
     criteria: Record<string, string | null>;
     images?: string[];
     keepAlive?: string | number;
+    /**
+     * Opt-in confidence gate in (0, 1]. When set, the result carries
+     * `isConfident: confidence >= minConfidence` so autonomous flows can
+     * refuse to act on barely-majority decisions. Off by default.
+     */
+    minConfidence?: number;
   }): Promise<ChoiceDecision>;
 
   /**
@@ -134,6 +170,12 @@ export interface Decision {
     instructions: SystemOneContent;
     images?: string[];
     keepAlive?: string | number;
+    /**
+     * Inclusive lower bound in (0, 1] the probability of `true` must meet
+     * for `bool` to be `true`. Default 0.5 (a coin-flip majority). Raise it
+     * (e.g. 0.8) for safety gates and irreversible actions.
+     */
+    minProbability?: number;
   }): Promise<NoulDecision>;
 
   /**
@@ -147,10 +189,12 @@ export interface Decision {
     model: string;
     state: SystemOneContent;
     instructions: SystemOneContent;
-    /** Ordered criteria from lowest (index 0) to highest. 2–26 items. */
+    /** Ordered criteria from lowest (index 0) to highest. 2–10 items. */
     criteria: string[];
     images?: string[];
     keepAlive?: string | number;
+    /** Opt-in confidence gate in (0, 1] — see {@link Decision.choice}. */
+    minConfidence?: number;
   }): Promise<ScoreDecision>;
 
   /**
@@ -167,7 +211,9 @@ export interface Decision {
     criteria: Record<T, string | null>;
     images?: string[];
     keepAlive?: string | number;
-  }): Promise<{ readonly route: T; readonly confidence: number }>;
+    /** Opt-in confidence gate in (0, 1] — see {@link Decision.choice}. */
+    minConfidence?: number;
+  }): Promise<{ readonly route: T; readonly confidence: number; readonly isConfident?: boolean }>;
 
   /**
    * Verify whether a claim is supported by evidence. Convenience
@@ -186,6 +232,11 @@ export interface Decision {
     instructions?: SystemOneContent;
     images?: string[];
     keepAlive?: string | number;
+    /**
+     * Inclusive lower bound in (0, 1] the probability of `true` must meet
+     * for `verified`. Default 0.5. See {@link Decision.noul}.
+     */
+    minProbability?: number;
   }): Promise<{ readonly verified: boolean; readonly probability: number }>;
 
   /**
@@ -203,11 +254,13 @@ export interface Decision {
   rank<T extends string>(params: {
     model: string;
     instructions: SystemOneContent;
-    /** Ordered criteria from lowest (index 0) to highest. 2–26 items. */
+    /** Ordered criteria from lowest (index 0) to highest. 2–10 items. */
     criteria: string[];
     candidates: ReadonlyArray<{ readonly id: T; readonly state: SystemOneContent }>;
     images?: string[];
     keepAlive?: string | number;
+    /** Opt-in confidence gate in (0, 1] — flags each result with `isConfident`. */
+    minConfidence?: number;
   }): Promise<ReadonlyArray<RankResult<T>>>;
 }
 
@@ -215,6 +268,7 @@ export interface Decision {
 export function createDecision(client: OllamaClient): Decision {
   return {
     async choice(params) {
+      validateThreshold(params.minConfidence, 'minConfidence');
       const response = await client.systemOne({
         model: params.model,
         state: params.state,
@@ -233,11 +287,15 @@ export function createDecision(client: OllamaClient): Decision {
         choice: answer.choice,
         probabilities: answer.probabilities,
         confidence: answer.confidence,
+        ...(params.minConfidence !== undefined
+          ? { isConfident: answer.confidence >= params.minConfidence }
+          : {}),
         usage: response.usage,
       };
     },
 
     async noul(params) {
+      validateThreshold(params.minProbability, 'minProbability');
       const response = await client.systemOne({
         model: params.model,
         state: params.state,
@@ -253,12 +311,13 @@ export function createDecision(client: OllamaClient): Decision {
       const answer = response.answers.decision as SystemOneNoulAnswer;
       return {
         noul: answer.noul,
-        bool: answer.noul >= 0.5,
+        bool: answer.noul >= (params.minProbability ?? 0.5),
         usage: response.usage,
       };
     },
 
     async score(params) {
+      validateThreshold(params.minConfidence, 'minConfidence');
       const response = await client.systemOne({
         model: params.model,
         state: params.state,
@@ -278,11 +337,15 @@ export function createDecision(client: OllamaClient): Decision {
         legend: answer.legend,
         probabilities: answer.probabilities,
         confidence: answer.confidence,
+        ...(params.minConfidence !== undefined
+          ? { isConfident: answer.confidence >= params.minConfidence }
+          : {}),
         usage: response.usage,
       };
     },
 
     async route(params) {
+      validateThreshold(params.minConfidence, 'minConfidence');
       const response = await client.systemOne({
         model: params.model,
         state: params.state,
@@ -306,10 +369,14 @@ export function createDecision(client: OllamaClient): Decision {
       return {
         route: answer.choice as never,
         confidence: answer.confidence,
+        ...(params.minConfidence !== undefined
+          ? { isConfident: answer.confidence >= params.minConfidence }
+          : {}),
       };
     },
 
     async verify(params) {
+      validateThreshold(params.minProbability, 'minProbability');
       const state: SystemOneContent = {
         claim: params.claim,
         evidence: params.evidence,
@@ -328,12 +395,13 @@ export function createDecision(client: OllamaClient): Decision {
       });
       const answer = response.answers.decision as SystemOneNoulAnswer;
       return {
-        verified: answer.noul >= 0.5,
+        verified: answer.noul >= (params.minProbability ?? 0.5),
         probability: answer.noul,
       };
     },
 
     async rank(params) {
+      validateThreshold(params.minConfidence, 'minConfidence');
       const promises = params.candidates.map(async (candidate) => {
         const response = await client.systemOne({
           model: params.model,
@@ -353,6 +421,9 @@ export function createDecision(client: OllamaClient): Decision {
           candidate: candidate.id,
           score: answer.score,
           confidence: answer.confidence,
+          ...(params.minConfidence !== undefined
+            ? { isConfident: answer.confidence >= params.minConfidence }
+            : {}),
         };
       });
       const results = await Promise.all(promises);
@@ -362,7 +433,9 @@ export function createDecision(client: OllamaClient): Decision {
       // come from the caller's typed array, so the runtime shape is
       // RankResult<T>[], but TypeScript can't prove it through the
       // non-generic createDecision factory.
-      return results.sort((a, b) => b.score - a.score) as unknown as ReadonlyArray<RankResult<never>>;
+      return results.sort((a, b) => b.score - a.score) as unknown as ReadonlyArray<
+        RankResult<never>
+      >;
     },
   };
 }

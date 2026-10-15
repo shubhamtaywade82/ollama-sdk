@@ -9,6 +9,6 @@ import type { SystemOneContent } from './index.js';
 export interface SystemOneScoreQuestion {
   readonly type: 'score';
   readonly instructions: SystemOneContent;
-  /** Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1. The maximum number of levels depends on the model. */
+  /** Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the number of criteria minus 1. */
   readonly criteria: readonly string[];
 }

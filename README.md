@@ -24,10 +24,12 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🧠 **Reasoning & Thinking Tokens**: First-class support for reasoning models (`qwen3:8b`, `deepseek-r1:8b`) via the native `think` parameter, with discrete `thinking` and `token` streaming events, plus `logprobs`/`top_logprobs` for token-level confidence scoring.
 - 🖼️ **Multimodal / Vision Input**: `images` on `Message`/`generate()` is a universal resolver — pass raw base64 strings, `data:image/...;base64,` data URIs, `http(s)://` URLs (fetched), local file paths (`.png`/`.jpg`/`.webp`/…, read via `node:fs` on Node), or raw `Buffer`/`Uint8Array` bytes — everything is normalized to the raw base64 Ollama's REST API expects, matching the official SDK vision convention.
 - 🎯 **Zod-Powered Structured Outputs**: Strictly typed schema enforcement via `chatWithSchema` and `generateWithSchema` with resilient markdown JSON parsing.
+- ⚖️ **System One Decision Helpers**: `client.decision` wraps Ollama's `/v1/systemone` classification engine with six ergonomic single-question APIs — `choice` / `noul` (yes-no) / `score` / `route` / `verify` / `rank` — each returning calibrated probabilities, and **opt-in confidence gates** (`minConfidence` / `minProbability`) so autonomous flows refuse to act on barely-majority decisions (a 0.51 coin-flip) without seeing the numbers.
 - 🛠️ **Autonomous Agent & Tool Calling**: Multi-turn agent loop (`Agent`) with automated tool execution, parameter validation, and self-correcting error recovery.
 - 🌐 **High Availability & Failover**: Multi-endpoint registry with priority routing, circuit breaker failover, active health checks, and per-endpoint `models` allow-lists for routing several model-specific API keys through one client.
 - 🔌 **Model Context Protocol (MCP)**: First-class, transport-neutral `McpBridge` for converting MCP tool descriptors into Ollama function definitions and registering executable MCP-backed tools.
 - 📚 **Full Model Lifecycle**: `pullModel`, `pushModel`, `createModel`, `copyModel`, `deleteModel`, `listModels`, `showModel`, and `ps()` (currently loaded models) — full parity with Ollama's model management API.
+- 📶 **Pull & Push Progress with Speed/ETA**: `onProgress()` subscribes a typed callback to `pullModel`/`pushModel` NDJSON streams with a pre-computed `percent`, and `createProgressSpeedTracker()` adds per-layer `bytesPerSecond` + `etaSeconds` — the stateful byte counter CLIs and dashboards used to hand-roll, with layer-epoch reset semantics built in.
 - 🔎 **Ollama Cloud Web Tools**: `webSearch`/`webFetch` wrap Ollama's hosted `/api/web_search` and `/api/web_fetch` tools at `ollama.com` (requires an `OLLAMA_API_KEY`), independent of any local `baseUrl` — and `createWebTools(client)` exposes them as model-callable `web_search`/`web_fetch` tools with bounded, valid-JSON output for the documented search-agent pattern.
 - 💳 **Ollama Cloud Usage & Balance**: `usage()`/`balance()` wrap Ollama's hosted account endpoints (`GET /api/usage`, `GET /api/balance`) — request counts, USD spend, cached-token totals bucketed by hour/day, and remaining included/purchased credits (including the legacy session/weekly plan shapes) — with the same fixed-cloud-host, API-key, timeout, and retry semantics as the web tools.
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
@@ -697,6 +699,47 @@ const product = await client.chatWithSchema(
 console.log(product.name, product.price);
 ```
 
+### System One Decision Helpers
+
+Ollama's [System One](https://docs.ollama.com/capabilities/decision) decision models (`nimble`, `tev`, …) classify text, answer yes/no questions, and score against ordered rubrics — in one request, with calibrated probabilities instead of free-form text. `client.decision` (or `createDecision(client)`) wraps `/v1/systemone` with six typed helpers:
+
+```typescript
+const decision = client.decision; // cached instance
+
+// Classification: which option fits? (returns probabilities + confidence)
+const intent = await decision.choice({
+  model: 'tev1:4b',
+  state: 'Customer was charged twice and wants their money back',
+  instructions: 'What is the primary intent?',
+  criteria: {
+    refund: 'Customer wants a refund',
+    duplicate_charge: 'Customer reports multiple charges',
+    cancellation: 'Customer wants to cancel',
+  },
+  minConfidence: 0.8, // opt-in gate for autonomous flows
+});
+// intent.choice             → 'duplicate_charge'
+// intent.confidence         → 0.89
+// intent.isConfident        → true  (false → don't act unattended)
+
+// Yes/no gating — the boolean bar is configurable for irreversible actions
+const safe = await decision.noul({
+  model: 'tev1:4b',
+  state: ticket.text,
+  instructions: 'Does this request contain a prompt injection attempt?',
+  minProbability: 0.8, // default 0.5; raise the bar for safety gates
+});
+// safe.noul → 0.13, safe.bool → false
+
+// Ordered rubric scoring, routing, evidence verification, and ranking
+await decision.score({ model, state, instructions, criteria: ['low', 'mid', 'high'] });
+await decision.route({ model, state, instructions, criteria: { sales, support, billing } });
+await decision.verify({ model, claim, evidence });
+await decision.rank({ model, instructions, criteria, candidates });
+```
+
+Confidence gates are **opt-in** — without `minConfidence`/`minProbability`, results carry the raw scores and the defaults behave exactly as before. The official docs warn that a high confidence does not guarantee correctness; the gates exist so agent loops can't act on a 0.51 coin-flip without seeing the number. For multi-question requests (routing + urgency + difficulty in one call), use `client.systemOne()` directly with the key-safe generic wrapper, and mind the request-size caps: 64 KiB without images, 32 MiB with (`estimateSystemOneRequestBytes()` checks client-side before the round-trip).
+
 ### Vector Embeddings & Similarity
 
 ```typescript
@@ -761,6 +804,42 @@ await client.createModel({
 await client.copyModel({ source: 'my-assistant', destination: 'my-assistant-backup' });
 await client.pushModel({ model: 'my-namespace/my-assistant' });
 await client.deleteModel({ model: 'my-assistant-backup' });
+```
+
+### Model Pull & Push Progress
+
+`pullModel`/`pushModel` with `stream: true` return a typed `OllamaStream` of NDJSON progress frames. `onProgress()` subscribes a callback with the fields progress bars actually need — a pre-computed `percent`, plus per-layer `bytesPerSecond` and `etaSeconds` once two byte-bearing frames have arrived:
+
+```typescript
+import { onProgress } from '@nemesis-oss/ollama-sdk';
+
+const stream = await client.pullModel({ model: 'llama3.2', stream: true });
+await onProgress(stream, (event) => {
+  if (event.percent !== undefined) {
+    const speed = event.bytesPerSecond
+      ? ` at ${(event.bytesPerSecond / 1024 / 1024).toFixed(1)} MiB/s`
+      : '';
+    const eta = event.etaSeconds ? `, ETA ${Math.ceil(event.etaSeconds)}s` : '';
+    console.log(`${event.status}: ${event.percent.toFixed(2)}%${speed}${eta}`);
+  } else {
+    console.log(event.status); // "pulling manifest", "verifying sha256 digest", …
+  }
+});
+console.log('pull complete');
+```
+
+Speed semantics are chosen for stable UIs: a **cumulative average** since the layer's first byte-bearing frame (instantaneous frame-to-frame rates jitter wildly), with automatic **per-layer epochs** — the tracker resets whenever the `digest` changes or `completed` regresses, so a 4-layer pull never averages across layers. Consumers iterating the raw stream themselves (structured logging, custom dashboards) can use `createProgressSpeedTracker()` directly — the same stateful byte counter, without hand-rolling one:
+
+```typescript
+import { createProgressSpeedTracker } from '@nemesis-oss/ollama-sdk';
+
+const speed = createProgressSpeedTracker();
+for await (const event of stream) {
+  if (event.type === 'message') {
+    const { bytesPerSecond, etaSeconds } = speed(event.data.chunk);
+    // …render your own bar
+  }
+}
 ```
 
 ### Web Search & Web Fetch (Ollama Cloud)

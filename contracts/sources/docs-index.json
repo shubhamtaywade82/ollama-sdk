@@ -7,8 +7,8 @@
       "kind": "openapi-yaml",
       "path": "contracts/sources/ollama.openapi.yaml",
       "upstream": "https://github.com/ollama/ollama/blob/main/docs/openapi.yaml",
-      "pinnedSha": "675c8bb59da99c32aabee4900f358ac074999c16",
-      "pinnedAt": "2026-10-07"
+      "pinnedSha": "2a9ffe398cf8ab94d356981dfb9390b9511c1a8e",
+      "pinnedAt": "2026-10-15"
     },
     {
       "id": "openai-compatibility",
@@ -27,7 +27,7 @@
       "kind": "html",
       "path": null,
       "upstream": "https://docs.ollama.com/api",
-      "$comment": "The rendered native API docs. Currently consulted at runtime by scripts/verify-api-parity.ts (the legacy verifier); the contract system will start consuming this in Wave 2 once an HTML→endpoint extractor exists."
+      "$comment": "The rendered native API docs. Currently consulted at runtime by scripts/verify-api-parity.ts (the legacy verifier); the contract system will start consuming this in Wave 2 once an HTML\u2192endpoint extractor exists."
     }
   ]
 }

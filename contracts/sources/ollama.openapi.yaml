@@ -1,4 +1,4 @@
-#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-07 (source SHA: 675c8bb59da99c32aabee4900f358ac074999c16). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carries for those schemas (`[24h, 7d, 30d]`, `[hour, day]`). The 2026-10-11 refresh raises the System One choice-criteria limit to 255 (model-dependent) and adds the documented /api/copy JSON status body and 400/404 errors. One intentional deviation from upstream remains: `ModelSummary.details.families` is typed `[array, null]` (upstream says `array`) because the server serializes a nil Go slice as JSON `null` for models without family metadata, and a strict array schema would reject real /api/tags responses.
+#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-07 (source SHA: 675c8bb59da99c32aabee4900f358ac074999c16). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carries for those schemas (`[24h, 7d, 30d]`, `[hour, day]`). The 2026-10-11 refresh raises the System One choice-criteria limit to 255 (model-dependent) and adds the documented /api/copy JSON status body and 400/404 errors. The 2026-10-15 refresh (source SHA: 2a9ffe398cf8ab94d356981dfb9390b9511c1a8e) syncs the System One schemas to upstream's now-native openapi.yaml definitions: score criteria tighten to 2-10 levels (answer maximum 9), the noul criteria drop the hardcoded 'Yes'/'No' defaults (omitted entries use model-specific defaults), and the model/images descriptions are simplified to the upstream wording. One intentional deviation from upstream remains: `ModelSummary.details.families` is typed `[array, null]` (upstream says `array`) because the server serializes a nil Go slice as JSON `null` for models without family metadata, and a strict array schema would reject real /api/tags responses.
 
 openapi: 3.1.0
 info:
@@ -931,10 +931,8 @@ components:
           properties:
             'false':
               type: string
-              default: 'No'
             'true':
               type: string
-              default: 'Yes'
           additionalProperties: false
     SystemOneScoreQuestion:
       title: Score
@@ -954,9 +952,9 @@ components:
           type: array
           description:
             Descriptions ordered from the lowest score (index 0) to the highest. Defines a scale from 0 to the
-            number of criteria minus 1. The maximum number of levels depends on the model.
+            number of criteria minus 1.
           minItems: 2
-          maxItems: 26
+          maxItems: 10
           items:
             type: string
     SystemOneRequest:
@@ -969,16 +967,14 @@ components:
         model:
           type: string
           pattern: \S
-          description:
-            Local model trained for System One, such as nimble. Requires compatible GGUF weights and a scoring-capable
-            runner; cloud and MLX/Safetensors models are not supported.
+          description: Local model trained for System One, such as nimble.
         state:
           $ref: '#/components/schemas/SystemOneContent'
         images:
           type: array
           description:
-            Base64-encoded images shared by all questions, in request order. Requires Clef or Clef Flash with vision
-            weights. URLs and data URLs are not supported.
+            Base64-encoded images shared by all questions, in request order. Requires a model with vision, such
+            as Clef. URLs and data URLs are not supported.
           items:
             type: string
             format: byte
@@ -1069,7 +1065,7 @@ components:
         score:
           type: number
           minimum: 0
-          maximum: 25
+          maximum: 9
           description:
             "Probability-weighted average of the zero-based criterion indices, from 0 to the number of criteria\
             \ minus 1. Not rounded to a level or normalized to 0\u20131."
@@ -2060,7 +2056,7 @@ paths:
       operationId: usage
       servers:
         - url: https://ollama.com
-          description: Ollama Cloud
+          description: Ollama's cloud
       security:
         - bearerAuth: []
       parameters:
@@ -2133,7 +2129,7 @@ paths:
       operationId: balance
       servers:
         - url: https://ollama.com
-          description: Ollama Cloud
+          description: Ollama's cloud
       security:
         - bearerAuth: []
       responses:
