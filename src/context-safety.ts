@@ -148,6 +148,39 @@ export interface ContextCheck {
   readonly windowSource: ContextWindowSource;
   /** True when the estimate crossed the warning threshold of the effective window. */
   readonly exceedsThreshold: boolean;
+  /**
+   * Present only when `exceedsThreshold` is `true`: the smallest power-of-two
+   * window with ~30% generation headroom above the estimate (see
+   * {@link recommendContextWindow}). A starting point, not a verdict — check
+   * the model's native ceiling with `client.models.getContextLength()` before
+   * adopting it; a prompt that outgrows the native maximum needs compaction
+   * or history truncation, not a bigger `num_ctx`.
+   */
+  readonly recommendedNumCtx?: number | undefined;
+}
+
+/**
+ * Smallest power-of-two context window that comfortably fits
+ * `estimatedTokens` — ~30% headroom for the response, floored at 4096 (the
+ * common modern server default when `num_ctx` is unset).
+ *
+ * Uses an exact doubling loop rather than
+ * `Math.pow(2, Math.ceil(Math.log2(x)))`: floating-point `log2` of exact
+ * powers of two can land marginally above the integer (e.g.
+ * `Math.log2(8) > 3` on some platforms), which rounds a perfect fit *up* a
+ * whole power of two. The loop has no such boundary bugs.
+ *
+ * Non-finite / non-positive inputs return the 4096 floor rather than throwing:
+ * callers use this to *suggest* a window after their own estimate already
+ * flagged a problem, so garbage-in should degrade to a conservative
+ * suggestion, not a second error path.
+ */
+export function recommendContextWindow(estimatedTokens: number): number {
+  if (!Number.isFinite(estimatedTokens) || estimatedTokens <= 0) return 4096;
+  const target = estimatedTokens * 1.3;
+  let window = 4096;
+  while (window < target) window *= 2;
+  return window;
 }
 
 export interface ContextCheckOptions {
@@ -190,26 +223,32 @@ function check(
   // high as 4096, so warning at merely 90% of an assumed 2048 would produce
   // false positives. Only flag prompts that outright exceed the fallback.
   if (requestNumCtx !== undefined) {
+    const exceeds = estimatedPromptTokens > requestNumCtx * threshold;
     return {
       estimatedPromptTokens,
       effectiveContextLength: requestNumCtx,
       windowSource: 'request',
-      exceedsThreshold: estimatedPromptTokens > requestNumCtx * threshold,
+      exceedsThreshold: exceeds,
+      ...(exceeds ? { recommendedNumCtx: recommendContextWindow(estimatedPromptTokens) } : {}),
     };
   }
   if (options.defaultContextLength !== undefined) {
+    const exceeds = estimatedPromptTokens > options.defaultContextLength * threshold;
     return {
       estimatedPromptTokens,
       effectiveContextLength: options.defaultContextLength,
       windowSource: 'client-default',
-      exceedsThreshold: estimatedPromptTokens > options.defaultContextLength * threshold,
+      exceedsThreshold: exceeds,
+      ...(exceeds ? { recommendedNumCtx: recommendContextWindow(estimatedPromptTokens) } : {}),
     };
   }
+  const exceeds = estimatedPromptTokens > OLLAMA_FALLBACK_CONTEXT_LENGTH;
   return {
     estimatedPromptTokens,
     effectiveContextLength: OLLAMA_FALLBACK_CONTEXT_LENGTH,
     windowSource: 'server-fallback',
-    exceedsThreshold: estimatedPromptTokens > OLLAMA_FALLBACK_CONTEXT_LENGTH,
+    exceedsThreshold: exceeds,
+    ...(exceeds ? { recommendedNumCtx: recommendContextWindow(estimatedPromptTokens) } : {}),
   };
 }
 
@@ -227,12 +266,22 @@ export const OLLAMA_FALLBACK_CONTEXT_LENGTH = 2048;
 export function contextWarningMessage(check: ContextCheck, kind: 'chat' | 'generate'): string {
   const where = `OllamaClient.${kind}()`;
   const estimate = `~${check.estimatedPromptTokens} tokens`;
+  // When the check carries a concrete suggestion (it does whenever it
+  // exceeds the threshold — see `check()`), surface it with the ceiling
+  // caveat: the number is a fit for *this estimate*, not a guarantee the
+  // model's native context goes that high.
+  const suggestion =
+    check.recommendedNumCtx !== undefined
+      ? ` A window of at least ${check.recommendedNumCtx} tokens would fit this prompt with ~30% ` +
+        `headroom (see \`recommendContextWindow\`) — verify the model's native maximum via ` +
+        `\`client.models.getContextLength()\` before adopting it.`
+      : '';
   if (check.windowSource === 'request') {
     return (
       `${where}: estimated prompt size ${estimate} is close to or beyond the request's ` +
       `context window (num_ctx=${check.effectiveContextLength}). The server will likely ` +
       `silently truncate the top of the conversation — the model loses earlier turns with ` +
-      `no error. Raise \`options.num_ctx\` or shorten the conversation. ` +
+      `no error. Raise \`options.num_ctx\` or shorten the conversation.${suggestion} ` +
       `Estimates are heuristic (±20–30%); see \`estimateTokens\`.`
     );
   }
@@ -242,7 +291,7 @@ export function contextWarningMessage(check: ContextCheck, kind: 'chat' | 'gener
       `\`defaultContextLength\` (${check.effectiveContextLength}, injected as \`num_ctx\`). ` +
       `The server will likely silently truncate the top of the conversation — the model ` +
       `loses earlier turns with no error. Raise \`defaultContextLength\`, set \`options.num_ctx\` ` +
-      `per request, or shorten the conversation. ` +
+      `per request, or shorten the conversation.${suggestion} ` +
       `Estimates are heuristic (±20–30%); see \`estimateTokens\`.`
     );
   }
@@ -252,7 +301,7 @@ export function contextWarningMessage(check: ContextCheck, kind: 'chat' | 'gener
     `\`num_ctx\` is unset — model-dependent). Unless the model's default is larger, the ` +
     `server will silently truncate the top of the conversation — the model loses earlier ` +
     `turns with no error. Set \`options.num_ctx\` (or the client's \`defaultContextLength\`) ` +
-    `to an explicit window to make truncation visible and controllable. ` +
+    `to an explicit window to make truncation visible and controllable.${suggestion} ` +
     `Estimates are heuristic (±20–30%); see \`estimateTokens\`.`
   );
 }

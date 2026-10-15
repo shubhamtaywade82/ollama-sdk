@@ -104,6 +104,8 @@ export {
   OllamaSkillInvalidError,
   OllamaGenericClientError,
   mapError,
+  isNetworkLevelError,
+  NETWORK_ERROR_CODES,
   type OllamaErrorRequestContext,
   type OllamaErrorResponseContext,
   type OllamaClientErrorOptions,
@@ -163,6 +165,7 @@ export {
   toTextStream,
   toDataStream,
   toResponse,
+  observeStream,
 } from './streaming/index.js';
 export type {
   OllamaStreamEvent,
@@ -178,6 +181,8 @@ export type {
   ProgressStreamResult,
   AbortableAsyncIterable,
   SseEvent,
+  StreamObserverCallbacks,
+  StreamObserverPhase,
 } from './streaming/index.js';
 
 // Usage
@@ -517,6 +522,7 @@ export {
   estimateGenerateRequestTokens,
   estimateMessageTokens,
   estimateTokens,
+  recommendContextWindow,
   type ContextCheck,
   type ContextCheckOptions,
   type ContextWindowSource,
