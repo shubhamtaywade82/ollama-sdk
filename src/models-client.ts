@@ -11,7 +11,7 @@ import {
   type DiscoveredContextLength,
 } from './context-discovery.js';
 import { extractContextLength } from './capabilities/capabilities.js';
-import { OllamaClientError, OllamaNotFoundError } from './errors.js';
+import { OllamaAbortError, OllamaClientError, OllamaNotFoundError } from './errors.js';
 import { KEEP_ALIVE_INDEFINITE, KEEP_ALIVE_UNLOAD } from './keep-alive.js';
 import { normalizeProgressStream } from './streaming/normalize.js';
 import type { OllamaStream } from './streaming/stream.js';
@@ -352,7 +352,11 @@ export class ModelsClient {
     );
   }
 
-  async createBlob(digest: string, data: BinaryBody): Promise<void> {
+  async createBlob(
+    digest: string,
+    data: BinaryBody,
+    request?: RequestCancellationOptions,
+  ): Promise<void> {
     await this.runner(
       (http, signal) =>
         http.request<void>({
@@ -361,11 +365,11 @@ export class ModelsClient {
           rawBody: data,
           signal,
         }),
-      { singleEndpoint: true },
+      { ...request, singleEndpoint: true },
     );
   }
 
-  async checkBlob(digest: string): Promise<boolean> {
+  async checkBlob(digest: string, request?: RequestCancellationOptions): Promise<boolean> {
     // Wave 12 (P2): previously this method caught every error and returned
     // false, which conflated "blob absent" (HTTP 404) with auth failures
     // (401/403), rate limits (429), server errors (5xx), network failures,
@@ -387,7 +391,7 @@ export class ModelsClient {
             method: 'HEAD',
             signal,
           }),
-        { singleEndpoint: true },
+        { ...request, singleEndpoint: true },
       );
       return true;
     } catch (err) {
@@ -430,7 +434,7 @@ export class ModelsClient {
         { code: 'crypto_unavailable' },
       );
     }
-    const digestBytes = await subtle.digest('SHA-256', data as unknown as ArrayBuffer);
+    const digestBytes = await subtle.digest('SHA-256', data);
     const hex = Array.from(new Uint8Array(digestBytes), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
@@ -448,12 +452,40 @@ export class ModelsClient {
    */
   async createBlobFromData(
     data: Uint8Array,
-    opts?: { readonly digest?: string | undefined; readonly signal?: AbortSignal | undefined },
+    opts?: { readonly digest?: string | undefined } & RequestCancellationOptions,
   ): Promise<BlobUploadResult> {
     const digest = opts?.digest ?? (await this.computeBlobDigest(data));
-    const alreadyExisted = await this.checkBlob(digest);
+    const alreadyExisted = await this.checkBlob(digest, opts);
     if (!alreadyExisted) {
-      await this.createBlob(digest, data);
+      await this.createBlob(digest, data, opts);
+    }
+    return { digest, alreadyExisted };
+  }
+
+  /**
+   * Streams a blob upload straight from a web `ReadableStream` — the
+   * multi-gigabyte-safe counterpart of {@link createBlobFromData}. The body
+   * is never materialized in memory: the transport hands the stream to
+   * `fetch` directly (setting `duplex: 'half'`, which Node 18+ requires for
+   * stream bodies), so peak heap usage is a transport-level chunk, not the
+   * blob size.
+   *
+   * The digest must be known up front — it *is* the upload URL
+   * (`/api/blobs/<digest>`), the same content-addressed protocol
+   * `curl -T` performs. Hash first when you don't have it: in-memory bytes
+   * via {@link computeBlobDigest}, files via {@link createBlobFromFile}
+   * (which hashes in a streaming pass). The server verifies the streamed
+   * bytes against the digest and rejects mismatches, so a corrupted or
+   * truncated stream fails the upload instead of poisoning the store.
+   */
+  async createBlobFromStream(
+    digest: string,
+    stream: ReadableStream<Uint8Array>,
+    request?: RequestCancellationOptions,
+  ): Promise<BlobUploadResult> {
+    const alreadyExisted = await this.checkBlob(digest, request);
+    if (!alreadyExisted) {
+      await this.createBlob(digest, stream, request);
     }
     return { digest, alreadyExisted };
   }
@@ -463,21 +495,79 @@ export class ModelsClient {
    * `node:fs` import, so browser bundles never pull it in). The file name
    * (basename) is what `/api/create`'s `files` map expects as the key, so
    * this returns it alongside the digest.
+   *
+   * Streams both passes in fixed-size chunks — peak heap is O(chunk), not
+   * O(file), so multi-gigabyte GGUFs never enter the Node heap:
+   *
+   *  1. **Hash pass** (skipped when `opts.digest` is provided): the file is
+   *     streamed through `node:crypto`'s incremental SHA-256.
+   *  2. **Upload pass**: `node:fs` createReadStream → web ReadableStream →
+   *     `fetch` body with `duplex: 'half'` (see {@link createBlobFromStream}).
+   *
+   * A pre-existing blob (HEAD 200) skips the upload pass entirely, same as
+   * {@link createBlobFromData}.
    */
   async createBlobFromFile(
     path: string,
-    opts?: { readonly signal?: AbortSignal | undefined },
+    opts?: { readonly digest?: string | undefined } & RequestCancellationOptions,
   ): Promise<BlobUploadResult & { readonly fileName: string }> {
-    // Specifier hidden behind a variable so browser/edge bundlers never try
-    // to resolve `node:fs` at build time — see src/vision.ts NODE_FS_MODULE.
+    // Specifiers hidden behind variables so browser/edge bundlers never try
+    // to resolve `node:*` modules at build time — see src/vision.ts
+    // NODE_FS_MODULE (the same trick keeps this Node-only method out of
+    // edge bundles while the class itself stays portable).
     const nodeFsModule = 'node:fs';
-    const { promises: fs } = (await import(nodeFsModule)) as typeof import('node:fs');
-    const data = await fs.readFile(path);
-    const result = await this.createBlobFromData(new Uint8Array(data), {
-      ...opts,
-    });
+    const { createReadStream } = (await import(nodeFsModule)) as typeof import('node:fs');
+    const nodeCryptoModule = 'node:crypto';
+    const { createHash } = (await import(nodeCryptoModule)) as typeof import('node:crypto');
+    const nodeStreamModule = 'node:stream';
+    const { Readable } = (await import(nodeStreamModule)) as typeof import('node:stream');
+
+    const CHUNK_BYTES = 256 * 1024;
+
+    // Pass 1 — streaming hash (O(chunk) memory). Aborts surface as
+    // OllamaAbortError, the same class the transport boundary produces.
+    let digest = opts?.digest;
+    if (digest === undefined) {
+      const hash = createHash('sha256');
+      const hashStream = createReadStream(path, { highWaterMark: CHUNK_BYTES });
+      try {
+        for await (const chunk of hashStream) {
+          if (opts?.signal?.aborted) {
+            throw new OllamaAbortError('createBlobFromFile: aborted while hashing', {});
+          }
+          hash.update(chunk);
+        }
+      } finally {
+        // Closes the fd on both the abort-throw and any read error —
+        // a destroyed/errored iterator would otherwise rely on GC.
+        hashStream.destroy();
+      }
+      digest = `sha256:${hash.digest('hex')}`;
+    }
+
+    const alreadyExisted = await this.checkBlob(digest, opts);
+    if (!alreadyExisted) {
+      // Pass 2 — streaming upload (O(chunk) memory).
+      const uploadStream = createReadStream(path, { highWaterMark: CHUNK_BYTES });
+      const onAbort = (): void => {
+        // Destroying the Node side cancels the web stream, which undici
+        // propagates as a body error; the forwarded signal also aborts the
+        // fetch itself, so this is belt-and-braces fd hygiene.
+        uploadStream.destroy();
+      };
+      opts?.signal?.addEventListener('abort', onAbort, { once: true });
+      try {
+        await this.createBlob(
+          digest,
+          Readable.toWeb(uploadStream) as unknown as ReadableStream<Uint8Array>,
+          opts,
+        );
+      } finally {
+        opts?.signal?.removeEventListener('abort', onAbort);
+      }
+    }
     const fileName = path.split(/[\\/]/).pop() ?? path;
-    return { ...result, fileName };
+    return { digest, alreadyExisted, fileName };
   }
 
   /**

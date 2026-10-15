@@ -33,7 +33,7 @@ Nexum’s model harness (2026-10-09) exercised this SDK via `gemma4:cloud` and `
 - 🌉 **OpenAI & Anthropic Compatibility Bridges**: Built-in clients for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, and `/v1/messages`, including `reasoning_effort`/`reasoning.effort` for thinking models — plus an ergonomic dual-mode `client.responses.create()` bridge that prefers native `/v1/responses` and transparently re-issues via `/api/chat` on older servers (pre-v0.13.3).
 - 💬 **KV-Cache-Aware Conversation Sessions**: `client.session(model, systemPrompt)` keeps an append-only, prefix-stable history that maximizes Ollama's KV-cache reuse across turns, surfaces per-turn + cumulative cache hit rates (`prompt_eval_cached_count`) so cache degradation is visible instead of silent, and offers a one-call `compact()` sliding-window escape hatch when a session outgrows its window.
 - 🛑 **Context-Window Safety**: Heuristic client-side token estimation warns (or throws, `onContextOverflow: 'throw'`) before a request is sent when the prompt approaches the effective `num_ctx` window — Ollama's default behavior is to _silently truncate_ oversized prompts — and `defaultContextLength` makes the window explicit on every request.
-- 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`) — with **speculative-decoding assembly**: `draftGguf` uploads the draft network's shards into `draft_files`, `draft_quantize` compresses them independently, and `parameters.draft_num_predict` tunes the per-step draft length.
+- 📦 **Blob & Custom Model Publishing**: Content-addressed blob management per Ollama's documented protocol — `computeBlobDigest()` (SHA-256 → `sha256:<hex>`), `createBlobFromData()`/`createBlobFromFile()` (HEAD-check + upload, skipping existing blobs), **streaming uploads with O(chunk) heap** (`createBlobFromFile` hashes and uploads in 256 KiB chunks — multi-GB GGUFs never enter the Node heap; `createBlobFromStream()` pipes any web `ReadableStream` straight into `fetch` with `duplex: 'half'`), and one-shot `createModelFromGguf()` (upload GGUF shard blobs, then `/api/create` with `files: {name: digest}`) — with **speculative-decoding assembly**: `draftGguf` uploads the draft network's shards into `draft_files`, `draft_quantize` compresses them independently, and `parameters.draft_num_predict` tunes the per-step draft length.
 - 🏁 **Speculative Draft Benchmark (`compareDraftPerformance`)**: One call answers "does drafting pay off for _this_ prompt?" — identical prompt on both sides, deterministic sampling (`temperature: 0` + fixed seed), warm-up discard, several samples per side with **medians** compared, throughput via `formatTelemetry` — reported as baseline vs. speculative tok/s, `speedupMultiplier`, and `effectiveGain` past a configurable threshold. A ≈1.0 speedup is itself diagnostic: the model has no draft network, so the server silently ignores the option.
 - 🧪 **In-Memory Mock Server (`@nemesis-oss/ollama-sdk/testing`)**: The SDK's own deterministic test double, promoted public — `createMockOllamaServer()` with scriptable NDJSON routes, built-in liveness/version defaults (so `ping()` works out of the box), request recording for wire-level assertions, **request-aware routes** (`responder` — per-request responses for fail-twice-then-succeed retry drills and body-dependent payloads), mid-stream **in-band error injection** (`{"error": "..."}` frames at HTTP 200, exactly how a real daemon reports GPU OOM), connection drops, and correctly-shaped chunk builders for streaming text and **parallel tool calls** — zero network, zero daemon, CI-deterministic.
 - 🧵 **Batched Embeddings with Backpressure**: `client.embedBatch()` splits corpora of any size into bounded `/api/embed` batches (default 32 inputs × 3 in flight) — order-preserving, fail-fast, progress-reporting — so RAG/vector ingestion can't OOM a local daemon or saturate `OLLAMA_MAX_QUEUE` the way `Promise.all` floods do, with per-string context-window pre-flight against silent truncation.
@@ -498,6 +498,34 @@ await client.models.createModelFromGguf('my-model', [
   '/models/model-00001-of-00002.gguf',
   '/models/model-00002-of-00002.gguf',
 ]);
+```
+
+#### Streaming uploads — multi-gigabyte weights with O(chunk) heap
+
+Both `createBlobFromFile` and `createModelFromGguf` (which routes every shard
+through it) stream instead of bulk-reading: the SHA-256 hash pass and the
+upload pass each consume the file in 256 KiB chunks, so peak heap is a chunk,
+never the file. Pass `digest` when you already know it to skip the hash pass
+entirely. When you own the bytes (a chunk producer, a WASM/SharedArrayBuffer
+pipeline, a resumed download), `createBlobFromStream` pipes any web
+`ReadableStream<Uint8Array>` straight into the request body — the transport
+sets `duplex: 'half'` (required by Node 18+ `fetch` for stream bodies)
+automatically, and the server verifies the streamed content against the
+digest, so a truncated stream fails the upload instead of corrupting the
+store:
+
+```typescript
+// digest known up front (hash first when it isn't — the digest IS the URL)
+const { alreadyExisted } = await client.models.createBlobFromStream(
+  'sha256:…',
+  myChunkProducer, // ReadableStream<Uint8Array>
+);
+
+// Both methods accept { signal, timeoutMs } for cancellation/timeout:
+await client.models.createBlobFromFile('/models/model.gguf', {
+  digest: 'sha256:…', // optional: skip the hash pass
+  signal: controller.signal,
+});
 ```
 
 ### Speculative Decoding (Draft Models)
@@ -1933,6 +1961,25 @@ not findings.
 around the underlying HTTP request for native endpoints, OpenAI/Anthropic compatibility,
 model health checks, and the hosted web tools. Lifecycle events expose `start`, `success`,
 `retry`, and `error` events with a request id, timing, and status/error information.
+
+**Distributed tracing (W3C `traceparent`/`tracestate`/`baggage`)**: the SDK forwards
+whatever headers it is given and never strips or rewrites yours — three seams cover
+propagation. Client-wide (every request, every endpoint):
+
+```ts
+const client = new OllamaClient({
+  headers: {
+    traceparent: carrierHeader('traceparent'), // from your inbound request
+    baggage: carrierHeader('baggage'),
+  },
+});
+```
+
+Per-request or computed (the middleware seam from above — `request.headers` is a mutable
+record, so an OpenTelemetry-style extractor plugs in directly and can vary headers per
+call). A `traceContext` option on every SDK method was considered and declined
+(ADR 0032): it would inflate every signature for something these seams already do
+without touching them.
 
 ```ts
 const client = new OllamaClient({

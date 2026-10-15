@@ -46,6 +46,44 @@ function createRequestId(): string {
   return `ollama-http-${requestSequence}`;
 }
 
+/**
+ * Structural (realm-safe) guard for web `ReadableStream` bodies. Undici
+ * requires `duplex: 'half'` on the fetch init whenever the body is a stream
+ * (Node 18+; without it the request throws before any bytes hit the wire),
+ * and the same init member is now part of the WHATWG fetch spec — harmless
+ * in browsers. Duck-typing on `getReader` avoids cross-realm `instanceof`
+ * misses: a stream created inside a worker/VM context is still a stream to
+ * undici, and `instanceof` across realms would silently skip the member.
+ */
+function isWebReadableStreamBody(body: unknown): body is ReadableStream<Uint8Array> {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as { getReader?: unknown }).getReader === 'function'
+  );
+}
+
+/**
+ * `RequestInit` plus the `duplex` member this project's `@types/node`
+ * `RequestInit` doesn't carry yet (`@types/node` 22's undici types predate
+ * its promotion into the shared init shape). Node's fetch reads it at
+ * runtime regardless of the TS declaration — the intersection type just
+ * makes the assignment legal at compile time. Assignable to plain
+ * `RequestInit`, so `FetchLike` call sites need no casts.
+ */
+type FetchInitWithDuplex = RequestInit & { readonly duplex?: 'half' };
+
+/** Shared fetch-init builder for the middleware and no-middleware paths. */
+function buildFetchInit(req: RequestContext): FetchInitWithDuplex {
+  return {
+    method: req.method,
+    headers: req.headers,
+    ...(req.body !== undefined ? { body: req.body as NonNullable<RequestInit['body']> } : {}),
+    ...(req.signal !== undefined ? { signal: req.signal } : {}),
+    ...(isWebReadableStreamBody(req.body) ? { duplex: 'half' } : {}),
+  };
+}
+
 function sameHeaders(actual: Record<string, string>, expected: Headers): boolean {
   const actualEntries = Object.fromEntries(
     Object.entries(actual).map(([key, value]) => [key.toLowerCase(), value]),
@@ -140,13 +178,7 @@ export class HttpClient {
       headers: Record<string, string>;
       body: Response;
     }> => {
-      const init: RequestInit = {
-        method: req.method,
-        headers: req.headers,
-        ...(req.body !== undefined ? { body: req.body as NonNullable<RequestInit['body']> } : {}),
-        ...(req.signal !== undefined ? { signal: req.signal } : {}),
-      };
-      const response = await this.fetchImpl(req.url, init);
+      const response = await this.fetchImpl(req.url, buildFetchInit(req));
       rawResponse = response;
       const responseHeaders =
         response.headers && typeof response.headers.entries === 'function'
@@ -161,14 +193,7 @@ export class HttpClient {
 
     try {
       if (this.middleware.length === 0) {
-        const response = await this.fetchImpl(request.url, {
-          method: request.method,
-          headers: request.headers,
-          ...(request.body !== undefined
-            ? { body: request.body as NonNullable<RequestInit['body']> }
-            : {}),
-          ...(request.signal !== undefined ? { signal: request.signal } : {}),
-        });
+        const response = await this.fetchImpl(request.url, buildFetchInit(request));
         if (response.status >= 200 && response.status < 300) {
           this.onLifecycleEvent?.({
             type: 'success',

@@ -40,6 +40,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0029](./0029-public-testing-subpath-speculative-draft-conveniences.md)             | Public Testing Subpath, Speculative-Draft Conveniences                                                            |
 | [0030](./0030-draft-benchmark-request-aware-mock-routes.md)                         | Draft Benchmark Utility, Request-Aware Mock Routes                                                                |
 | [0031](./0031-stream-observation-network-classification-context-recommendations.md) | Stream Observation (`observeStream`), Network-Error Classification, Context-Window Recommendations                |
+| [0032](./0032-streaming-blob-uploads-tracing-verdicts-view-safety.md)               | Streaming Blob Uploads (`duplex:'half'`, Two-Pass File Upload), Tracing-Header Verdicts, Typed-Array View Safety  |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives
