@@ -18,24 +18,24 @@ new OllamaClient(config?: OllamaClientConfig)
 
 ### `OllamaClientConfig`
 
-| Field                  | Type                                            | Default                              | Description                                                                  |
-| ---------------------- | ----------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
-| `baseUrl`              | `string`                                         | `OLLAMA_HOST` or `http://localhost:11434` | Single-endpoint base URL. Ignored if `endpoints` is provided.               |
-| `apiKey`               | `string`                                         | `OLLAMA_API_KEY`                     | Bearer token for a single endpoint.                                          |
-| `headers`              | `Record<string, string>`                        | —                                    | Static headers merged into every request.                                     |
-| `endpoints`            | `readonly OllamaEndpoint[]`                     | —                                    | Multi-endpoint registry with priority routing and failover.                  |
-| `credentials`          | `Record<string, OllamaCredentialConfig>`        | —                                    | Map-based alternative to `endpoints` for multi-key Ollama Cloud setups.      |
-| `modelBindings`        | `Record<string, string \| readonly string[]>`   | —                                    | Maps model names to credential ids. Requires `credentials`.                  |
-| `defaultCredential`    | `string`                                         | —                                    | Fallback credential id for models with no `modelBindings` entry.             |
-| `endpointHealth`       | `EndpointRegistryOptions`                       | —                                    | Circuit-breaker tuning, load-balancing strategy, concurrency caps.           |
-| `failoverOn`           | `readonly string[]`                             | `DEFAULT_FAILOVER_CODES`             | Error codes that trigger failover to the next candidate.                     |
-| `timeoutMs`            | `number`                                         | `30_000`                             | Default per-request timeout in milliseconds.                                 |
-| `retries`              | `number \| Partial<RetryConfig>`                | `DEFAULT_RETRY_CONFIG`               | Retry count or full retry config.                                            |
-| `fetch`                | `FetchLike`                                      | `globalThis.fetch`                   | Custom fetch implementation (for testing or non-standard runtimes).          |
-| `middleware`           | `readonly Middleware[]`                         | —                                    | Request/response middleware pipeline.                                        |
-| `logger`               | `Logger`                                         | `NOOP_LOGGER`                        | Structured logger.                                                           |
-| `debug`                | `boolean`                                        | `false`                              | Enables the console debug logger if `logger` is not set.                     |
-| `onLifecycleEvent`     | `RequestLifecycleHook`                          | —                                    | Telemetry hook for request start/success/retry/error events.                 |
+| Field               | Type                                          | Default                                   | Description                                                             |
+| ------------------- | --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| `baseUrl`           | `string`                                      | `OLLAMA_HOST` or `http://localhost:11434` | Single-endpoint base URL. Ignored if `endpoints` is provided.           |
+| `apiKey`            | `string`                                      | `OLLAMA_API_KEY`                          | Bearer token for a single endpoint.                                     |
+| `headers`           | `Record<string, string>`                      | —                                         | Static headers merged into every request.                               |
+| `endpoints`         | `readonly OllamaEndpoint[]`                   | —                                         | Multi-endpoint registry with priority routing and failover.             |
+| `credentials`       | `Record<string, OllamaCredentialConfig>`      | —                                         | Map-based alternative to `endpoints` for multi-key Ollama Cloud setups. |
+| `modelBindings`     | `Record<string, string \| readonly string[]>` | —                                         | Maps model names to credential ids. Requires `credentials`.             |
+| `defaultCredential` | `string`                                      | —                                         | Fallback credential id for models with no `modelBindings` entry.        |
+| `endpointHealth`    | `EndpointRegistryOptions`                     | —                                         | Circuit-breaker tuning, load-balancing strategy, concurrency caps.      |
+| `failoverOn`        | `readonly string[]`                           | `DEFAULT_FAILOVER_CODES`                  | Error codes that trigger failover to the next candidate.                |
+| `timeoutMs`         | `number`                                      | `30_000`                                  | Default per-request timeout in milliseconds.                            |
+| `retries`           | `number \| Partial<RetryConfig>`              | `DEFAULT_RETRY_CONFIG`                    | Retry count or full retry config.                                       |
+| `fetch`             | `FetchLike`                                   | `globalThis.fetch`                        | Custom fetch implementation (for testing or non-standard runtimes).     |
+| `middleware`        | `readonly Middleware[]`                       | —                                         | Request/response middleware pipeline.                                   |
+| `logger`            | `Logger`                                      | `NOOP_LOGGER`                             | Structured logger.                                                      |
+| `debug`             | `boolean`                                     | `false`                                   | Enables the console debug logger if `logger` is not set.                |
+| `onLifecycleEvent`  | `RequestLifecycleHook`                        | —                                         | Telemetry hook for request start/success/retry/error events.            |
 
 See [Failover & Routing](../guide/failover) for the full multi-endpoint patterns.
 
@@ -132,21 +132,23 @@ Legacy single-prompt endpoint. New code should use `embed()` — see [Embeddings
 
 All model operations delegate to `ModelsClient` and target one specific endpoint's local state — they do **not** cross-endpoint fail over (see [ADR 0008](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0008-endpoint-failover-scope.md)).
 
-| Method                          | Signature                                                                  | Description                                |
-| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------ |
-| `listModels()`                  | `() => Promise<ListResponse>`                                              | `GET /api/tags` — all installed models.    |
-| `showModel(req)`                | `(req: ShowRequestOptions) => Promise<ShowResponse>`                       | `POST /api/show` — model details + caps.   |
-| `pullModel(r)`                  | `(r: PullRequestOptions) => Promise<ProgressResponse \| ...>`              | `POST /api/pull` — download a model.       |
-| `pushModel(r)`                  | `(r: PushRequestOptions) => Promise<ProgressResponse \| ...>`              | `POST /api/push` — upload a model.         |
-| `createModel(r)`                | `(r: CreateRequestOptions) => Promise<StatusResponse \| ...>`              | `POST /api/create` — build a custom model. |
-| `deleteModel(req)`              | `(req: DeleteRequestOptions) => Promise<void>`                             | `DELETE /api/delete` — remove a model.     |
-| `copyModel(req)`                | `(req: CopyRequestOptions) => Promise<void>`                               | `POST /api/copy` — duplicate a model.      |
-| `ps()`                          | `() => Promise<PsResponse>`                                                | `GET /api/ps` — currently loaded models.   |
-| `version()`                     | `() => Promise<VersionResponse>`                                           | `GET /api/version`.                        |
-| `createBlob(digest, data)`      | `(digest: string, data: BinaryBody) => Promise<void>`                      | `POST /api/blobs/<digest>` — upload a blob.|
-| `checkBlob(digest)`             | `(digest: string) => Promise<boolean>`                                     | `HEAD /api/blobs/<digest>` — check existence. |
+| Method                                           | Signature                                                                         | Description                                                                                                                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listModels()`                                   | `() => Promise<ListResponse>`                                                     | `GET /api/tags` — all installed models.                                                                                                                                       |
+| `showModel(req)`                                 | `(req: ShowRequestOptions) => Promise<ShowResponse>`                              | `POST /api/show` — model details + caps.                                                                                                                                      |
+| `pullModel(r)`                                   | `(r: PullRequestOptions) => Promise<ProgressResponse \| ...>`                     | `POST /api/pull` — download a model.                                                                                                                                          |
+| `pushModel(r)`                                   | `(r: PushRequestOptions) => Promise<ProgressResponse \| ...>`                     | `POST /api/push` — upload a model.                                                                                                                                            |
+| `createModel(r)`                                 | `(r: CreateRequestOptions) => Promise<StatusResponse \| ...>`                     | `POST /api/create` — build a custom model.                                                                                                                                    |
+| `deleteModel(req)`                               | `(req: DeleteRequestOptions) => Promise<void>`                                    | `DELETE /api/delete` — remove a model.                                                                                                                                        |
+| `copyModel(req)`                                 | `(req: CopyRequestOptions) => Promise<void>`                                      | `POST /api/copy` — duplicate a model.                                                                                                                                         |
+| `ps()`                                           | `() => Promise<PsResponse>`                                                       | `GET /api/ps` — currently loaded models.                                                                                                                                      |
+| `version()`                                      | `() => Promise<VersionResponse>`                                                  | `GET /api/version`.                                                                                                                                                           |
+| `createBlob(digest, data)`                       | `(digest: string, data: BinaryBody, request?) => Promise<void>`                   | `POST /api/blobs/<digest>` — upload a blob.                                                                                                                                   |
+| `createBlobFromStream(digest, stream, request?)` | `(digest: string, stream: ReadableStream<Uint8Array>, request?) => Promise<void>` | Streaming upload — pipes any web `ReadableStream` into `POST /api/blobs/<digest>` with `duplex: 'half'`.                                                                      |
+| `createBlobFromFile(path, opts?)`                | `(path: string, opts?: { digest?, request? }) => Promise<void>`                   | Two-pass file upload — incremental SHA-256 (256 KiB chunks, skipped when `digest` is passed), then streamed upload. Peak heap O(chunk) — multi-GB GGUFs never enter the heap. |
+| `checkBlob(digest)`                              | `(digest: string, request?) => Promise<boolean>`                                  | `HEAD /api/blobs/<digest>` — check existence.                                                                                                                                 |
 
-`pullModel`, `pushModel`, and `createModel` stream when `stream: true` is passed — they yield `ProgressResponse` events with `status`, `completed`, and `total` fields.
+`pullModel`, `pushModel`, and `createModel` stream when `stream: true` is passed — they yield `ProgressResponse` events with `status`, `completed`, and `total` fields. For typed pull/push progress with a pre-computed `percent` and per-layer speed/ETA, wrap the stream with the root-exported `onProgress()` — see [Streaming](../guide/streaming#streaming-model-lifecycle-operations) and [Observability](../guide/observability#progress-speed--eta).
 
 ## System One
 
@@ -277,12 +279,12 @@ interface ChatRequestOptions extends RequestCancellationOptions {
   readonly model: string;
   readonly messages: readonly Message[];
   readonly tools?: readonly ToolDefinition[];
-  readonly format?: FormatOption;            // 'json' | Record<string, unknown> (JSON Schema)
+  readonly format?: FormatOption; // 'json' | Record<string, unknown> (JSON Schema)
   readonly options?: ModelOptions;
   readonly stream?: boolean;
   readonly keep_alive?: string | number;
-  readonly think?: ThinkValue;               // boolean | string | null
-  readonly width?: number;                   // experimental image generation
+  readonly think?: ThinkValue; // boolean | string | null
+  readonly width?: number; // experimental image generation
   readonly height?: number;
   readonly steps?: number;
   readonly logprobs?: boolean;
@@ -298,9 +300,9 @@ interface Message {
   readonly content: string;
   readonly images?: readonly (string | Uint8Array)[]; // base64 or raw bytes (auto-encoded)
   readonly tool_calls?: readonly ToolCall[];
-  readonly tool_name?: string;             // for role: 'tool' — which tool produced this
-  readonly tool_call_id?: string;          // SDK-local metadata, not sent on the wire
-  readonly thinking?: string;              // reasoning content from a thinking model
+  readonly tool_name?: string; // for role: 'tool' — which tool produced this
+  readonly tool_call_id?: string; // SDK-local metadata, not sent on the wire
+  readonly thinking?: string; // reasoning content from a thinking model
 }
 ```
 

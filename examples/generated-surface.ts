@@ -48,7 +48,10 @@ async function main() {
   //    (local-only operations reject in cloud mode, version-gated operations
   //    fail fast when the server is too old) before any HTTP request is made.
   try {
-    const response = await api.chat(parseResult.data);
+    // The schema-parsed request carries `stream?: boolean`; the non-streaming
+    // overload requires it narrowed, so drop it for this one-shot call.
+    const { stream: _stream, ...request } = parseResult.data;
+    const response = await api.chat(request);
     console.log('Response:', response.message?.content);
     console.log('Eval tokens:', response.eval_count);
     console.log(

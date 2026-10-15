@@ -178,6 +178,7 @@
     "clean": "rm -rf dist",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "typecheck:examples": "tsc --noEmit -p tsconfig.examples-check.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

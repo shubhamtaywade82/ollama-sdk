@@ -15,6 +15,12 @@ premise describes a remote state that does not exist. This is the same timeline-
 pattern ADR 0031 recorded for the previous digest's IPC-01/OBS-01/CON-02 header; noted
 here so the pattern itself stays on the record.
 
+> **Post-release note (2026-10-15):** the token blockage closed the same day. The full
+> stack — v1.15.0 (e4af354), v1.16.0 (a5e4f27), v1.17.0 (d5b4b5b), and v1.18.0
+> (ed9f86d) — merged to `main` via PRs #55–#58, was tagged, released, and published to
+> npm with provenance (`latest` = 1.18.0). The paragraph above is preserved verbatim as
+> the record of the state at writing time.
+
 The findings matrix contained three claims (MOD-01, TRC-01, BUF-01); a companion
 upstream-specs digest added four more (System One batching, payload caps, `expires_at`
 introspection, model warmth). Every claim was audited against the codebase before any

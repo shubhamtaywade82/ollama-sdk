@@ -70,13 +70,16 @@ export default defineConfig({
           { text: 'Generate', link: '/guide/generate' },
           { text: 'Embeddings', link: '/guide/embed' },
           { text: 'Streaming', link: '/guide/streaming' },
+          { text: 'Observability & Telemetry', link: '/guide/observability' },
           { text: 'Failover & Routing', link: '/guide/failover' },
           { text: 'System One Decisions', link: '/guide/system-one' },
+          { text: 'Custom Models & Blobs', link: '/guide/custom-models' },
           { text: 'OpenAI Compatibility', link: '/guide/openai-compat' },
           { text: 'Anthropic Compatibility', link: '/guide/anthropic-compat' },
           { text: 'MCP Integration', link: '/guide/mcp' },
           { text: 'Agents & Tool Calling', link: '/guide/agents' },
           { text: 'Structured Output', link: '/guide/structured-output' },
+          { text: 'Testing with the Mock Server', link: '/guide/testing' },
           { text: 'Contract-First Architecture', link: '/guide/contract-first' },
         ],
       },
@@ -143,8 +146,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern:
-        'https://github.com/shubhamtaywade82/ollama-sdk/edit/main/docs-site/:path',
+      pattern: 'https://github.com/shubhamtaywade82/ollama-sdk/edit/main/docs-site/:path',
       text: 'Edit this page on GitHub',
     },
 

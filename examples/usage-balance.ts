@@ -15,7 +15,8 @@ import { OllamaClient } from '../src/index.js';
 async function main() {
   const client = new OllamaClient({
     baseUrl: 'http://localhost:11434', // local inference — unrelated to the calls below
-    apiKey: process.env.OLLAMA_API_KEY,
+    // exactOptionalPropertyTypes-safe: only set the key when present.
+    ...(process.env.OLLAMA_API_KEY ? { apiKey: process.env.OLLAMA_API_KEY } : {}),
   });
 
   // 1. Usage for the last 24 hours, bucketed hourly. Omit options entirely

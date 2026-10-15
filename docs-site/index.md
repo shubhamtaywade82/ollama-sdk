@@ -57,9 +57,24 @@ features:
     linkText: Compatibility guide →
   - icon: 🎛️
     title: System One Decision Layer
-    details: Typed choice/noul/score questions with probability distributions and confidence, plus ergonomic helpers (choice, noul, score, route, verify, rank) for the six most common decision patterns.
+    details: Typed choice/noul/score questions with probability distributions and confidence, ergonomic helpers (choice, noul, score, route, verify, rank), and opt-in confidence gates (minConfidence / minProbability) so autonomous flows refuse to act on barely-majority decisions.
     link: /guide/system-one
     linkText: System One guide →
+  - icon: 🧪
+    title: Mock Server Testing Subpath
+    details: The SDK's own deterministic test double, promoted public — createMockOllamaServer with scriptable NDJSON routes, request-aware responders, in-band mid-stream error injection, and wire-level request recording. Zero network, zero daemon, CI-deterministic.
+    link: /guide/testing
+    linkText: Testing guide →
+  - icon: 📊
+    title: Observability & Telemetry
+    details: formatTelemetry turns raw nanosecond counters into human-scale numbers, observeStream taps any live stream without stealing it, and onProgress delivers pull/push progress with percent, per-layer speed, and ETA.
+    link: /guide/observability
+    linkText: Observability guide →
+  - icon: 🧬
+    title: Custom Models & Speculative Decoding
+    details: Streaming blob uploads with O(chunk) heap (multi-GB GGUFs never enter memory), one-shot createModelFromGguf with draft-network assembly, and compareDraftPerformance — the deterministic A/B for whether drafting pays off.
+    link: /guide/custom-models
+    linkText: Custom models guide →
   - icon: 🌊
     title: Web Stream Adapters
     details: Drop-in toTextStream, toDataStream, and toResponse adapters for Next.js Route Handlers, Vercel AI SDK, and standard fetch responses — no manual chunk-to-string plumbing.
@@ -128,6 +143,6 @@ The official Ollama client is a thin JavaScript wrapper around the REST API. `@n
 
 ## What this site covers
 
-- **[Guide](/guide/getting-started)** — practical walkthroughs for chat, generate, embed, streaming, failover, System One decisions, OpenAI/Anthropic compatibility, MCP, agents, structured outputs, and the contract-first architecture.
+- **[Guide](/guide/getting-started)** — practical walkthroughs for chat, generate, embed, streaming, observability, failover, System One decisions, OpenAI/Anthropic compatibility, MCP, agents, structured outputs, custom models, testing with the mock server, and the contract-first architecture.
 - **[API Reference](/api/client)** — type-level reference for `OllamaClient`, the generated `NativeApi`, decision helpers, and the structured error hierarchy.
 - **[Architecture](/adr/)** — the ADR index linking to every architecture decision record in the repository.
