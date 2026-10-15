@@ -10,7 +10,7 @@ import { SystemOneResponseSchema } from '../src/generated/models/SystemOneRespon
  *
  *   - SystemOneRequest.questions: 1–64 properties, non-empty names
  *   - SystemOneChoiceQuestion.criteria: 2–255 properties (model-dependent), non-empty names
- *   - SystemOneScoreQuestion.criteria: 2–26 items
+ *   - SystemOneScoreQuestion.criteria: 2–10 items (tightened from 2–26 upstream on 2026-10-15)
  *   - SystemOneContent: non-empty string (pattern \S)
  *
  * These tests prove invalid boundary requests fail validation. Without
@@ -182,8 +182,8 @@ describe('Wave 13: System One boundary validation — score criteria', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts score with exactly 26 criteria (boundary)', () => {
-    const criteria = Array.from({ length: 26 }, (_, i) => `level_${i}`);
+  it('accepts score with exactly 10 criteria (boundary, tightened from 26 upstream on 2026-10-15)', () => {
+    const criteria = Array.from({ length: 10 }, (_, i) => `level_${i}`);
     const result = SystemOneRequestSchema.safeParse({
       model: 'tev1:4b',
       state: 'test',
@@ -194,8 +194,8 @@ describe('Wave 13: System One boundary validation — score criteria', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects score with 27 criteria (maxItems: 26)', () => {
-    const criteria = Array.from({ length: 27 }, (_, i) => `level_${i}`);
+  it('rejects score with 11 criteria (maxItems: 10)', () => {
+    const criteria = Array.from({ length: 11 }, (_, i) => `level_${i}`);
     const result = SystemOneRequestSchema.safeParse({
       model: 'tev1:4b',
       state: 'test',

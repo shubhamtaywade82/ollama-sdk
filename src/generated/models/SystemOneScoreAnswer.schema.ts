@@ -8,7 +8,7 @@ import { SystemOneProbabilitiesSchema } from './SystemOneProbabilities.schema.js
 
 export const SystemOneScoreAnswerSchema = z.object({
   type: z.enum(['score']),
-  score: z.number().min(0).max(25),
+  score: z.number().min(0).max(9),
   legend: z.object({}).catchall(z.string()),
   probabilities: SystemOneProbabilitiesSchema,
   confidence: SystemOneConfidenceSchema,
