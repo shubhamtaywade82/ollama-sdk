@@ -37,7 +37,9 @@ async function main() {
   });
 
   // 3. A session that outgrows its window: compact() is the explicit fix.
-  const session = tuned.session(model, 'You are a precise assistant.', {
+  const session = tuned.session({
+    model,
+    systemPrompt: 'You are a precise assistant.',
     options: { num_ctx: window.contextLength },
   });
   for (let i = 1; i <= 12; i += 1) {

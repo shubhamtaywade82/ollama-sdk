@@ -22,7 +22,9 @@ const client = new OllamaClient();
 
 const stream = await client.chatStream({
   model: 'qwen3:8b',
-  messages: [{ role: 'user', content: 'Write a one-paragraph product description for a smart thermostat.' }],
+  messages: [
+    { role: 'user', content: 'Write a one-paragraph product description for a smart thermostat.' },
+  ],
 });
 
 for await (const event of stream) {
@@ -39,22 +41,22 @@ Every event is a discriminated union on `event.type`:
 
 ```typescript
 type OllamaStreamEvent<TChunk, TFinal> =
-  | { type: 'token';     data: { delta: string; role?: string } }
-  | { type: 'thinking';  data: { delta: string } }
+  | { type: 'token'; data: { delta: string; role?: string } }
+  | { type: 'thinking'; data: { delta: string } }
   | { type: 'tool_call'; data: { toolCall: ToolCall } }
-  | { type: 'message';   data: { chunk: TChunk } }
-  | { type: 'done';      data: { result: TFinal } }
-  | { type: 'error';     data: { error: OllamaClientError } };
+  | { type: 'message'; data: { chunk: TChunk } }
+  | { type: 'done'; data: { result: TFinal } }
+  | { type: 'error'; data: { error: OllamaClientError } };
 ```
 
-| Event       | When emitted                                              | Payload                                          |
-| ----------- | --------------------------------------------------------- | ------------------------------------------------ |
-| `token`     | A new content token arrives.                              | `delta: string`, optional `role: string`         |
-| `thinking`  | A reasoning token arrives (only with `think: 'high'` etc.). | `delta: string`                                  |
-| `tool_call` | The model requests a tool call mid-stream.                | `toolCall: { id?, function: { name, arguments } }` |
-| `message`   | A raw chunk is received (the underlying Ollama response). | `chunk: ChatResponse \| GenerateResponse`        |
-| `done`      | The stream completed successfully.                        | `result: ChatStreamResult \| GenerateStreamResult` |
-| `error`     | An error occurred (network, parse, abort, server).        | `error: OllamaClientError`                       |
+| Event       | When emitted                                                | Payload                                            |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| `token`     | A new content token arrives.                                | `delta: string`, optional `role: string`           |
+| `thinking`  | A reasoning token arrives (only with `think: 'high'` etc.). | `delta: string`                                    |
+| `tool_call` | The model requests a tool call mid-stream.                  | `toolCall: { id?, function: { name, arguments } }` |
+| `message`   | A raw chunk is received (the underlying Ollama response).   | `chunk: ChatResponse \| GenerateResponse`          |
+| `done`      | The stream completed successfully.                          | `result: ChatStreamResult \| GenerateStreamResult` |
+| `error`     | An error occurred (network, parse, abort, server).          | `error: OllamaClientError`                         |
 
 ## EventEmitter-style consumption
 
@@ -80,6 +82,38 @@ stream.on('error', (event) => {
 ::: warning Pick one mode per stream
 A stream is consumed either as an async iterator _or_ via `.on()` — not both. Mixing throws a clear error. The `finalResult` promise works in both modes.
 :::
+
+## Observing a stream — `observeStream`
+
+`OllamaStream`'s two consumption modes are mutually exclusive — you can't `for await` a stream _and_ tap it with `.on()` at the same time. When you need a side channel (audit logging, token counting, telemetry) while the primary consumer keeps iterating, use `observeStream` (v1.16.0) — the safe multi-sink alternative to `ReadableStream.tee()`:
+
+```typescript
+import { OllamaClient, observeStream } from '@nemesis-oss/ollama-sdk';
+
+const client = new OllamaClient();
+const stream = await client.chatStream({ model: 'qwen3:8b', messages });
+
+const observed = observeStream(stream, {
+  onChunk: async (event) => {
+    if (event.type === 'token') await auditLog.append(event.data.delta); // async is fine
+  },
+  onDone: () => auditLog.flush(),
+  onListenerError: (error, phase) => console.warn(`observer ${phase} failed`, error),
+});
+
+// The primary consumer iterates the wrapper exactly like the original stream:
+for await (const event of observed) {
+  if (event.type === 'token') process.stdout.write(event.data.delta);
+}
+```
+
+The contract is one-sided in favor of the primary consumer:
+
+- **Observers never block** — a serialized microtask chain; sync observers pay one hop, async observers run strictly FIFO with concurrency of exactly one. A slow logger throttles only its own tail.
+- **Observers never fail the stream** — sync throws and async rejections route to `onListenerError` (with the phase they came from), never surfacing as unhandled rejections or poisoning the pipeline.
+- **Observers stay ordered** — `onDone` is enqueued only after the last chunk's observer settles, so an audit log has seen every chunk before its "done" marker.
+
+Full lifecycle: `onDone` on natural completion; `onError` + rethrow on source failure (the observer is transparent, not a circuit breaker); `onAbandon` when the consumer breaks early. It accepts any `AsyncIterable`, not just SDK streams. See the [Observability guide](./observability) for the complete semantics.
 
 ## Aborting a stream
 
@@ -287,25 +321,28 @@ while (true) {
 
 ## Streaming model lifecycle operations
 
-`pullModel` and `createModel` also stream — but they emit `ProgressStreamResult` events (`message` chunks with `status`, `completed`, `total`):
+`pullModel` and `createModel` also stream — they emit `ProgressStreamResult` events (`message` chunks with `status`, `completed`, `total`). For pull/push progress specifically, `onProgress()` (root-exported since v1.18.0) wraps the stream into a typed callback with a pre-computed `percent`, plus per-layer `bytesPerSecond` and `etaSeconds` from the built-in speed tracker:
 
 ```typescript
+import { onProgress } from '@nemesis-oss/ollama-sdk';
+
 const stream = await client.models.pull({ model: 'qwen3:8b', stream: true });
 
-for await (const event of stream) {
-  if (event.type === 'message') {
-    const { status, completed, total } = event.data.chunk;
-    if (total) {
-      const pct = Math.round(((completed ?? 0) / total) * 100);
-      process.stdout.write(`\r${status}: ${pct}%`);
-    } else {
-      process.stdout.write(`\r${status}`);
-    }
-  }
-}
+await onProgress(stream, (event) => {
+  // PullProgressEvent: { status, digest?, total?, completed?, percent?, bytesPerSecond?, etaSeconds? }
+  const speed = event.bytesPerSecond
+    ? `${(event.bytesPerSecond / 1024 / 1024).toFixed(1)} MiB/s`
+    : '';
+  const eta = event.etaSeconds ? ` — ETA ${Math.ceil(event.etaSeconds)}s` : '';
+  process.stdout.write(`\r${event.status}: ${event.percent ?? '…'}% ${speed}${eta}   `);
+});
 ```
 
-`createModel` exposes the same surface — useful for showing quantization/build progress.
+The speed is a cumulative average per layer — the tracker resets its epoch whenever `digest` changes or `completed` regresses, so a multi-layer pull never averages across layers. Prefer this over hand-rolled `completed / total` math: the events are already clamped (`percent` in `[0, 100]`, two decimals), status-only frames (no byte totals) come through with `percent` undefined instead of `NaN`, and the callback drains the stream to completion for you.
+
+For a raw, stateful byte counter you control yourself, `createProgressSpeedTracker()` is the same tracker as a standalone function — see the [Observability guide](./observability#progress-speed--eta).
+
+`createModel` exposes the same event surface — useful for showing quantization/build progress.
 
 ## Inspecting raw chunks
 
@@ -329,12 +366,12 @@ Each `chunk` is a full `ChatResponse` with `done: false` until the final one, wh
 
 ## Error semantics
 
-| Failure                | Event                                                | Behavior                                                                 |
-| ---------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| Network/timeout/abort  | `error` with `OllamaClientError` subclass            | `finalResult` rejects with the same error.                              |
-| Mid-stream server 5xx  | `error` with `OllamaServerError`                     | The stream stops; no further events fire.                                |
-| Invalid NDJSON         | `error` with `OllamaNetworkError` or wrapped         | Same as server error.                                                    |
-| `stream.abort()`       | `error` with `OllamaAbortError`                      | The underlying HTTP request is cancelled.                                |
+| Failure               | Event                                        | Behavior                                   |
+| --------------------- | -------------------------------------------- | ------------------------------------------ |
+| Network/timeout/abort | `error` with `OllamaClientError` subclass    | `finalResult` rejects with the same error. |
+| Mid-stream server 5xx | `error` with `OllamaServerError`             | The stream stops; no further events fire.  |
+| Invalid NDJSON        | `error` with `OllamaNetworkError` or wrapped | Same as server error.                      |
+| `stream.abort()`      | `error` with `OllamaAbortError`              | The underlying HTTP request is cancelled.  |
 
 The streaming pipeline participates in [failover](./failover) the same way non-streaming calls do — if the first endpoint fails mid-stream, the request retries on the next candidate (subject to the retry budget).
 

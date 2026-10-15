@@ -48,6 +48,8 @@ jobs:
 
       - run: npm run typecheck
 
+      - run: npm run typecheck:examples
+
       - run: npm run lint
 
       - name: Verify Ollama contract parity (structural)

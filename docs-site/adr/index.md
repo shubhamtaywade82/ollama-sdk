@@ -18,37 +18,62 @@ A new ADR is warranted for decisions that are expensive to reverse, affect the p
 
 These decisions established the SDK's core shape: the error model, packaging, peer dependencies, tool execution, telemetry, edge-runtime verification, synthetic tool-call IDs, and the failover/MCP boundaries.
 
-| ADR                                                                                                                                  | Title                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| [0001](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0001-circuit-breaker-failure-model.md)                      | Circuit Breaker Failure Model                      |
-| [0002](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0002-dual-esm-cjs-packaging.md)                             | Dual ESM/CJS Packaging Strategy                    |
-| [0003](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0003-zod-v3-v4-dual-support.md)                             | Simultaneous Zod v3 and v4 Support                 |
-| [0004](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0004-tool-execution-sandboxing.md)                          | Tool Execution Sandboxing Model                    |
-| [0005](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0005-opentelemetry-instrumentation.md)                      | OpenTelemetry Instrumentation                      |
-| [0006](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0006-edge-runtime-ci-and-benchmarks.md)                     | Edge Runtime CI Verification and Benchmarks        |
-| [0007](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0007-synthetic-tool-call-ids.md)                            | Synthetic Tool-Call IDs                            |
-| [0008](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0008-endpoint-failover-scope.md)                            | Endpoint Failover Scope — Inference Operations Only |
-| [0009](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0009-anytool-registry-variance.md)                          | `AnyTool` and Registry Parameter Variance          |
-| [0010](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0010-ollama-compatibility-contract.md)                      | Ollama Compatibility Contract and Support Classification |
-| [0011](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0011-mcp-boundary-and-agent-tool-preconditions.md)          | MCP Boundary and Agent Tool Preconditions          |
-| [0012](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0012-mcp-remote-transport-boundary.md)                      | MCP Remote Transport Boundary                      |
+| ADR                                                                                                                         | Title                                                    |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [0001](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0001-circuit-breaker-failure-model.md)             | Circuit Breaker Failure Model                            |
+| [0002](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0002-dual-esm-cjs-packaging.md)                    | Dual ESM/CJS Packaging Strategy                          |
+| [0003](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0003-zod-v3-v4-dual-support.md)                    | Simultaneous Zod v3 and v4 Support                       |
+| [0004](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0004-tool-execution-sandboxing.md)                 | Tool Execution Sandboxing Model                          |
+| [0005](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0005-opentelemetry-instrumentation.md)             | OpenTelemetry Instrumentation                            |
+| [0006](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0006-edge-runtime-ci-and-benchmarks.md)            | Edge Runtime CI Verification and Benchmarks              |
+| [0007](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0007-synthetic-tool-call-ids.md)                   | Synthetic Tool-Call IDs                                  |
+| [0008](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0008-endpoint-failover-scope.md)                   | Endpoint Failover Scope — Inference Operations Only      |
+| [0009](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0009-anytool-registry-variance.md)                 | `AnyTool` and Registry Parameter Variance                |
+| [0010](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0010-ollama-compatibility-contract.md)             | Ollama Compatibility Contract and Support Classification |
+| [0011](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0011-mcp-boundary-and-agent-tool-preconditions.md) | MCP Boundary and Agent Tool Preconditions                |
+| [0012](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0012-mcp-remote-transport-boundary.md)             | MCP Remote Transport Boundary                            |
 
 ### Contract-first architecture series (ADR 0013–0022)
 
 ADRs 0013–0022 form a connected series documenting the **contract-first hybrid architecture**: a single canonical IR (`contracts/ir/ollama.ir.json`) drives TypeScript types, generated API classes, MCP tool descriptors, operation metadata, field-level parity, Zod schemas, runtime validation, conformance testing, and hybrid compatibility typing. ADR 0010 (the legacy compatibility contract) was retired by ADR 0017 but is preserved for historical context.
 
-| ADR                                                                                                                                  | Title                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| [0013](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0013-contract-first-architecture.md)                        | Contract-First Hybrid Architecture (Wave 1)                               |
-| [0014](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0014-generated-surface-and-runtime-seam.md)                 | Generated Surface and Runtime Seam (Waves 2+3)                            |
-| [0015](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0015-field-level-parity-migration.md)                       | Field-Level Parity Migration into Overlays (Wave 5)                       |
-| [0016](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0016-mcp-tool-generation.md)                                | MCP Tool Generation from the IR (Wave 6)                                  |
-| [0017](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0017-retire-legacy-parity-manifest.md)                      | Retire the Legacy Parity Manifest (Wave 7)                                |
-| [0018](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0018-runtime-unification.md)                                | Runtime Unification — OllamaClient → OllamaRuntime Bridge (Wave 8)        |
-| [0019](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0019-zod-schema-generation.md)                              | Zod Schema Generation (Wave 9)                                            |
-| [0020](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0020-runtime-zod-validation.md)                             | Runtime Zod Validation Wiring (Wave 10)                                   |
-| [0021](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0021-conformance-testing.md)                                | Conformance Testing Against a Real Ollama Server (Wave 11)                |
-| [0022](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0022-hybrid-compatibility-typing.md)                        | Contract-First Hybrid Compatibility Typing (Wave 16)                      |
+| ADR                                                                                                                  | Title                                                              |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [0013](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0013-contract-first-architecture.md)        | Contract-First Hybrid Architecture (Wave 1)                        |
+| [0014](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0014-generated-surface-and-runtime-seam.md) | Generated Surface and Runtime Seam (Waves 2+3)                     |
+| [0015](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0015-field-level-parity-migration.md)       | Field-Level Parity Migration into Overlays (Wave 5)                |
+| [0016](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0016-mcp-tool-generation.md)                | MCP Tool Generation from the IR (Wave 6)                           |
+| [0017](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0017-retire-legacy-parity-manifest.md)      | Retire the Legacy Parity Manifest (Wave 7)                         |
+| [0018](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0018-runtime-unification.md)                | Runtime Unification — OllamaClient → OllamaRuntime Bridge (Wave 8) |
+| [0019](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0019-zod-schema-generation.md)              | Zod Schema Generation (Wave 9)                                     |
+| [0020](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0020-runtime-zod-validation.md)             | Runtime Zod Validation Wiring (Wave 10)                            |
+| [0021](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0021-conformance-testing.md)                | Conformance Testing Against a Real Ollama Server (Wave 11)         |
+| [0022](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0022-hybrid-compatibility-typing.md)        | Contract-First Hybrid Compatibility Typing (Wave 16)               |
+
+### Production-hardening series (ADR 0023–0029)
+
+ADRs 0023–0029 document the production-readiness waves driven by external audit digests: cloud-vs-local tool replay, the vision resolver and dual-mode responses bridge, KV-cache sessions and context safety, embedding batching with backpressure, context-window discovery and model-affinity scheduling, agent guardrails, telemetry normalization, and the public testing subpath.
+
+| ADR                                                                                                                                          | Title                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [0023](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0023-cloud-vs-local-tool-replay.md)                                 | Cloud-vs-Local Tool-Replay Behavior                                                                               |
+| [0024](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0024-digest-upgrades-vision-responses-sessions-context-blobs.md)    | Digest Upgrades — Vision Resolver, Dual-Mode Responses Bridge, KV-Cache Sessions, Context Safety, Blob Publishing |
+| [0025](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0025-embedding-batching-client-teardown-declaration-portability.md) | Embedding Batching, Client Teardown, Declaration Portability                                                      |
+| [0026](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0026-context-discovery-history-compaction-model-affinity.md)        | Context-Window Discovery, History Compaction, Model-Affinity Scheduling                                           |
+| [0027](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0027-agent-cycle-detection-url-join-history-hygiene.md)             | Agent Cycle Detection, URL-Join Hardening, Vision-History Hygiene                                                 |
+| [0028](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0028-telemetry-normalization-host-affinity-root-ping.md)            | Telemetry Normalization, Dynamic Host Model-Affinity Routing, Root Liveness Probe                                 |
+| [0029](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0029-public-testing-subpath-speculative-draft-conveniences.md)      | Public Testing Subpath, Speculative-Draft Conveniences                                                            |
+
+### Recent decisions (ADR 0030–0033)
+
+The October 2026 wave: the speculative draft benchmark and request-aware mock routes, zero-copy stream observation with structural network-error classification, streaming blob uploads with typed-array view-safety pins, and the progress speed tracker with System One decision confidence gates and the score 26→10 contract refresh.
+
+| ADR                                                                                                                                                 | Title                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [0030](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0030-draft-benchmark-request-aware-mock-routes.md)                         | Draft Benchmark Utility, Request-Aware Mock Routes                                                                      |
+| [0031](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0031-stream-observation-network-classification-context-recommendations.md) | Stream Observation (`observeStream`), Network-Error Classification, Context-Window Recommendations                      |
+| [0032](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0032-streaming-blob-uploads-tracing-verdicts-view-safety.md)               | Streaming Blob Uploads (`duplex:'half'`, Two-Pass File Upload), Tracing-Header Verdicts, Typed-Array View Safety        |
+| [0033](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0033-progress-speed-decision-gates-abort-pin-systemone-refresh.md)         | Progress Speed Tracking, Decision Confidence Gates, Abort-Safety Invariant Pin, System One Score 26→10 Contract Refresh |
 
 ## Highlights
 

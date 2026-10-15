@@ -92,7 +92,7 @@ async function main() {
   try {
     // ── Style 1: onProgress callback — the progress-bar path ────────────
     console.log('— onProgress() —');
-    const stream = await client.pullModel({ model: 'llama3.2', stream: true });
+    const stream = await client.models.pull({ model: 'llama3.2', stream: true });
     const result = await onProgress(stream, (event) => {
       if (event.percent === undefined) {
         console.log(`  ${event.status}`);
@@ -111,7 +111,7 @@ async function main() {
     // ── Style 2: raw stream + your own tracker — the logger path ────────
     console.log('— raw stream + createProgressSpeedTracker() —');
     const speed = createProgressSpeedTracker();
-    const stream2 = await client.pullModel({ model: 'llama3.2', stream: true });
+    const stream2 = await client.models.pull({ model: 'llama3.2', stream: true });
     for await (const event of stream2) {
       if (event.type === 'message') {
         const chunk = event.data.chunk;

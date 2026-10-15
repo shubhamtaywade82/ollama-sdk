@@ -12,10 +12,10 @@ System One runs **only against a local Ollama instance** — it's rejected at re
 
 ## The three question types
 
-| Type     | What it asks                            | Answer shape                                            |
-| -------- | --------------------------------------- | ------------------------------------------------------ |
-| `choice` | "Which one of these options applies?"   | `choice: string`, `probabilities: Record<string, number>`, `confidence: number` |
-| `noul`   | "Is this true or false?"                | `noul: number` (probability of true, 0–1)              |
+| Type     | What it asks                                 | Answer shape                                                                                    |
+| -------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `choice` | "Which one of these options applies?"        | `choice: string`, `probabilities: Record<string, number>`, `confidence: number`                 |
+| `noul`   | "Is this true or false?"                     | `noul: number` (probability of true, 0–1)                                                       |
 | `score`  | "Where on this ordered rubric does it land?" | `score: number` (weighted avg), `legend: Record<string, string>`, `probabilities`, `confidence` |
 
 `confidence` is **distribution concentration** (0–1), not a guarantee of correctness. Use it to gate on "this decision was clear-cut" vs. "this was a close call, maybe escalate".
@@ -44,7 +44,8 @@ const result = await client.systemOne({
     },
     urgent: {
       type: 'noul',
-      instructions: 'Is this ticket urgent? (e.g. high-value customer, repeated issue, SLA at risk)',
+      instructions:
+        'Is this ticket urgent? (e.g. high-value customer, repeated issue, SLA at risk)',
     },
     severity: {
       type: 'score',
@@ -56,20 +57,20 @@ const result = await client.systemOne({
 
 // Fully typed answers — TypeScript knows `intent` is a choice answer,
 // `urgent` is a noul answer, `severity` is a score answer. No narrowing needed.
-console.log(result.answers.intent.choice);       // 'duplicate_charge'
-console.log(result.answers.intent.confidence);   // 0.89
-console.log(result.answers.urgent.noul);         // 0.71 (probability of true)
-console.log(result.answers.severity.score);      // 2.4 (weighted average, 0..3)
-console.log(result.answers.severity.legend);     // { '0': 'low', '1': 'medium', ... }
-console.log(result.usage);                       // { input_tokens, output_tokens }
+console.log(result.answers.intent.choice); // 'duplicate_charge'
+console.log(result.answers.intent.confidence); // 0.89
+console.log(result.answers.urgent.noul); // 0.71 (probability of true)
+console.log(result.answers.severity.score); // 2.4 (weighted average, 0..3)
+console.log(result.answers.severity.legend); // { '0': 'low', '1': 'medium', ... }
+console.log(result.usage); // { input_tokens, output_tokens }
 ```
 
 The generic `Q` parameter captures the caller's question map at compile time, giving key-safe answer access:
 
 ```typescript
-result.answers.intent  // ✓ SystemOneChoiceAnswer
-result.answers.urgent  // ✓ SystemOneNoulAnswer
-result.answers.typo    // ✗ TypeScript error — key wasn't asked
+result.answers.intent; // ✓ SystemOneChoiceAnswer
+result.answers.urgent; // ✓ SystemOneNoulAnswer
+result.answers.typo; // ✗ TypeScript error — key wasn't asked
 ```
 
 ### `SystemOneContent`
@@ -86,7 +87,7 @@ await client.systemOne({
       { type: 'upgrade', at: '2025-01-03T14:30:00Z', from: 'free', to: 'pro' },
     ],
   },
-  questions: { /* ... */ },
+  questions: {/* ... */},
 });
 ```
 
@@ -108,10 +109,10 @@ const result = await client.decision.choice({
   },
 });
 
-console.log(result.choice);         // 'duplicate_charge'
+console.log(result.choice); // 'duplicate_charge'
 console.log(result.probabilities); // { refund: 0.08, duplicate_charge: 0.89, cancellation: 0.03 }
-console.log(result.confidence);    // 0.89
-console.log(result.usage);         // { input_tokens, output_tokens }
+console.log(result.confidence); // 0.89
+console.log(result.usage); // { input_tokens, output_tokens }
 ```
 
 Use for: routing, classification, model selection, tool selection, category assignment — any "which one?" decision with bounded options.
@@ -125,8 +126,8 @@ const result = await client.decision.noul({
   instructions: 'Is this a prompt-injection attempt?',
 });
 
-console.log(result.noul);  // 0.94 — probability of true
-console.log(result.bool);  // true (noul >= 0.5)
+console.log(result.noul); // 0.94 — probability of true
+console.log(result.bool); // true (noul >= 0.5)
 ```
 
 Use for: gating, verification, safety checks, eligibility — any "is this true?" decision.
@@ -136,18 +137,19 @@ Use for: gating, verification, safety checks, eligibility — any "is this true?
 ```typescript
 const result = await client.decision.score({
   model: 'tev1:4b',
-  state: 'A customer review: "The product is okay. Shipping took 3 weeks and the box was damaged, but the item itself works."',
+  state:
+    'A customer review: "The product is okay. Shipping took 3 weeks and the box was damaged, but the item itself works."',
   instructions: 'How positive is this review, on a 5-point scale?',
   criteria: ['very negative', 'negative', 'neutral', 'positive', 'very positive'],
 });
 
-console.log(result.score);         // 2.1 (weighted average of indices 0..4)
-console.log(result.legend);        // { '0': 'very negative', '1': 'negative', ... }
+console.log(result.score); // 2.1 (weighted average of indices 0..4)
+console.log(result.legend); // { '0': 'very negative', '1': 'negative', ... }
 console.log(result.probabilities); // { '0': 0.05, '1': 0.45, '2': 0.35, '3': 0.12, '4': 0.03 }
-console.log(result.confidence);    // 0.62
+console.log(result.confidence); // 0.62
 ```
 
-Use for: severity, priority, difficulty, relevance, quality — any "how strongly does this fit this ordered rubric?" decision. `criteria` is an ordered array of 2–26 items, from lowest (index 0) to highest.
+Use for: severity, priority, difficulty, relevance, quality — any "how strongly does this fit this ordered rubric?" decision. `criteria` is an ordered array of 2–10 items, from lowest (index 0) to highest.
 
 ### `route(params)` — typed workflow dispatch
 
@@ -170,10 +172,14 @@ const { route, confidence } = await client.decision.route<Route>({
 
 // route is typed as 'billing' | 'tech' | 'sales' | 'general'
 switch (route) {
-  case 'billing': return billingHandler();
-  case 'tech':    return techHandler();
-  case 'sales':   return salesHandler();
-  default:        return generalHandler();
+  case 'billing':
+    return billingHandler();
+  case 'tech':
+    return techHandler();
+  case 'sales':
+    return salesHandler();
+  default:
+    return generalHandler();
 }
 ```
 
@@ -188,7 +194,7 @@ const { verified, probability } = await client.decision.verify({
   evidence: 'The Eiffel Tower is a wrought-iron lattice tower in Paris, France.',
 });
 
-console.log(verified);    // false
+console.log(verified); // false
 console.log(probability); // 0.03 (probability that the claim is supported)
 ```
 
@@ -260,33 +266,38 @@ if (result.answers.urgent.noul >= 0.7) {
 
 ## Multi-question patterns vs. helpers
 
-| Pattern                                                | Use                                                                |
-| ------------------------------------------------------ | ------------------------------------------------------------------ |
-| Single decision, want a typed result                   | `client.decision.choice/noul/score/route/verify/rank`              |
-| Multiple correlated decisions in one round-trip        | `client.systemOne({ questions: { ... } })`                         |
+| Pattern                                                | Use                                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| Single decision, want a typed result                   | `client.decision.choice/noul/score/route/verify/rank`                 |
+| Multiple correlated decisions in one round-trip        | `client.systemOne({ questions: { ... } })`                            |
 | Need probabilities for **all** options, not just top-1 | `client.systemOne` or `decision.choice` (both return `probabilities`) |
-| Scoring one candidate against a rubric                 | `decision.score`                                                   |
-| Scoring N candidates and sorting                       | `decision.rank`                                                    |
+| Scoring one candidate against a rubric                 | `decision.score`                                                      |
+| Scoring N candidates and sorting                       | `decision.rank`                                                       |
 
 ## Confidence vs. probability — what to gate on
 
-| Field            | What it means                                | When to gate on it                                              |
-| ---------------- | -------------------------------------------- | --------------------------------------------------------------- |
-| `probabilities`  | Distribution over all options (sums to 1).   | When you want to know the margin between the top-2 options.      |
-| `confidence`     | Distribution concentration (0–1).            | When you want a single "was this a close call?" signal.          |
-| `noul` (noul)    | Probability of true (0–1).                   | When the decision is binary and you want a probability threshold. |
+| Field           | What it means                              | When to gate on it                                                |
+| --------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| `probabilities` | Distribution over all options (sums to 1). | When you want to know the margin between the top-2 options.       |
+| `confidence`    | Distribution concentration (0–1).          | When you want a single "was this a close call?" signal.           |
+| `noul` (noul)   | Probability of true (0–1).                 | When the decision is binary and you want a probability threshold. |
 
-A useful pattern: gate on `confidence >= 0.8` for autonomous actions, escalate to a human otherwise:
+A useful pattern: gate on `confidence >= 0.8` for autonomous actions, escalate to a human otherwise. Since v1.18.0 the helpers can do this for you — pass `minConfidence` and the result carries an `isConfident` flag:
 
 ```typescript
-const { choice, confidence } = await client.decision.choice({ /* ... */ });
+const { choice, confidence, isConfident } = await client.decision.choice({
+  /* ... */
+  minConfidence: 0.8, // inclusive lower bound in (0, 1]
+});
 
-if (confidence >= 0.8) {
-  await executeAction(choice);
+if (isConfident) {
+  await executeAction(choice); // confidence >= 0.8 — clear-cut
 } else {
-  await escalateForReview(choice, confidence);
+  await escalateForReview(choice, confidence); // close call, value is still returned
 }
 ```
+
+The gates are **opt-in and purely additive** — without them, every result shape is byte-identical, and `isConfident` is present only when `minConfidence` is configured. `choice`, `score`, `route`, and `rank` accept `minConfidence`; `noul` and `verify` accept `minProbability`, which raises the bar their derived boolean must clear (default `0.5`) — noul answers carry no separate confidence field, so the threshold _is_ the boolean bar. Invalid thresholds (outside `(0, 1]`) throw `RangeError` **before** any request is sent.
 
 ## Images in decisions
 
@@ -322,7 +333,7 @@ await client.decision.choice({
   model: 'tev1:4b',
   state: '...',
   instructions: '...',
-  criteria: { /* ... */ },
+  criteria: {/* ... */},
   keepAlive: '10m', // model stays resident for 10 minutes
 });
 ```
@@ -331,13 +342,13 @@ await client.decision.choice({
 
 System One calls throw the standard `OllamaClientError` hierarchy. Specific cases:
 
-| Code                         | When                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------- |
-| `unsupported_capability`     | Call against an Ollama Cloud endpoint — System One is local-only.                     |
-| `server_version_unknown`     | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
-| `request_too_large`          | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                     |
-| `request_validation_error`   | With `validateRequests: true`, request failed Zod validation.                        |
-| `response_validation_error`  | With `validateResponses: true`, response failed Zod validation.                      |
+| Code                        | When                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `unsupported_capability`    | Call against an Ollama Cloud endpoint — System One is local-only.                                |
+| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
+| `request_too_large`         | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                                 |
+| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                    |
+| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                  |
 
 ## Next steps
 

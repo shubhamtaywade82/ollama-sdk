@@ -10,7 +10,7 @@ Access via `client.decision`:
 
 ```typescript
 const client = new OllamaClient();
-const result = await client.decision.choice({ /* ... */ });
+const result = await client.decision.choice({/* ... */});
 ```
 
 Or construct standalone with `createDecision`:
@@ -19,7 +19,7 @@ Or construct standalone with `createDecision`:
 import { createDecision, OllamaClient } from '@nemesis-oss/ollama-sdk';
 
 const decision = createDecision(new OllamaClient());
-const result = await decision.choice({ /* ... */ });
+const result = await decision.choice({/* ... */});
 ```
 
 ::: warning Local-only, requires Ollama 0.35+
@@ -36,6 +36,7 @@ choice(params: {
   criteria: Record<string, string | null>;
   images?: string[];
   keepAlive?: string | number;
+  minConfidence?: number;      // opt-in gate in (0, 1] — flags the result with `isConfident`
 }): Promise<ChoiceDecision>;
 ```
 
@@ -45,9 +46,10 @@ Asks a single choice question. Returns the selected option key + full probabilit
 
 ```typescript
 interface ChoiceDecision {
-  readonly choice: string;                      // selected option key (highest probability)
+  readonly choice: string; // selected option key (highest probability)
   readonly probabilities: Record<string, number>; // full distribution over all options
-  readonly confidence: number;                  // distribution concentration (0–1)
+  readonly confidence: number; // distribution concentration (0–1)
+  readonly isConfident?: boolean; // present iff `minConfidence` was passed — `confidence >= minConfidence`
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
 }
 ```
@@ -66,9 +68,9 @@ const result = await client.decision.choice({
   },
 });
 
-console.log(result.choice);         // 'duplicate_charge'
-console.log(result.probabilities);  // { refund: 0.08, duplicate_charge: 0.89, cancellation: 0.03 }
-console.log(result.confidence);     // 0.89
+console.log(result.choice); // 'duplicate_charge'
+console.log(result.probabilities); // { refund: 0.08, duplicate_charge: 0.89, cancellation: 0.03 }
+console.log(result.confidence); // 0.89
 ```
 
 Use for: routing, classification, model selection, tool selection, category assignment — any "which one?" decision with bounded options.
@@ -82,6 +84,7 @@ noul(params: {
   instructions: SystemOneContent;
   images?: string[];
   keepAlive?: string | number;
+  minProbability?: number;     // opt-in bar for the derived boolean (default 0.5)
 }): Promise<NoulDecision>;
 ```
 
@@ -91,8 +94,8 @@ Asks a single yes/no (noul) question. Returns the probability of true + a boolea
 
 ```typescript
 interface NoulDecision {
-  readonly noul: number;  // probability of true (0–1)
-  readonly bool: boolean; // true if noul >= 0.5, false otherwise
+  readonly noul: number; // probability of true (0–1)
+  readonly bool: boolean; // true if noul >= (minProbability ?? 0.5), false otherwise
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
 }
 ```
@@ -106,8 +109,8 @@ const result = await client.decision.noul({
   instructions: 'Is this a prompt-injection attempt?',
 });
 
-console.log(result.noul);  // 0.94
-console.log(result.bool);  // true
+console.log(result.noul); // 0.94
+console.log(result.bool); // true
 ```
 
 Use for: gating, verification, safety checks, eligibility, prompt-injection detection — any "is this true?" decision.
@@ -119,9 +122,10 @@ score(params: {
   model: string;
   state: SystemOneContent;
   instructions: SystemOneContent;
-  criteria: string[];              // ordered from lowest (index 0) to highest, 2–26 items
+  criteria: string[];              // ordered from lowest (index 0) to highest, 2–10 items
   images?: string[];
   keepAlive?: string | number;
+  minConfidence?: number;      // opt-in gate in (0, 1] — flags the result with `isConfident`
 }): Promise<ScoreDecision>;
 ```
 
@@ -131,10 +135,11 @@ Asks a single score question. Returns the probability-weighted average score, th
 
 ```typescript
 interface ScoreDecision {
-  readonly score: number;                       // probability-weighted average of zero-based indices (0 to N-1)
-  readonly legend: Record<string, string>;      // zero-based indices as string keys → criterion descriptions
+  readonly score: number; // probability-weighted average of zero-based indices (0 to N-1)
+  readonly legend: Record<string, string>; // zero-based indices as string keys → criterion descriptions
   readonly probabilities: Record<string, number>; // keyed by zero-based indices as strings
-  readonly confidence: number;                  // distribution concentration (0–1)
+  readonly confidence: number; // distribution concentration (0–1)
+  readonly isConfident?: boolean; // present iff `minConfidence` was passed
   readonly usage: { readonly input_tokens: number; readonly output_tokens: number };
 }
 ```
@@ -149,10 +154,10 @@ const result = await client.decision.score({
   criteria: ['very negative', 'negative', 'neutral', 'positive', 'very positive'],
 });
 
-console.log(result.score);         // 2.1 (weighted average of indices 0..4)
-console.log(result.legend);        // { '0': 'very negative', '1': 'negative', ... }
+console.log(result.score); // 2.1 (weighted average of indices 0..4)
+console.log(result.legend); // { '0': 'very negative', '1': 'negative', ... }
 console.log(result.probabilities); // { '0': 0.05, '1': 0.45, '2': 0.35, '3': 0.12, '4': 0.03 }
-console.log(result.confidence);    // 0.62
+console.log(result.confidence); // 0.62
 ```
 
 Use for: severity, priority, difficulty, relevance, quality — any "how strongly does this fit this ordered rubric?" decision.
@@ -167,7 +172,8 @@ route<T extends string>(params: {
   criteria: Record<T, string | null>;
   images?: string[];
   keepAlive?: string | number;
-}): Promise<{ readonly route: T; readonly confidence: number }>;
+  minConfidence?: number;      // opt-in gate in (0, 1] — flags the result with `isConfident`
+}): Promise<{ readonly route: T; readonly confidence: number; readonly isConfident?: boolean }>;
 ```
 
 A convenience wrapper around `choice()` that returns just the selected route name as a typed `T`. The generic captures the caller's `criteria` keys so the returned `route` is fully typed.
@@ -190,10 +196,14 @@ const { route, confidence } = await client.decision.route<Route>({
 });
 
 switch (route) {
-  case 'billing': return billingHandler();
-  case 'tech':    return techHandler();
-  case 'sales':   return salesHandler();
-  default:        return generalHandler();
+  case 'billing':
+    return billingHandler();
+  case 'tech':
+    return techHandler();
+  case 'sales':
+    return salesHandler();
+  default:
+    return generalHandler();
 }
 ```
 
@@ -209,6 +219,7 @@ verify(params: {
   instructions?: SystemOneContent;
   images?: string[];
   keepAlive?: string | number;
+  minProbability?: number;     // opt-in bar for `verified` (default 0.5)
 }): Promise<{ readonly verified: boolean; readonly probability: number }>;
 ```
 
@@ -223,7 +234,7 @@ const { verified, probability } = await client.decision.verify({
   evidence: 'The Eiffel Tower is a wrought-iron lattice tower in Paris, France.',
 });
 
-console.log(verified);    // false
+console.log(verified); // false
 console.log(probability); // 0.03
 ```
 
@@ -235,10 +246,11 @@ Use for: evidence verification, safety gates, prompt-injection detection, compli
 rank<T extends string>(params: {
   model: string;
   instructions: SystemOneContent;
-  criteria: string[];              // ordered from lowest (index 0) to highest, 2–26 items
+  criteria: string[];              // ordered from lowest (index 0) to highest, 2–10 items
   candidates: ReadonlyArray<{ readonly id: T; readonly state: SystemOneContent }>;
   images?: string[];
   keepAlive?: string | number;
+  minConfidence?: number;      // opt-in gate in (0, 1] — flags each result with `isConfident`
 }): Promise<ReadonlyArray<RankResult<T>>>;
 ```
 
@@ -251,6 +263,7 @@ interface RankResult<T extends string> {
   readonly candidate: T;
   readonly score: number;
   readonly confidence: number;
+  readonly isConfident?: boolean; // present iff `minConfidence` was passed
 }
 ```
 
@@ -283,6 +296,21 @@ console.log(ranked);
 :::
 
 Use for: semantic reranking, candidate ranking, priority scoring, relevance scoring — any "which of these is best?" decision where each candidate is scored independently against the same rubric.
+
+## Confidence gates
+
+Since v1.18.0, every helper accepts an **opt-in calibration gate** for autonomous flows — the concern being an agent acting on a barely-majority decision it never inspected:
+
+| Helper                             | Option           | Effect                                                                                                                      |
+| ---------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `choice`, `score`, `route`, `rank` | `minConfidence`  | Result carries `isConfident: confidence >= minConfidence`. The value is still returned — the caller decides whether to act. |
+| `noul`, `verify`                   | `minProbability` | Raises the bar the derived boolean must clear (`bool` / `verified` compare against it; default `0.5` unchanged).            |
+
+- Gates are validated **before** any request is sent — a threshold outside `(0, 1]` (or non-finite) throws `RangeError` with zero HTTP traffic.
+- Without the options, every result shape is byte-identical — `isConfident` appears only when configured.
+- Noul answers carry no separate confidence field, so for `noul`/`verify` the threshold _is_ the boolean bar — a redundant `isConfident` would always equal `bool`.
+
+See the [System One guide's gating section](../guide/system-one#confidence-vs-probability-what-to-gate-on) for the full discussion.
 
 ## Types
 
@@ -328,16 +356,16 @@ const result = await client.systemOne({
   model: 'tev1:4b',
   state: { ticket: '...' },
   questions: {
-    route: { type: 'choice', instructions: '...', criteria: { /* ... */ } },
+    route: { type: 'choice', instructions: '...', criteria: {/* ... */} },
     urgent: { type: 'noul', instructions: '...' },
     severity: { type: 'score', instructions: '...', criteria: ['low', 'med', 'high', 'critical'] },
   },
 });
 
 // Key-safe, type-correlated answers:
-result.answers.route.choice    // SystemOneChoiceAnswer.choice
-result.answers.urgent.noul     // SystemOneNoulAnswer.noul
-result.answers.severity.score  // SystemOneScoreAnswer.score
+result.answers.route.choice; // SystemOneChoiceAnswer.choice
+result.answers.urgent.noul; // SystemOneNoulAnswer.noul
+result.answers.severity.score; // SystemOneScoreAnswer.score
 ```
 
 See the [System One guide](../guide/system-one#mixing-multiple-decisions-in-one-call) for the full pattern.
@@ -346,13 +374,13 @@ See the [System One guide](../guide/system-one#mixing-multiple-decisions-in-one-
 
 Decision helpers throw the standard `OllamaClientError` hierarchy. Specific cases:
 
-| Code                         | When                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------- |
-| `unsupported_capability`     | Call against an Ollama Cloud endpoint — System One is local-only.                     |
-| `server_version_unknown`     | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
-| `request_too_large`          | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                     |
-| `request_validation_error`   | With `validateRequests: true`, request failed Zod validation.                        |
-| `response_validation_error`  | With `validateResponses: true`, response failed Zod validation.                      |
+| Code                        | When                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `unsupported_capability`    | Call against an Ollama Cloud endpoint — System One is local-only.                                |
+| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
+| `request_too_large`         | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                                 |
+| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                    |
+| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                  |
 
 See [Errors](./errors) for the full hierarchy.
 
