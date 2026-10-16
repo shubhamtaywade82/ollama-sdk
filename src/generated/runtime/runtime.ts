@@ -285,29 +285,49 @@ export class OllamaRuntime {
     // the request is sent. The Ollama server returns 413 for oversized
     // bodies; failing fast client-side avoids the round-trip.
     //
-    // Wave 13 adds conditional limits: when the operation declares
-    // `maxRequestBytesWithImages` AND the body contains a non-empty
-    // `images` array, the higher limit applies (e.g. System One allows
-    // 32 MiB with images vs 64 KiB without). When images are absent
-    // or the operation doesn't declare a separate images limit, the
-    // base `maxRequestBytes` applies.
+    // Wave 13 added conditional limits (images presence selected between
+    // the base and the higher images cap). The 2026-10-16 refresh
+    // tightened that to the upstream-clarified DUAL bound — both caps
+    // apply to every request simultaneously:
+    //   - `maxRequestBytes` bounds the text and schema portion of the
+    //     body (images excluded), even when images are attached.
+    //   - `maxRequestBytesWithImages` bounds the whole serialized request
+    //     (images included).
+    // The old either/or reading let a multi-MiB text+schema payload ride
+    // through under the 32 MiB images cap — straight into a guaranteed
+    // server 413 ("text and schema must not exceed 64 KiB").
     if (body !== undefined) {
       const serialized = serializeForByteCount(body);
       const hasImages = bodyHasImages(body);
       const maxBytesWithImages = req.operation.constraints?.maxRequestBytesWithImages;
       const maxBytesBase = req.operation.constraints?.maxRequestBytes;
-      const applicableLimit =
-        hasImages && maxBytesWithImages !== undefined ? maxBytesWithImages : maxBytesBase;
-      if (applicableLimit !== undefined && serialized.byteLength > applicableLimit) {
+      const textAndSchemaBytes = hasImages
+        ? serializeWithoutImages(body).byteLength
+        : serialized.byteLength;
+      if (maxBytesBase !== undefined && textAndSchemaBytes > maxBytesBase) {
+        throw new OllamaRequestTooLargeError(
+          `Operation ${req.operation.operationId} (${req.operation.method} ` +
+            `${req.operation.path}) text and schema (images excluded) is ` +
+            `${textAndSchemaBytes} bytes, exceeding the contract limit of ` +
+            `${maxBytesBase} bytes.`,
+          {
+            operationId: req.operation.operationId,
+            actualBytes: textAndSchemaBytes,
+            maxBytes: maxBytesBase,
+            request: { method: req.operation.method, url: req.operation.path },
+          },
+        );
+      }
+      if (maxBytesWithImages !== undefined && serialized.byteLength > maxBytesWithImages) {
         throw new OllamaRequestTooLargeError(
           `Operation ${req.operation.operationId} (${req.operation.method} ` +
             `${req.operation.path}) request body is ${serialized.byteLength} bytes, ` +
-            `exceeding the contract limit of ${applicableLimit} bytes` +
-            (hasImages ? ' (images limit).' : '.'),
+            `exceeding the contract limit of ${maxBytesWithImages} bytes ` +
+            '(whole request, images included).',
           {
             operationId: req.operation.operationId,
             actualBytes: serialized.byteLength,
-            maxBytes: applicableLimit,
+            maxBytes: maxBytesWithImages,
             request: { method: req.operation.method, url: req.operation.path },
           },
         );
@@ -558,19 +578,41 @@ function serializeForByteCount(body: unknown): Uint8Array {
 
 /**
  * Wave 13: detect whether a request body carries a non-empty `images`
- * array. Used by the request-size guard to select between the base
- * `maxRequestBytes` limit and the higher `maxRequestBytesWithImages`
- * limit (e.g. System One: 64 KiB without images, 32 MiB with).
+ * array. Used by the dual request-size guard (2026-10-16 refresh):
+ * when images are attached, the text+schema portion is serialized
+ * separately (images excluded) and checked against the base
+ * `maxRequestBytes` limit, while the whole body is checked against
+ * `maxRequestBytesWithImages`.
  *
  * Returns true only when the body is an object with an `images` property
- * that is a non-empty array. Falsy/absent/empty images → false (base
- * limit applies).
+ * that is a non-empty array. Falsy/absent/empty images → false (the
+ * whole body is the text+schema portion).
  */
 function bodyHasImages(body: unknown): boolean {
   if (typeof body !== 'object' || body === null) return false;
   const obj = body as Record<string, unknown>;
   const images = obj.images;
   return Array.isArray(images) && images.length > 0;
+}
+
+/**
+ * 2026-10-16 refresh: serialize a request body with its `images`
+ * property removed, for the text+schema half of the dual request-size
+ * cap. Upstream clarified that the base `maxRequestBytes` limit bounds
+ * the text and schema portion (images excluded) even when images are
+ * attached — image bytes are only accountable against the higher
+ * whole-request `maxRequestBytesWithImages` limit.
+ *
+ * Defensive fallback: non-object bodies (or bodies whose `images` is
+ * not an array) serialize unchanged — the caller only invokes this
+ * when bodyHasImages() is true.
+ */
+function serializeWithoutImages(body: unknown): Uint8Array {
+  if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
+    const { images: _images, ...rest } = body as Record<string, unknown>;
+    return serializeForByteCount(rest);
+  }
+  return serializeForByteCount(body);
 }
 
 /**

@@ -211,7 +211,7 @@ export const systemOneOp = {
   path: '/v1/systemone',
   request: { $ref: '#/schemas/SystemOneRequest' },
   response: { $ref: '#/schemas/SystemOneResponse' },
-  environment: { local: true, cloud: false },
+  environment: { local: true, cloud: true },
   transport: { mode: 'json', streaming: false },
   capabilities: {
     thinking: 'unsupported',
@@ -229,8 +229,10 @@ export const systemOneOp = {
   status: { documented: true, experimental: true },
   domain: 'native',
   notes: [
-    'Local-only; Ollama Cloud rejects /v1/systemone.',
-    '64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).',
+    'Local and cloud: model accepts cloud models (e.g. clef:cloud); cloud models require Ollama >= 0.40.5 or the hosted https://ollama.com endpoint.',
+    'Local dual cap: text and schema (excluding images) within 64 KiB AND the whole request within 32 MiB, including base64 and JSON overhead.',
+    "Cloud requests: paid plan or usage credits required; up to 64 questions named with up to 100 ASCII letters, digits, `_`, `.`, or `-`; up to 4 images of at most 4 MiB and 16 megapixels each (8 MiB total); requests within 13 MiB; input within the model's 65,536-token context window.",
+    '401 when a cloud model is requested without signing in or with an invalid API key (through a local server the response includes a signin_url); 402 when the cloud model is not included in the Free plan or a payment fails.',
     'No tools, no generation controls (temperature, top_p, etc.).',
     'Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.',
     'Experimental: behavioral surface may change between Ollama releases.',

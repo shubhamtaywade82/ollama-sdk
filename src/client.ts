@@ -964,11 +964,15 @@ export class OllamaClient {
    * 1–64 typed questions (choice, noul, or score) against a provided state
    * and returns typed answers with probabilities and confidence.
    *
-   * Local-only; requires Ollama >= 0.35.0. The runtime enforces the
-   * version constraint automatically (lazily fetching `/api/version` when
-   * `enforceVersion` is `'auto'` or `'strict'`) and rejects cloud-mode
-   * calls. Request size is checked client-side: 64 KiB without images,
-   * 32 MiB with images.
+   * Local and cloud (since the 2026-10-16 upstream System One cloud
+   * launch): `model` also accepts cloud models such as `clef:cloud` —
+   * cloud models require Ollama >= 0.40.5 or the hosted
+   * `https://ollama.com` endpoint. Requires Ollama >= 0.35.0 locally.
+   * The runtime enforces the version constraint automatically (lazily
+   * fetching `/api/version` when `enforceVersion` is `'auto'` or
+   * `'strict'`). Request size is checked client-side as a dual cap:
+   * text and schema (images excluded) within 64 KiB AND the whole
+   * request within 32 MiB.
    *
    * The generic `Q` parameter captures the caller's question map at
    * compile time, giving key-safe answer access:

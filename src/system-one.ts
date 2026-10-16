@@ -46,12 +46,8 @@
 // consumers; this internal-only import path sidesteps the cycle
 // without changing the public surface.
 export type { SystemOneContent } from './generated/models/SystemOneContent.js';
-export type {
-  SystemOneRequest as SystemOneRequestBase,
-} from './generated/models/SystemOneRequest.js';
-export type {
-  SystemOneResponse as SystemOneResponseBase,
-} from './generated/models/SystemOneResponse.js';
+export type { SystemOneRequest as SystemOneRequestBase } from './generated/models/SystemOneRequest.js';
+export type { SystemOneResponse as SystemOneResponseBase } from './generated/models/SystemOneResponse.js';
 export type { SystemOneChoiceQuestion } from './generated/models/SystemOneChoiceQuestion.js';
 export type { SystemOneNoulQuestion } from './generated/models/SystemOneNoulQuestion.js';
 export type { SystemOneScoreQuestion } from './generated/models/SystemOneScoreQuestion.js';
@@ -67,34 +63,39 @@ import type { SystemOneScoreQuestion } from './generated/models/SystemOneScoreQu
 import type { SystemOneChoiceAnswer } from './generated/models/SystemOneChoiceAnswer.js';
 import type { SystemOneNoulAnswer } from './generated/models/SystemOneNoulAnswer.js';
 import type { SystemOneScoreAnswer } from './generated/models/SystemOneScoreAnswer.js';
-import type {
-  SystemOneRequest as SystemOneRequestBase,
-} from './generated/models/SystemOneRequest.js';
-import type {
-  SystemOneResponse as SystemOneResponseBase,
-} from './generated/models/SystemOneResponse.js';
+import type { SystemOneRequest as SystemOneRequestBase } from './generated/models/SystemOneRequest.js';
+import type { SystemOneResponse as SystemOneResponseBase } from './generated/models/SystemOneResponse.js';
 
 /**
- * Maximum total request size, in bytes, accepted by `/v1/systemone`
- * when the request body carries a non-empty `images` array.
+ * Whole-request size cap, in bytes, for `/v1/systemone` — the maximum
+ * serialized size of the complete request, base64 image bytes included.
  *
- * The Ollama server enforces this limit server-side and rejects
+ * Part of the dual cap clarified upstream on 2026-10-16: every request
+ * must satisfy BOTH bounds simultaneously — this whole-request cap AND
+ * the text-and-schema cap of {@link MAX_SYSTEM_ONE_REQUEST_BYTES}
+ * (64 KiB, images excluded). The bumped whole-request cap exists
+ * specifically to accommodate base64-encoded image bytes shared across
+ * all questions in a single System One call; the text and schema
+ * portion may never exceed 64 KiB regardless of whether images are
+ * attached.
+ *
+ * The Ollama server enforces both bounds server-side and rejects
  * oversized payloads with HTTP 413. The SDK's runtime also enforces
- * it client-side (see `OllamaRuntime`'s `maxRequestBytesWithImages`
+ * them client-side (see `OllamaRuntime`'s `maxRequestBytesWithImages`
  * handling) so the round-trip is avoided.
- *
- * Without images, the limit is the much smaller
- * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB) — the bumped
- * images-cap exists specifically to accommodate base64-encoded image
- * bytes shared across all questions in a single System One call.
  */
 export const MAX_SYSTEM_ONE_IMAGES_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 /**
- * Maximum total request size, in bytes, for `/v1/systemone` when no
- * images are attached. The Ollama server caps the JSON-only payload
- * at 64 KiB; the runtime enforces this client-side (see
- * `OllamaRuntime`'s `maxRequestBytes`).
+ * Text-and-schema size cap, in bytes, for `/v1/systemone` — the maximum
+ * serialized size of the request with its `images` array excluded.
+ *
+ * Part of the dual cap clarified upstream on 2026-10-16: this bound
+ * applies to EVERY request, images or not — attaching images raises
+ * the whole-request ceiling to {@link MAX_SYSTEM_ONE_IMAGES_BYTES}
+ * (32 MiB) but never relaxes this 64 KiB text-and-schema ceiling. The
+ * runtime enforces both bounds client-side (see `OllamaRuntime`'s
+ * `maxRequestBytes` handling).
  */
 export const MAX_SYSTEM_ONE_REQUEST_BYTES = 64 * 1024; // 64 KiB
 
@@ -104,19 +105,14 @@ export const MAX_SYSTEM_ONE_REQUEST_BYTES = 64 * 1024; // 64 KiB
  * reconstruct it as a named type for SDK ergonomics.
  */
 export type SystemOneQuestion =
-  | SystemOneChoiceQuestion
-  | SystemOneNoulQuestion
-  | SystemOneScoreQuestion;
+  SystemOneChoiceQuestion | SystemOneNoulQuestion | SystemOneScoreQuestion;
 
 /**
  * Discriminated union of the three answer kinds. The upstream OpenAPI
  * defines this inline as `oneOf` within SystemOneResponse.answers; we
  * reconstruct it as a named type for SDK ergonomics.
  */
-export type SystemOneAnswer =
-  | SystemOneChoiceAnswer
-  | SystemOneNoulAnswer
-  | SystemOneScoreAnswer;
+export type SystemOneAnswer = SystemOneChoiceAnswer | SystemOneNoulAnswer | SystemOneScoreAnswer;
 
 /**
  * Token usage for a System One call. The upstream OpenAPI defines this
@@ -174,14 +170,15 @@ export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> 
  * ## Image support
  *
  * The `images` field accepts up to N base64-encoded images shared by
- * all questions in the request. Total request payload (JSON + images)
- * must remain within {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (32 MiB);
- * requests without images are capped at
- * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB).
+ * all questions in the request. The dual cap (2026-10-16 upstream
+ * clarification) applies to every request simultaneously: the text and
+ * schema portion (images excluded) must stay within
+ * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB), and the whole payload
+ * (JSON + images) within {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (32 MiB).
  *
  * Use {@link estimateSystemOneRequestBytes} for a client-side pre-flight
  * check before sending a large multi-image batch — the runtime also
- * enforces the limit, but the early check avoids the round-trip when
+ * enforces both caps, but the early check avoids the round-trip when
  * the caller already knows the payload is too large.
  *
  * ## Context window
@@ -189,8 +186,11 @@ export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> 
  * Beyond the byte caps, upstream requires the complete input (state,
  * questions, and images) to fit the model's loaded context window, and
  * System One never truncates input — oversized prompts are rejected by
- * the server with HTTP 400 ("a rendered prompt that exceeds the loaded
- * context"), not 413 (which is reserved for the byte caps above).
+ * the server with HTTP 400 locally ("a rendered prompt that exceeds the
+ * loaded context"), not 413 (which is reserved for the byte caps
+ * above); for cloud requests, upstream documents 413 for input that
+ * exceeds the model's context window (65,536 tokens) as well as for
+ * requests over 13 MiB.
  * Decision models (Nimble, Tev) additionally reserve two token
  * positions at the end of the window for scoring. The SDK deliberately
  * does not estimate this client-side (upstream documents no
@@ -201,8 +201,10 @@ export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> 
  * are NOT supported — pre-encode the bytes to base64 before adding to
  * the array.
  */
-export interface SystemOneRequest<Q extends SystemOneQuestions = SystemOneQuestions>
-  extends Omit<SystemOneRequestBase, 'questions'> {
+export interface SystemOneRequest<Q extends SystemOneQuestions = SystemOneQuestions> extends Omit<
+  SystemOneRequestBase,
+  'questions'
+> {
   readonly questions: Q;
 }
 
@@ -211,16 +213,22 @@ export interface SystemOneRequest<Q extends SystemOneQuestions = SystemOneQuesti
  * as `SystemOneAnswers<Q>` — a key-safe map matching the questions the
  * caller asked.
  */
-export interface SystemOneResponse<Q extends SystemOneQuestions = SystemOneQuestions>
-  extends Omit<SystemOneResponseBase, 'answers' | 'usage'> {
+export interface SystemOneResponse<Q extends SystemOneQuestions = SystemOneQuestions> extends Omit<
+  SystemOneResponseBase,
+  'answers' | 'usage'
+> {
   readonly answers: SystemOneAnswers<Q>;
   readonly usage: SystemOneUsage;
 }
 
 /**
  * Estimate the on-the-wire byte size of a System One request body, for
- * pre-flight size validation against {@link MAX_SYSTEM_ONE_REQUEST_BYTES}
- * (no images) or {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (with images).
+ * pre-flight validation against the dual cap (2026-10-16 upstream
+ * clarification): the whole body against
+ * {@link MAX_SYSTEM_ONE_IMAGES_BYTES} (32 MiB) and, when `images` is
+ * attached, the images-excluded portion against
+ * {@link MAX_SYSTEM_ONE_REQUEST_BYTES} (64 KiB) — pass
+ * `{ excludeImages: true }` to measure the text-and-schema portion.
  *
  * The estimate is conservative: it uses `JSON.stringify` length and
  * assumes UTF-8 encoding. The actual wire size may differ slightly due
@@ -232,13 +240,18 @@ export interface SystemOneResponse<Q extends SystemOneQuestions = SystemOneQuest
  *   ```ts
  *   const request: SystemOneRequest = { ... };
  *   const bytes = estimateSystemOneRequestBytes(request);
- *   const cap = request.images?.length ? MAX_SYSTEM_ONE_IMAGES_BYTES : MAX_SYSTEM_ONE_REQUEST_BYTES;
- *   if (bytes > cap) throw new Error(`payload ${bytes}B exceeds cap ${cap}B`);
+ *   const textBytes = request.images?.length
+ *     ? estimateSystemOneRequestBytes(request, { excludeImages: true })
+ *     : bytes;
+ *   if (textBytes > MAX_SYSTEM_ONE_REQUEST_BYTES || bytes > MAX_SYSTEM_ONE_IMAGES_BYTES) {
+ *     throw new Error(`payload ${bytes}B (text ${textBytes}B) exceeds the dual cap`);
+ *   }
  *   await client.systemOne(request);
  *   ```
  */
 export function estimateSystemOneRequestBytes(
   request: SystemOneRequest | SystemOneRequestBase,
+  options?: { readonly excludeImages?: boolean },
 ): number {
   // JSON.stringify is a faithful proxy for what the runtime sends on
   // the wire — see src/transport/http.ts's request() method, which
@@ -248,5 +261,14 @@ export function estimateSystemOneRequestBytes(
   // code units; for pure-ASCII payloads (the typical case) the length
   // equals the byte length directly. We err on the side of over-counting
   // so the pre-flight check is conservative.
-  return new TextEncoder().encode(JSON.stringify(request)).byteLength;
+  //
+  // 2026-10-16: excludeImages drops the `images` array before
+  // serializing (undefined properties vanish in JSON.stringify) so the
+  // caller can measure the text-and-schema half of the dual cap —
+  // mirroring the runtime's serializeWithoutImages() guard.
+  const body =
+    options?.excludeImages && request.images !== undefined
+      ? ({ ...request, images: undefined } as SystemOneRequest | SystemOneRequestBase)
+      : request;
+  return new TextEncoder().encode(JSON.stringify(body)).byteLength;
 }

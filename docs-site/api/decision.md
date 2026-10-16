@@ -22,8 +22,8 @@ const decision = createDecision(new OllamaClient());
 const result = await decision.choice({/* ... */});
 ```
 
-::: warning Local-only, requires Ollama 0.35+
-System One runs only against a local Ollama instance. Calls against Ollama Cloud throw `OllamaUnsupportedCapabilityError`. See [System One Decisions](../guide/system-one) for the full guide.
+::: warning Requires Ollama 0.35+ (0.40.5+ for cloud models)
+System One runs locally and in Ollama's cloud (since the 2026-10-16 upstream cloud launch — cloud models such as `clef:cloud`). Calls against a cloud host no longer throw `OllamaUnsupportedCapabilityError`. See [System One Decisions](../guide/system-one) for the full guide.
 :::
 
 ## `choice(params)` — pick one of N options
@@ -374,13 +374,14 @@ See the [System One guide](../guide/system-one#mixing-multiple-decisions-in-one-
 
 Decision helpers throw the standard `OllamaClientError` hierarchy. Specific cases:
 
-| Code                        | When                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| `unsupported_capability`    | Call against an Ollama Cloud endpoint — System One is local-only.                                |
-| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
-| `request_too_large`         | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                                 |
-| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                    |
-| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                  |
+| Code                        | When                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `auth_error`                | 401: cloud model requested without signing in or with an invalid API key (a local server's response body includes a `signin_url`). |
+| `payment_required`          | 402: cloud model not included in the Free plan, usage credits needed, or a payment failure.                                        |
+| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`).                                   |
+| `request_too_large`         | Text and schema (images excluded) exceeds 64 KiB, or the whole request exceeds 32 MiB — a dual cap on every request.               |
+| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                                                      |
+| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                                                    |
 
 See [Errors](./errors) for the full hierarchy.
 

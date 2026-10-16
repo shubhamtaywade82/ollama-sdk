@@ -808,7 +808,7 @@
     },
     {
       "name": "ollama_systemOne",
-      "description": "Ollama POST /v1/systemone (native domain)\n\n- Local-only; Ollama Cloud rejects /v1/systemone.\n- 64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).\n- No tools, no generation controls (temperature, top_p, etc.).\n- Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.\n- Experimental: behavioral surface may change between Ollama releases.",
+      "description": "Ollama POST /v1/systemone (native domain)\n\n- Local and cloud: model accepts cloud models (e.g. clef:cloud); cloud models require Ollama >= 0.40.5 or the hosted https://ollama.com endpoint.\n- Local dual cap: text and schema (excluding images) within 64 KiB AND the whole request within 32 MiB, including base64 and JSON overhead.\n- Cloud requests: paid plan or usage credits required; up to 64 questions named with up to 100 ASCII letters, digits, `_`, `.`, or `-`; up to 4 images of at most 4 MiB and 16 megapixels each (8 MiB total); requests within 13 MiB; input within the model's 65,536-token context window.\n- 401 when a cloud model is requested without signing in or with an invalid API key (through a local server the response includes a signin_url); 402 when the cloud model is not included in the Free plan or a payment fails.\n- No tools, no generation controls (temperature, top_p, etc.).\n- Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.\n- Experimental: behavioral surface may change between Ollama releases.",
       "inputSchema": {
         "type": "object",
         "required": ["model", "state", "questions"],
@@ -816,7 +816,7 @@
           "model": {
             "type": "string",
             "pattern": "\\S",
-            "description": "Local model trained for System One, such as nimble."
+            "description": "Model trained for System One, such as nimble, or clef:cloud for Ollama's cloud."
           },
           "state": {
             "description": "A nonempty string, or an object or array serialized as JSON text. Not interpreted as chat messages or multimodal input.",
@@ -845,7 +845,7 @@
           },
           "questions": {
             "type": "object",
-            "description": "Named questions about the shared state. Answers are not passed to later questions.",
+            "description": "Named questions about the shared state. Answers are not passed to later questions. Cloud models accept names of up to 100 ASCII letters, digits, `_`, `.`, or `-`.",
             "minProperties": 1,
             "maxProperties": 64,
             "propertyNames": {

@@ -15,15 +15,15 @@ import {
  *     sending an oversized payload
  */
 describe('system-one: size caps', () => {
-  it('MAX_SYSTEM_ONE_REQUEST_BYTES is 64 KiB (no-images limit)', () => {
+  it('MAX_SYSTEM_ONE_REQUEST_BYTES is 64 KiB (text-and-schema cap)', () => {
     expect(MAX_SYSTEM_ONE_REQUEST_BYTES).toBe(64 * 1024);
   });
 
-  it('MAX_SYSTEM_ONE_IMAGES_BYTES is 32 MiB (with-images limit)', () => {
+  it('MAX_SYSTEM_ONE_IMAGES_BYTES is 32 MiB (whole-request cap)', () => {
     expect(MAX_SYSTEM_ONE_IMAGES_BYTES).toBe(32 * 1024 * 1024);
   });
 
-  it('images limit is strictly larger than the no-images limit', () => {
+  it('whole-request cap is strictly larger than the text-and-schema cap', () => {
     expect(MAX_SYSTEM_ONE_IMAGES_BYTES).toBeGreaterThan(MAX_SYSTEM_ONE_REQUEST_BYTES);
   });
 });
@@ -73,18 +73,41 @@ describe('system-one: estimateSystemOneRequestBytes', () => {
     expect(withImagesBytes - noImagesBytes).toBeGreaterThanOrEqual(1024);
   });
 
-  it('exceeds MAX_SYSTEM_ONE_REQUEST_BYTES when images push payload past 64 KiB', () => {
+  it('whole payload can exceed the 64 KiB text cap while staying under 32 MiB (dual cap)', () => {
     const request = {
       model: 'tev1:4b',
       state: 'test',
       questions: { q1: { type: 'noul', instructions: '?' } },
-      // 100 KB of base64 — well past the 64 KiB no-images cap but
-      // under the 32 MiB images cap.
+      // 100 KB of base64 — the whole payload passes the 32 MiB
+      // whole-request cap, while the text-and-schema portion (images
+      // excluded) stays under the 64 KiB cap: a valid dual-cap request.
       images: ['a'.repeat(100 * 1024)],
     };
     const bytes = estimateSystemOneRequestBytes(request);
+    const textBytes = estimateSystemOneRequestBytes(request, { excludeImages: true });
     expect(bytes).toBeGreaterThan(MAX_SYSTEM_ONE_REQUEST_BYTES);
     expect(bytes).toBeLessThan(MAX_SYSTEM_ONE_IMAGES_BYTES);
+    // excludeImages drops the image bytes from the estimate...
+    expect(bytes - textBytes).toBeGreaterThanOrEqual(100 * 1024);
+    // ...leaving a text-and-schema portion under the 64 KiB cap.
+    expect(textBytes).toBeLessThan(MAX_SYSTEM_ONE_REQUEST_BYTES);
+  });
+
+  it('excludeImages surfaces a text portion that busts the 64 KiB cap', () => {
+    const request = {
+      model: 'tev1:4b',
+      // 80 KB of state — the text-and-schema portion alone exceeds the
+      // 64 KiB cap even though the whole body (with a small image) is
+      // far under the 32 MiB whole-request cap. This is the shape the
+      // runtime's dual-cap guard rejects client-side.
+      state: 'x'.repeat(80 * 1024),
+      questions: { q1: { type: 'noul', instructions: '?' } },
+      images: ['a'.repeat(1024)],
+    };
+    const bytes = estimateSystemOneRequestBytes(request);
+    const textBytes = estimateSystemOneRequestBytes(request, { excludeImages: true });
+    expect(bytes).toBeLessThan(MAX_SYSTEM_ONE_IMAGES_BYTES);
+    expect(textBytes).toBeGreaterThan(MAX_SYSTEM_ONE_REQUEST_BYTES);
   });
 
   it('exceeds MAX_SYSTEM_ONE_IMAGES_BYTES when payload crosses 32 MiB', () => {
@@ -92,7 +115,7 @@ describe('system-one: estimateSystemOneRequestBytes', () => {
       model: 'tev1:4b',
       state: 'test',
       questions: { q1: { type: 'noul', instructions: '?' } },
-      // 33 MB of base64 — past the 32 MiB images cap.
+      // 33 MB of base64 — past the 32 MiB whole-request cap.
       images: ['a'.repeat(33 * 1024 * 1024)],
     };
     const bytes = estimateSystemOneRequestBytes(request);

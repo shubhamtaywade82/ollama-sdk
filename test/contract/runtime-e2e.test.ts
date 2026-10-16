@@ -112,15 +112,18 @@ describe('generated NativeApi: end-to-end runtime integration', () => {
 describe('generated NativeApi: contract guards', () => {
   it('rejects a local-only operation when the runtime is in cloud mode', async () => {
     const ir = loadIR();
+    // systemOne became cloud-capable in the 2026-10-16 refresh (upstream
+    // System One cloud launch) — pin that, then exercise the guard with
+    // an operation that is still local-only (pull).
     const systemOne = ir.operations.find((op) => op.id === 'systemOne');
-    expect(systemOne?.environment.cloud).toBe(false);
+    expect(systemOne?.environment.cloud).toBe(true);
 
     const mock = mockFetch({});
     const http = new HttpClient({ baseUrl: 'https://api.example.com', fetch: mock.fetchImpl });
-    const runtime = new OllamaRuntime({ http, localMode: false });
+    const runtime = new OllamaRuntime({ http, localMode: false, enforceVersion: 'off' });
     const api = new NativeApi(runtime);
 
-    await expect(api.systemOne({ prompt: 'hello' } as never)).rejects.toThrow(
+    await expect(api.pull({ model: 'm' } as never)).rejects.toThrow(
       /local-only and not supported in cloud mode/,
     );
   });

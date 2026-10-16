@@ -12,14 +12,24 @@
 # snapshot didn't contain it. Wave 13 refreshes the OpenAPI source to
 # match upstream Ollama, making the workaround obsolete.
 #
+# 2026-10-16 refresh (upstream d9b8601, System One cloud launch): /v1/systemone
+# now also serves Ollama's cloud (clef:cloud models; https://ollama.com is a
+# declared server with optional bearerAuth). The environment guard flipped to
+# cloud: supported accordingly, the local byte caps were clarified upstream to
+# a DUAL cap (text+schema excluding images <= 64 KiB AND whole request <=
+# 32 MiB — both apply simultaneously, replacing the old images-presence
+# either/or reading), and 401/402 joined the documented response set.
+#
 # Behavioral constraints declared here:
-#   - local-only (Ollama Cloud does not support it)
-#   - requires Ollama >= 0.35.0
+#   - local and cloud (cloud models, e.g. clef:cloud, need Ollama >= 0.40.5
+#     or the hosted https://ollama.com endpoint)
+#   - requires Ollama >= 0.35.0 (>= 0.40.5 for cloud models)
 #   - no streaming
 #   - no tools, no thinking, no structured output, no logprobs, no embeddings
 #   - vision is model-dependent (Clef/Clef Flash support images; text-only
 #     models do not)
-#   - 64 KiB request limit without images, 32 MiB with images
+#   - local dual cap: text+schema (excluding images) <= 64 KiB AND whole
+#     request <= 32 MiB; cloud requests <= 13 MiB
 #   - experimental: behavioral surface may change between Ollama releases
 
 version: 1
@@ -37,10 +47,20 @@ operations:
       transport: json
     environment:
       local: supported
-      cloud: unsupported
+      # 2026-10-16: upstream launched System One in Ollama's cloud (clef:cloud
+      # models). Cloud requests hit the same path — either through the local
+      # server (>= 0.40.5, which fronts cloud models and answers 401 with a
+      # signin_url when not signed in) or directly against https://ollama.com
+      # with bearer auth.
+      cloud: supported
     compatibility:
       minVersion: 0.35.0
     limits:
+      # Local dual cap (2026-10-16 clarification): BOTH apply to every local
+      # request — maxRequestBytes bounds the text+schema portion (images
+      # excluded), maxRequestBytesWithImages bounds the whole serialized
+      # request (images included). Previously read as an either/or switch on
+      # images presence; the runtime now enforces both bounds simultaneously.
       maxRequestBytes: 65536
       maxRequestBytesWithImages: 33554432
     capabilities:
@@ -54,8 +74,10 @@ operations:
       documented: true
       experimental: true
     notes:
-      - 'Local-only; Ollama Cloud rejects /v1/systemone.'
-      - '64 KiB request limit without images, 32 MiB with images (includes JSON/base64 overhead).'
+      - 'Local and cloud: model accepts cloud models (e.g. clef:cloud); cloud models require Ollama >= 0.40.5 or the hosted https://ollama.com endpoint.'
+      - 'Local dual cap: text and schema (excluding images) within 64 KiB AND the whole request within 32 MiB, including base64 and JSON overhead.'
+      - "Cloud requests: paid plan or usage credits required; up to 64 questions named with up to 100 ASCII letters, digits, `_`, `.`, or `-`; up to 4 images of at most 4 MiB and 16 megapixels each (8 MiB total); requests within 13 MiB; input within the model's 65,536-token context window."
+      - '401 when a cloud model is requested without signing in or with an invalid API key (through a local server the response includes a signin_url); 402 when the cloud model is not included in the Free plan or a payment fails.'
       - 'No tools, no generation controls (temperature, top_p, etc.).'
       - 'Vision is model-dependent: images are accepted by vision-weighted models (Clef/Clef Flash) but not by text-only models.'
       - 'Experimental: behavioral surface may change between Ollama releases.'
