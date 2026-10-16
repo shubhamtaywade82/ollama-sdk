@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { NativeApi } from '../../src/generated/api/native-api.js';
 import { OllamaRuntime } from '../../src/generated/runtime/runtime.js';
 import { HttpClient } from '../../src/transport/http.js';
-import {
-  OllamaRequestTooLargeError,
-  OllamaServerVersionUnknownError,
-} from '../../src/errors.js';
+import { OllamaRequestTooLargeError, OllamaServerVersionUnknownError } from '../../src/errors.js';
 import { systemOneOp } from '../../src/generated/api/operations.js';
 
 /**
@@ -41,17 +38,15 @@ describe('Wave 12: runtime enforces maxRequestBytes', () => {
     // that, when JSON-serialized, exceeds that. A single string field of
     // ~80 KiB is enough — the JSON envelope adds a small overhead.
     const oversized = 'x'.repeat(80 * 1024);
-    await expect(
-      api.systemOne({ model: 'm', state: oversized } as never),
-    ).rejects.toBeInstanceOf(OllamaRequestTooLargeError);
+    await expect(api.systemOne({ model: 'm', state: oversized } as never)).rejects.toBeInstanceOf(
+      OllamaRequestTooLargeError,
+    );
 
     // The runtime must NOT have hit the network.
     expect(calls).toBe(0);
 
     // And the error should carry the structured fields.
-    await expect(
-      api.systemOne({ model: 'm', state: oversized } as never),
-    ).rejects.toMatchObject({
+    await expect(api.systemOne({ model: 'm', state: oversized } as never)).rejects.toMatchObject({
       code: 'request_too_large',
       status: 413,
       operationId: 'systemOne',
@@ -167,5 +162,102 @@ describe('Wave 12: runtime auto-fetches server version for minOllamaVersion gati
     // Pin the contract so this test file fails loud if the IR changes.
     expect(systemOneOp.constraints?.minOllamaVersion).toBe('0.35.0');
     expect(systemOneOp.constraints?.maxRequestBytes).toBe(65536);
+  });
+});
+
+describe('2026-10-16 refresh: dual request-size cap (text+schema AND whole request)', () => {
+  it('rejects text-and-schema > 64 KiB even when images keep the whole body under 32 MiB', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response('{"ok":true}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const http = new HttpClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+    const runtime = new OllamaRuntime({ http, enforceVersion: 'off' });
+    const api = new NativeApi(runtime);
+
+    // 80 KiB of state + a 1 KiB image: the whole body (~81 KiB) is well
+    // under the 32 MiB whole-request cap, but the text-and-schema portion
+    // alone busts 64 KiB. Under the pre-refresh either/or reading (images
+    // present → only the 32 MiB cap checked) this slipped through the
+    // client guard into a guaranteed server 413.
+    await expect(
+      api.systemOne({
+        model: 'clef:4b',
+        state: 'x'.repeat(80 * 1024),
+        images: ['a'.repeat(1024)],
+        questions: { q: { type: 'noul', instructions: '?' } },
+      } as never),
+    ).rejects.toMatchObject({
+      code: 'request_too_large',
+      status: 413,
+      operationId: 'systemOne',
+      maxBytes: 65536,
+    });
+    // The runtime must NOT have hit the network.
+    expect(calls).toBe(0);
+  });
+
+  it('allows image-bearing bodies while the text portion stays under 64 KiB', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ model: 'm', answers: {}, usage: {} }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const http = new HttpClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+    const runtime = new OllamaRuntime({ http, enforceVersion: 'off' });
+    const api = new NativeApi(runtime);
+
+    // 200 KiB of image bytes + tiny text: whole body fine under both caps.
+    await api.systemOne({
+      model: 'clef:4b',
+      state: 'small',
+      images: ['a'.repeat(200 * 1024)],
+      questions: { q: { type: 'noul', instructions: '?' } },
+    } as never);
+    expect(calls).toBe(1);
+  });
+
+  it('enforces the whole-request cap independently (custom op with a tiny images limit)', async () => {
+    // A custom operation with a 1 KiB whole-request cap proves the second
+    // half of the dual bound fires on its own — with the whole-request
+    // wording and the overridden maxBytes.
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response('{"ok":true}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const http = new HttpClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+    const runtime = new OllamaRuntime({ http, enforceVersion: 'off' });
+    const tinyWholeCapOp = {
+      ...systemOneOp,
+      constraints: { ...systemOneOp.constraints, maxRequestBytesWithImages: 1024 },
+    };
+
+    // Text portion ~tens of bytes (under 64 KiB), whole body ~2 KiB
+    // (over the custom 1 KiB whole-request cap) → the second check fires.
+    await expect(
+      runtime.invoke({
+        operation: tinyWholeCapOp,
+        body: { model: 'clef:4b', state: 's', images: ['a'.repeat(2048)] },
+      }),
+    ).rejects.toMatchObject({
+      code: 'request_too_large',
+      status: 413,
+      maxBytes: 1024,
+    });
+    expect(calls).toBe(0);
   });
 });

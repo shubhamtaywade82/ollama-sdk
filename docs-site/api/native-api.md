@@ -33,7 +33,12 @@ import { NativeApi } from '@nemesis-oss/ollama-sdk/generated/api';
 const client = new OllamaClient({
   endpoints: [
     { name: 'local', baseUrl: 'http://localhost:11434', priority: 10 },
-    { name: 'cloud', baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY!, priority: 5 },
+    {
+      name: 'cloud',
+      baseUrl: 'https://ollama.com',
+      apiKey: process.env.OLLAMA_API_KEY!,
+      priority: 5,
+    },
   ],
 });
 
@@ -51,24 +56,24 @@ const api2 = client.native;
 ```typescript
 interface OllamaRuntimeOptions {
   readonly http: RuntimeHttpBackend;
-  readonly cloudHttp?: RuntimeHttpBackend;     // for host-bearing operations (web search/fetch)
-  readonly localMode?: boolean;                // default true; rejects cloud-mode calls for local-only ops
-  readonly serverVersion?: string;             // skip the lazy /api/version fetch
+  readonly cloudHttp?: RuntimeHttpBackend; // for host-bearing operations (web search/fetch)
+  readonly localMode?: boolean; // default true; rejects cloud-mode calls for local-only ops
+  readonly serverVersion?: string; // skip the lazy /api/version fetch
   readonly enforceVersion?: 'auto' | 'strict' | 'off'; // default 'auto'
-  readonly validateRequests?: boolean;         // default false; opt-in Zod request validation
-  readonly validateResponses?: boolean;        // default false; opt-in Zod response validation
+  readonly validateRequests?: boolean; // default false; opt-in Zod request validation
+  readonly validateResponses?: boolean; // default false; opt-in Zod response validation
 }
 ```
 
-| Option                 | Default | Effect                                                                                                |
-| ---------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `http`                 | —       | The HTTP backend (a `HttpClient` or `FailoverHttpClient`).                                             |
-| `cloudHttp`            | —       | Separate backend for operations declaring a non-default `host` (e.g. web search/fetch at ollama.com). |
-| `localMode`            | `true`  | When `false`, operations marked `environment.cloud === false` (e.g. System One) are rejected.         |
-| `serverVersion`        | —       | Skip the lazy `/api/version` fetch for version-gated operations.                                       |
-| `enforceVersion`       | `'auto'` | `'auto'`: fetch version lazily. `'strict'`: fail if version can't be determined. `'off'`: skip check. |
-| `validateRequests`     | `false` | Validate every request body against the IR-derived Zod schema before sending.                          |
-| `validateResponses`    | `false` | Validate every response body against the IR-derived Zod schema after receiving.                        |
+| Option              | Default  | Effect                                                                                                |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `http`              | —        | The HTTP backend (a `HttpClient` or `FailoverHttpClient`).                                            |
+| `cloudHttp`         | —        | Separate backend for operations declaring a non-default `host` (e.g. web search/fetch at ollama.com). |
+| `localMode`         | `true`   | When `false`, operations marked `environment.cloud === false` (e.g. System One) are rejected.         |
+| `serverVersion`     | —        | Skip the lazy `/api/version` fetch for version-gated operations.                                      |
+| `enforceVersion`    | `'auto'` | `'auto'`: fetch version lazily. `'strict'`: fail if version can't be determined. `'off'`: skip check. |
+| `validateRequests`  | `false`  | Validate every request body against the IR-derived Zod schema before sending.                         |
+| `validateResponses` | `false`  | Validate every response body against the IR-derived Zod schema after receiving.                       |
 
 See [ADR 0020](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0020-runtime-zod-validation.md) for the validation design.
 
@@ -128,7 +133,7 @@ embed(request: EmbedRequest): Promise<EmbedResponse>;
 systemOne(request: SystemOneRequest): Promise<SystemOneResponse>;
 ```
 
-`POST /v1/systemone`. Local-only; requires Ollama >= 0.35.0. The runtime enforces the version constraint automatically and rejects cloud-mode calls. Request size is checked client-side: 64 KiB without images, 32 MiB with images.
+`POST /v1/systemone`. Local and cloud (since the 2026-10-16 upstream cloud launch — `clef:cloud` models need Ollama >= 0.40.5 or the hosted `https://ollama.com` endpoint); requires Ollama >= 0.35.0 locally. The runtime enforces the version constraint automatically. Request size is checked client-side as a dual cap: text and schema (images excluded) within 64 KiB AND the whole request within 32 MiB.
 
 ::: tip Use `client.systemOne()` for key-safe generics
 `OllamaClient.systemOne<Q>(request)` wraps this method with a generic that captures your question map at compile time, giving key-safe answer access. The generated `NativeApi.systemOne` uses the base `Record<string, ...>` type from the IR. See [System One Decisions](../guide/system-one).
@@ -136,18 +141,18 @@ systemOne(request: SystemOneRequest): Promise<SystemOneResponse>;
 
 ### Model catalog
 
-| Method                  | Endpoint                | Streaming | Description                              |
-| ----------------------- | ----------------------- | --------- | ---------------------------------------- |
-| `tags()`                | `GET /api/tags`         | No        | List installed models.                   |
-| `show(request)`         | `POST /api/show`        | No        | Show model details + capabilities.       |
-| `ps()`                  | `GET /api/ps`           | No        | List currently loaded models.            |
-| `version()`             | `GET /api/version`      | No        | Server version.                          |
-| `create(request)`       | `POST /api/create`      | Yes       | Create a custom model from a Modelfile.  |
-| `copy(request)`         | `POST /api/copy`        | No        | Duplicate a model.                       |
-| `delete(request)`       | `DELETE /api/delete`    | No        | Remove a model.                          |
-| `pull(request)`         | `POST /api/pull`        | Yes       | Download a model from a registry.        |
-| `push(request)`         | `POST /api/push`        | Yes       | Upload a model to a registry.            |
-| `blobs(digest, options?)` | `GET /api/blobs/{digest}` | No     | Fetch a blob by digest.                  |
+| Method                    | Endpoint                  | Streaming | Description                             |
+| ------------------------- | ------------------------- | --------- | --------------------------------------- |
+| `tags()`                  | `GET /api/tags`           | No        | List installed models.                  |
+| `show(request)`           | `POST /api/show`          | No        | Show model details + capabilities.      |
+| `ps()`                    | `GET /api/ps`             | No        | List currently loaded models.           |
+| `version()`               | `GET /api/version`        | No        | Server version.                         |
+| `create(request)`         | `POST /api/create`        | Yes       | Create a custom model from a Modelfile. |
+| `copy(request)`           | `POST /api/copy`          | No        | Duplicate a model.                      |
+| `delete(request)`         | `DELETE /api/delete`      | No        | Remove a model.                         |
+| `pull(request)`           | `POST /api/pull`          | Yes       | Download a model from a registry.       |
+| `push(request)`           | `POST /api/push`          | Yes       | Upload a model to a registry.           |
+| `blobs(digest, options?)` | `GET /api/blobs/{digest}` | No        | Fetch a blob by digest.                 |
 
 ### Streaming model operations
 
@@ -201,8 +206,8 @@ Operations marked `environment.cloud === false` (e.g. `systemOne`, `tags`, `show
 const runtime = new OllamaRuntime({ http: cloudHttp, localMode: false });
 const api = new NativeApi(runtime);
 
-await api.chat({ /* ... */ });              // ✓ allowed
-await api.systemOne({ /* ... */ });          // ✗ OllamaUnsupportedCapabilityError
+await api.chat({/* ... */}); // ✓ allowed
+await api.systemOne({/* ... */}); // ✗ OllamaUnsupportedCapabilityError
 ```
 
 ### Version constraint
@@ -213,7 +218,7 @@ With `enforceVersion: 'strict'`, the runtime throws `OllamaServerVersionUnknownE
 
 ### Request size guard
 
-Operations with `constraints.maxRequestBytes` are checked client-side **before** any network call. `systemOne` declares 64 KiB (without images) / 32 MiB (with images) — exceeding it throws `OllamaRequestTooLargeError` with `actualBytes` and `maxBytes` fields.
+Operations with `constraints.maxRequestBytes` are checked client-side **before** any network call. `systemOne` declares a dual cap (2026-10-16 upstream clarification): text and schema (images excluded) within 64 KiB AND the whole request within 32 MiB — exceeding either throws `OllamaRequestTooLargeError` with `actualBytes` and `maxBytes` fields.
 
 ### Streaming defaults
 
@@ -227,7 +232,12 @@ When constructed via `client.runtime`, the runtime uses a `FailoverHttpClient` t
 const client = new OllamaClient({
   endpoints: [
     { name: 'local', baseUrl: 'http://localhost:11434', priority: 10 },
-    { name: 'cloud', baseUrl: 'https://ollama.com', apiKey: process.env.OLLAMA_API_KEY!, priority: 5 },
+    {
+      name: 'cloud',
+      baseUrl: 'https://ollama.com',
+      apiKey: process.env.OLLAMA_API_KEY!,
+      priority: 5,
+    },
   ],
 });
 

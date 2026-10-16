@@ -17,8 +17,10 @@ import type { SystemOneRequest, SystemOneResponse } from '../src/system-one.js';
  *   - Valid requests (choice, noul, score, mixed, structured state, images)
  *   - Schema validation (empty state, empty questions, invalid question type)
  *   - Response parsing (choice, noul with probability, score with legend)
- *   - Runtime guards (local-only, version gating, no streaming)
- *   - Request size limits (64 KiB without images, 32 MiB with images)
+ *   - Runtime guards (environment gating, version gating, no streaming)
+ *   - Request size limits — dual cap since the 2026-10-16 upstream
+ *     clarification: text+schema (images excluded) ≤ 64 KiB AND whole
+ *     request ≤ 32 MiB, both bounds on every request
  *   - Contract integrity (OpenAPI discovers System One, no documented-endpoints exception)
  *   - OllamaClient.systemOne() ergonomic method + key-safe generics
  */
@@ -227,7 +229,13 @@ describe('Wave 13: System One — response parsing', () => {
         difficulty: {
           type: 'score',
           score: 2.73,
-          legend: { '0': 'trivial', '1': 'simple', '2': 'moderate', '3': 'complex', '4': 'very_complex' },
+          legend: {
+            '0': 'trivial',
+            '1': 'simple',
+            '2': 'moderate',
+            '3': 'complex',
+            '4': 'very_complex',
+          },
           probabilities: { '0': 0.05, '1': 0.1, '2': 0.2, '3': 0.55, '4': 0.1 },
           confidence: 0.78,
         },
@@ -287,18 +295,54 @@ describe('Wave 13: System One — response parsing', () => {
 });
 
 describe('Wave 13: System One — runtime guards', () => {
-  it('rejects cloud-mode calls (local-only)', async () => {
+  it('allows cloud-mode calls since the 2026-10-16 upstream cloud launch', async () => {
+    // Upstream launched System One in Ollama's cloud (clef:cloud models)
+    // on 2026-10-16 — the environment guard no longer rejects it. A
+    // client pointed at a cloud host must get past the guard and issue
+    // the request (version probe passes at 0.41.0).
+    let calls = 0;
+    const fetchImpl = (async (url: string | URL | Request) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.endsWith('/api/version')) {
+        return new Response(JSON.stringify({ version: '0.41.0' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      calls += 1;
+      return new Response(
+        JSON.stringify({
+          model: 'clef:cloud',
+          answers: { q: { type: 'noul', noul: 0.95 } },
+          usage: { input_tokens: 10, output_tokens: 2 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof globalThis.fetch;
     const client = new OllamaClient({
+      baseUrl: 'https://api.ollama.com',
+      fetch: fetchImpl,
+    });
+    await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+    expect(calls).toBe(1);
+  });
+
+  it('still rejects genuinely local-only operations in cloud mode', async () => {
+    // The environment guard itself stays — only System One was promoted
+    // to cloud-capable. Model management (pull) remains local-only.
+    const http = new HttpClient({
       baseUrl: 'https://api.ollama.com',
       fetch: mockFetch({}),
     });
-    await expect(
-      client.systemOne({
-        model: 'tev1:4b',
-        state: 'test',
-        questions: { q: { type: 'noul', instructions: '?' } },
-      }),
-    ).rejects.toThrow(/local-only/);
+    const runtime = new OllamaRuntime({ http, localMode: false, enforceVersion: 'off' });
+    const api = new NativeApi(runtime);
+    await expect(api.pull({ model: 'tev1:4b' } as never)).rejects.toThrow(
+      /local-only and not supported in cloud mode/,
+    );
   });
 
   it('rejects when server version is too old', async () => {
@@ -339,7 +383,7 @@ describe('Wave 13: System One — runtime guards', () => {
 });
 
 describe('Wave 13: System One — request size limits', () => {
-  it('rejects bodies >64 KiB without images', async () => {
+  it('rejects text-and-schema >64 KiB without images', async () => {
     const http = new HttpClient({
       baseUrl: 'http://localhost:11434',
       fetch: mockFetch({}),
@@ -357,10 +401,37 @@ describe('Wave 13: System One — request size limits', () => {
     ).rejects.toBeInstanceOf(OllamaRequestTooLargeError);
   });
 
-  it('allows bodies >64 KiB when images are present (up to 32 MiB)', async () => {
-    // A body with images that's >64 KiB but <32 MiB should be allowed.
-    // We don't actually send 32 MiB in the test — we just verify the
-    // runtime selects the higher limit when images are present.
+  it('rejects text-and-schema >64 KiB even when images are present (dual cap)', async () => {
+    // 2026-10-16 upstream clarification: the 64 KiB cap bounds the text
+    // and schema portion (images excluded) — attaching images raises
+    // the whole-request ceiling to 32 MiB but never relaxes the text
+    // cap. 70 KiB of state + a small image is under 32 MiB overall, yet
+    // the text portion alone busts 64 KiB → client-side 413. (Under the
+    // pre-refresh either/or reading this request slipped through.)
+    const http = new HttpClient({
+      baseUrl: 'http://localhost:11434',
+      fetch: mockFetch({}),
+    });
+    const runtime = new OllamaRuntime({ http, enforceVersion: 'off' });
+    const api = new NativeApi(runtime);
+
+    await expect(
+      api.systemOne({
+        model: 'clef:4b',
+        state: 'x'.repeat(70 * 1024),
+        images: ['base64data'],
+        questions: { q: { type: 'noul', instructions: '?' } },
+      }),
+    ).rejects.toMatchObject({
+      code: 'request_too_large',
+      status: 413,
+      maxBytes: 65536,
+    });
+  });
+
+  it('allows image-bearing bodies while text stays under the cap', async () => {
+    // Small text + 100 KiB of image bytes: whole body ~100 KiB (well
+    // under the 32 MiB whole-request cap), text portion tiny — passes.
     let calls = 0;
     const fetchImpl = (async () => {
       calls += 1;
@@ -378,18 +449,16 @@ describe('Wave 13: System One — request size limits', () => {
     const runtime = new OllamaRuntime({ http, enforceVersion: 'off' });
     const api = new NativeApi(runtime);
 
-    // 80 KiB body WITH images — should pass the 64 KiB base limit
-    // because the 32 MiB images limit applies.
     await api.systemOne({
       model: 'clef:4b',
-      state: 'x'.repeat(70 * 1024),
-      images: ['base64data'],
+      state: 'small',
+      images: ['a'.repeat(100 * 1024)],
       questions: { q: { type: 'noul', instructions: '?' } },
     });
     expect(calls).toBe(1);
   });
 
-  it('rejects bodies >32 MiB even with images', async () => {
+  it('rejects whole requests >32 MiB even with images', async () => {
     const http = new HttpClient({
       baseUrl: 'http://localhost:11434',
       fetch: mockFetch({}),
@@ -477,10 +546,7 @@ describe('Wave 13: System One — contract integrity', () => {
 
   it('/v1/systemone is NOT in documented-endpoints.json (removed in Wave 13)', () => {
     const documented = JSON.parse(
-      readFileSync(
-        resolve(process.cwd(), 'contracts/sources/documented-endpoints.json'),
-        'utf8',
-      ),
+      readFileSync(resolve(process.cwd(), 'contracts/sources/documented-endpoints.json'), 'utf8'),
     ) as { endpoints: { path: string }[] };
     const paths = documented.endpoints.map((e) => e.path);
     expect(paths).not.toContain('/v1/systemone');

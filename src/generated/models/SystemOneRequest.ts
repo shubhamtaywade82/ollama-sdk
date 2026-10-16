@@ -12,12 +12,12 @@ import type {
 } from './index.js';
 
 export interface SystemOneRequest {
-  /** Local model trained for System One, such as nimble. */
+  /** Model trained for System One, such as nimble, or clef:cloud for Ollama's cloud. */
   readonly model: string;
   readonly state: SystemOneContent;
   /** Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. URLs and data URLs are not supported. */
   readonly images?: readonly string[] | undefined;
-  /** Named questions about the shared state. Answers are not passed to later questions. */
+  /** Named questions about the shared state. Answers are not passed to later questions. Cloud models accept names of up to 100 ASCII letters, digits, `_`, `.`, or `-`. */
   readonly questions: {
     [key: string]: SystemOneChoiceQuestion | SystemOneNoulQuestion | SystemOneScoreQuestion;
   };

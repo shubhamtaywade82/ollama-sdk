@@ -73,6 +73,29 @@ export class OllamaAuthError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown for HTTP 402 responses — payment required. Ollama's cloud returns
+ * 402 when a cloud model (for example `clef:cloud` through
+ * `/v1/systemone`) is not included in the Free plan, when usage credits
+ * are needed, or when a payment fails.
+ *
+ * Distinct from {@link OllamaAuthError} (401/403): the credentials are
+ * fine; the billing relationship is the problem. Callers should branch
+ * to an upgrade/add-credits flow, not re-prompt for an API key.
+ *
+ * 2026-10-16 refresh: 402 joined the documented `/v1/systemone` response
+ * set with the System One cloud launch; previously it fell through to
+ * {@link OllamaGenericClientError}.
+ */
+export class OllamaPaymentRequiredError extends OllamaClientError {
+  constructor(
+    message: string,
+    options?: Omit<OllamaClientErrorOptions, 'code' | 'retryable' | 'status'> | undefined,
+  ) {
+    super(message, { ...options, code: 'payment_required', retryable: false, status: 402 });
+  }
+}
+
 export class OllamaNotFoundError extends OllamaClientError {
   constructor(
     message: string,
@@ -264,9 +287,15 @@ export class OllamaRequestValidationError extends OllamaClientError {
 
 /**
  * Thrown by `OllamaRuntime.invoke` BEFORE any HTTP request is made when the
- * serialized request body exceeds the operation's declared
- * `constraints.maxRequestBytes`. The Ollama server returns 413 for such
- * payloads; this client-side check fails fast so the round-trip is avoided.
+ * serialized request body exceeds the operation's declared size constraints.
+ * The Ollama server returns 413 for such payloads; this client-side check
+ * fails fast so the round-trip is avoided.
+ *
+ * Dual bound (2026-10-16 refresh, matching the upstream clarification):
+ * `constraints.maxRequestBytes` bounds the text and schema portion of the
+ * body (images excluded), `constraints.maxRequestBytesWithImages` bounds
+ * the whole serialized request (images included) — both apply to every
+ * request simultaneously.
  *
  * Wave 12 (P0 #5): the IR has carried `maxRequestBytes` for System One
  * (64 KiB) since v1.7.0, but the runtime never enforced it. This closes
@@ -623,6 +652,14 @@ function statusToError(
 ): OllamaClientError {
   if (status === 401 || status === 403) {
     return new OllamaAuthError(message, { ...options, status });
+  }
+  if (status === 402) {
+    // Cloud billing, not credentials: the cloud model isn't in the Free
+    // plan, credits are needed, or a payment failed (documented on
+    // /v1/systemone since the 2026-10-16 System One cloud launch).
+    // Distinct from auth failures so callers can branch to an
+    // upgrade/credits flow instead of re-prompting for an API key.
+    return new OllamaPaymentRequiredError(message, options);
   }
   if (status === 404) {
     return new OllamaNotFoundError(message, { ...options, status });

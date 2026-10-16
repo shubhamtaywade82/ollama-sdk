@@ -79,6 +79,7 @@ export {
   OllamaNetworkError,
   OllamaTimeoutError,
   OllamaAuthError,
+  OllamaPaymentRequiredError,
   OllamaNotFoundError,
   OllamaRateLimitError,
   OllamaQuotaExceededError,

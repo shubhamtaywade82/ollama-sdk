@@ -738,7 +738,7 @@ await decision.verify({ model, claim, evidence });
 await decision.rank({ model, instructions, criteria, candidates });
 ```
 
-Confidence gates are **opt-in** — without `minConfidence`/`minProbability`, results carry the raw scores and the defaults behave exactly as before. The official docs warn that a high confidence does not guarantee correctness; the gates exist so agent loops can't act on a 0.51 coin-flip without seeing the number. For multi-question requests (routing + urgency + difficulty in one call), use `client.systemOne()` directly with the key-safe generic wrapper, and mind the request-size caps: 64 KiB without images, 32 MiB with (`estimateSystemOneRequestBytes()` checks client-side before the round-trip).
+Confidence gates are **opt-in** — without `minConfidence`/`minProbability`, results carry the raw scores and the defaults behave exactly as before. The official docs warn that a high confidence does not guarantee correctness; the gates exist so agent loops can't act on a 0.51 coin-flip without seeing the number. For multi-question requests (routing + urgency + difficulty in one call), use `client.systemOne()` directly with the key-safe generic wrapper, and mind the dual request-size cap (2026-10-16 upstream clarification): text and schema (images excluded) within 64 KiB AND the whole request within 32 MiB (`estimateSystemOneRequestBytes()` checks both client-side before the round-trip — pass `{ excludeImages: true }` to measure the text portion).
 
 ### Vector Embeddings & Similarity
 

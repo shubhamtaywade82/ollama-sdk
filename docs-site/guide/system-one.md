@@ -6,10 +6,10 @@ outline: [2, 3]
 
 System One is Ollama's native decision layer — `POST /v1/systemone` — that evaluates typed questions (choice, noul, or score) against a provided state and returns answers with **probability distributions** and **confidence scores**. The SDK wraps it in a key-safe generic API and six ergonomic decision helpers (`choice`, `noul`, `score`, `route`, `verify`, `rank`) that cover the most common decision patterns.
 
-::: warning Local-only, requires Ollama 0.35+
-System One runs **only against a local Ollama instance** — it's rejected at request time against Ollama Cloud. The runtime enforces the version constraint automatically (lazily fetching `/api/version` when needed). Request size is checked client-side: 64 KiB without images, 32 MiB with images.
+::: warning Requires Ollama 0.35+ (0.40.5+ for cloud models)
+System One runs **locally and in Ollama's cloud** (since the 2026-10-16 upstream cloud launch): `model` also accepts cloud models such as `clef:cloud` — cloud models need Ollama >= 0.40.5 or the hosted `https://ollama.com` endpoint. The runtime enforces the version constraint automatically (lazily fetching `/api/version` when needed). Request size is checked client-side as a dual cap: text and schema (images excluded) within 64 KiB AND the whole request within 32 MiB. Cloud requests are capped at 13 MiB server-side, need a paid plan or usage credits, and answer `401` (not signed in — a local server includes a `signin_url`) or `402` (not in the Free plan / payment failed) with typed errors.
 
-The complete input (state, questions, images) must also fit the model's loaded context window — System One never truncates input, rejecting oversized prompts with HTTP 400 instead. Decision models (Nimble, Tev) reserve two token positions at the end of the window for scoring. The SDK deliberately does not estimate this client-side; use `client.models.getContextLength()` when you need the real limit.
+The complete input (state, questions, images) must also fit the model's loaded context window — System One never truncates input, rejecting oversized prompts with HTTP 400 locally (413 for cloud requests that exceed the model's 65,536-token context window). Decision models (Nimble, Tev) reserve two token positions at the end of the window for scoring. The SDK deliberately does not estimate this client-side; use `client.models.getContextLength()` when you need the real limit.
 :::
 
 ## The three question types
@@ -344,13 +344,14 @@ await client.decision.choice({
 
 System One calls throw the standard `OllamaClientError` hierarchy. Specific cases:
 
-| Code                        | When                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| `unsupported_capability`    | Call against an Ollama Cloud endpoint — System One is local-only.                                |
-| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`). |
-| `request_too_large`         | Request body exceeds 64 KiB (no images) or 32 MiB (with images).                                 |
-| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                    |
-| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                  |
+| Code                        | When                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `auth_error`                | 401: cloud model requested without signing in or with an invalid API key (a local server's response body includes a `signin_url`). |
+| `payment_required`          | 402: cloud model not included in the Free plan, usage credits needed, or a payment failure.                                        |
+| `server_version_unknown`    | Couldn't fetch `/api/version` to verify the 0.35+ requirement (with `enforceVersion: 'strict'`).                                   |
+| `request_too_large`         | Text and schema (images excluded) exceeds 64 KiB, or the whole request exceeds 32 MiB — a dual cap on every request.               |
+| `request_validation_error`  | With `validateRequests: true`, request failed Zod validation.                                                                      |
+| `response_validation_error` | With `validateResponses: true`, response failed Zod validation.                                                                    |
 
 ## Next steps
 

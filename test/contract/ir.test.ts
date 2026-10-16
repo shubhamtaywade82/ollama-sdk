@@ -30,7 +30,9 @@ describe('contract IR: System One is declared', () => {
 
     expect(op.method).toBe('POST');
     expect(op.environment.local).toBe(true);
-    expect(op.environment.cloud).toBe(false);
+    // 2026-10-16 refresh: cloud-capable since the upstream System One
+    // cloud launch (clef:cloud models).
+    expect(op.environment.cloud).toBe(true);
     expect(op.transport.streaming).toBe(false);
     expect(op.transport.mode).toBe('json');
     expect(op.constraints?.minOllamaVersion).toBe('0.35.0');
@@ -51,10 +53,10 @@ describe('contract IR: System One is declared', () => {
     expect(op.capabilities.structuredOutput).toBe('unsupported');
   });
 
-  it('marks System One as local-only, not cloud', () => {
+  it('marks System One as cloud-capable since the 2026-10-16 refresh', () => {
     const ir = loadCommittedIR();
     const systemOne = ir.operations.find((op) => op.path === '/v1/systemone');
-    expect(systemOne?.environment.cloud).toBe(false);
+    expect(systemOne?.environment.cloud).toBe(true);
     expect(systemOne?.environment.local).toBe(true);
   });
 });

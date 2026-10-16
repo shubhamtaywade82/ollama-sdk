@@ -75,6 +75,16 @@ class OllamaAuthError extends OllamaClientError {
 
 The endpoint returned `401` or `403`. `retryable: false` for the same credential, but `auth_error` is in `DEFAULT_FAILOVER_CODES`, so a multi-endpoint setup tries the next candidate.
 
+#### `OllamaPaymentRequiredError`
+
+```typescript
+class OllamaPaymentRequiredError extends OllamaClientError {
+  // code: 'payment_required', retryable: false, status: 402
+}
+```
+
+The endpoint returned `402` — billing, not credentials. Ollama's cloud returns it when a cloud model (for example `clef:cloud` through `/v1/systemone`) is not included in the Free plan, when usage credits are needed, or when a payment fails. Distinct from `OllamaAuthError` on purpose: branch to an upgrade/add-credits flow, not an API-key re-prompt. Joined the documented `/v1/systemone` response set with the 2026-10-16 System One cloud launch.
+
 #### `OllamaNotFoundError`
 
 ```typescript
@@ -268,7 +278,7 @@ class OllamaRequestTooLargeError extends OllamaClientError {
 }
 ```
 
-Thrown by `OllamaRuntime.invoke` **before** any HTTP request is made when the serialized request body exceeds the operation's declared `constraints.maxRequestBytes`. System One declares 64 KiB (without images) / 32 MiB (with images).
+Thrown by `OllamaRuntime.invoke` **before** any HTTP request is made when the serialized request body exceeds the operation's declared size constraints — a dual cap since the 2026-10-16 upstream clarification: `constraints.maxRequestBytes` bounds the text and schema portion (images excluded), `constraints.maxRequestBytesWithImages` bounds the whole serialized request. System One declares 64 KiB / 32 MiB.
 
 #### `OllamaServerVersionUnknownError`
 
@@ -464,6 +474,7 @@ const DEFAULT_FAILOVER_CODES = [
 | `OllamaNetworkError`               | `network_error`                 | `true`      | Request failed before a response was received.                                                                                     |
 | `OllamaTimeoutError`               | `timeout`                       | `true`      | Request exceeded `timeoutMs`.                                                                                                      |
 | `OllamaAuthError`                  | `auth_error`                    | `false`     | Endpoint returned `401`/`403`.                                                                                                     |
+| `OllamaPaymentRequiredError`       | `payment_required`              | `false`     | Endpoint returned `402` (cloud billing — not credentials).                                                                         |
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | Endpoint returned `404` (e.g. unknown model).                                                                                      |
 | `OllamaRateLimitError`             | `rate_limited`                  | `true`      | Endpoint returned `429`.                                                                                                           |
 | `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` would exceed a configured budget (client-side).                                                    |

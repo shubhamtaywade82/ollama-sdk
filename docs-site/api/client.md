@@ -160,7 +160,7 @@ systemOne<Q extends SystemOneQuestions = SystemOneQuestions>(
 ): Promise<SystemOneResponse<Q>>;
 ```
 
-Ollama's System One decision layer (`POST /v1/systemone`). Local-only; requires Ollama >= 0.35.0. The generic `Q` captures the caller's question map at compile time, giving key-safe answer access. See [System One Decisions](../guide/system-one).
+Ollama's System One decision layer (`POST /v1/systemone`). Local and cloud (since the 2026-10-16 upstream cloud launch — `model` accepts cloud models such as `clef:cloud`, needing Ollama >= 0.40.5 or the hosted endpoint); requires Ollama >= 0.35.0 locally. The generic `Q` captures the caller's question map at compile time, giving key-safe answer access. See [System One Decisions](../guide/system-one).
 
 ### `decision` (accessor)
 
