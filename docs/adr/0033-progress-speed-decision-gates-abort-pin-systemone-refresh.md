@@ -107,6 +107,25 @@ the 2026-10-11 pin and today.
    `isConfident` would always equal `bool`. Gates are opt-in so every existing
    caller's behavior is byte-identical.
 
+   > **Correction (2026-10-16):** the "appear nowhere" assertion above is partially
+   > wrong, and the original paragraph is preserved verbatim as the record at writing
+   > time. The repo's own pinned snapshot has carried the two-token and
+   > zero-truncation notes since the v1.10.0 refresh (5d784fb, 2026-10-07): the
+   > `/v1/systemone` x-mint notes state "The complete input must fit the loaded
+   > context window. Nimble and Tev also require two token positions for scoring.
+   > Input is never truncated", and the 400 response description covers "a rendered
+   > prompt that exceeds the loaded context". The original audit searched the
+   > structured schemas and the rendered decision page, not the x-mint content blob.
+   > What stands unchanged: the HTTP **413** attribution (413 is the byte-cap status
+   > — 64 KiB/32 MiB; context overflow is a **400**), the `{value, score,
+confidence}` answer shape (still absent; answers remain choice/noul/score), and
+   > both declines. The `ContextBudgetGuard` estimator remains declined on corrected
+   > grounds: upstream documents the constraint but no client-side
+   > token-estimation formula, the server enforces it with a typed 400, and callers
+   > who want the real limit have context discovery
+   > (`client.models.getContextLength()`) — a heuristic guard would still be
+   > guesswork in both directions. No code decision changes.
+
 5. **Contract refresh (the one honest catch in the morning digest).** The
    "OpenAPI Parity Inspection" focus item was taken literally: the live upstream
    `docs/openapi.yaml` now natively carries the System One schemas (the pin

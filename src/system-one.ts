@@ -184,6 +184,19 @@ export type SystemOneAnswers<Q extends SystemOneQuestions = SystemOneQuestions> 
  * enforces the limit, but the early check avoids the round-trip when
  * the caller already knows the payload is too large.
  *
+ * ## Context window
+ *
+ * Beyond the byte caps, upstream requires the complete input (state,
+ * questions, and images) to fit the model's loaded context window, and
+ * System One never truncates input — oversized prompts are rejected by
+ * the server with HTTP 400 ("a rendered prompt that exceeds the loaded
+ * context"), not 413 (which is reserved for the byte caps above).
+ * Decision models (Nimble, Tev) additionally reserve two token
+ * positions at the end of the window for scoring. The SDK deliberately
+ * does not estimate this client-side (upstream documents no
+ * tokenization formula); callers who need the real limit can use
+ * `client.models.getContextLength()`.
+ *
  * Requires Clef or Clef Flash with vision weights. URLs and data URLs
  * are NOT supported — pre-encode the bytes to base64 before adding to
  * the array.
