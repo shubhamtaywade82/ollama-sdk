@@ -8,6 +8,8 @@ System One is Ollama's native decision layer — `POST /v1/systemone` — that e
 
 ::: warning Local-only, requires Ollama 0.35+
 System One runs **only against a local Ollama instance** — it's rejected at request time against Ollama Cloud. The runtime enforces the version constraint automatically (lazily fetching `/api/version` when needed). Request size is checked client-side: 64 KiB without images, 32 MiB with images.
+
+The complete input (state, questions, images) must also fit the model's loaded context window — System One never truncates input, rejecting oversized prompts with HTTP 400 instead. Decision models (Nimble, Tev) reserve two token positions at the end of the window for scoring. The SDK deliberately does not estimate this client-side; use `client.models.getContextLength()` when you need the real limit.
 :::
 
 ## The three question types
@@ -322,7 +324,7 @@ const result = await client.decision.choice({
 });
 ```
 
-The 32 MiB request size limit applies when images are present.
+The 32 MiB request size limit applies when images are present. Separately, the whole input must fit the model's loaded context window (never truncated — the server answers 400 when the rendered prompt exceeds it; Nimble and Tev reserve two token positions for scoring).
 
 ## Keep-alive
 

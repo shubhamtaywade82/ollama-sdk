@@ -124,6 +124,11 @@ export interface ModelOptions {
   readonly top_p?: number | undefined;
   readonly min_p?: number | undefined;
   readonly tfs_z?: number | undefined;
+  /**
+   * @deprecated Upstream dropped `typical_p` from the documented generation options
+   * (absent from the pinned OpenAPI); the generated contract omits it. Kept here for
+   * wire compatibility with older servers — new code should not set it.
+   */
   readonly typical_p?: number | undefined;
   readonly repeat_last_n?: number | undefined;
   readonly temperature?: number | undefined;
@@ -216,6 +221,11 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
   readonly suffix?: string | undefined;
   readonly system?: string | undefined;
   readonly template?: string | undefined;
+  /**
+   * @deprecated Legacy generate state-passing (token id array). Upstream no longer
+   * documents it and the generated contract omits it; conversation state belongs in
+   * `/api/chat` messages (`client.chat()`).
+   */
   readonly context?: readonly number[] | undefined;
   readonly stream?: boolean | undefined;
   readonly raw?: boolean | undefined;
