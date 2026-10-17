@@ -220,9 +220,11 @@ export interface OllamaClientConfig {
    * Default context window (`num_ctx`) applied to every `chat`/`generate`
    * request that doesn't set `options.num_ctx` itself. Injected as
    * `options.num_ctx` on the wire, making the effective window explicit
-   * instead of leaving it to Ollama's server default (commonly 2048–4096,
-   * model-dependent) — which **silently truncates** prompts that don't fit,
-   * with no error and no warning. See `src/context-safety.ts`.
+   * instead of leaving it to Ollama's VRAM-tiered server default (4,096
+   * tokens below 24 GiB, 32,768 at 24–48 GiB, 262,144 at 48 GiB and up;
+   * daemon-wide override via `OLLAMA_CONTEXT_LENGTH`) — which **silently
+   * truncates** prompts that don't fit, with no error and no warning. See
+   * `src/context-safety.ts`.
    */
   readonly defaultContextLength?: number;
   /**

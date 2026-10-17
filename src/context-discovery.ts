@@ -2,7 +2,10 @@
  * Dynamic context-window discovery.
  *
  * Guessing context windows ("it's probably 2048… or 4096?") is how silent
- * truncation happens. Ollama advertises the real numbers in two places, and
+ * truncation happens — and current daemons make the guess worse, not better:
+ * the unset-`num_ctx` default is tiered by VRAM (4k / 32k / 256k), so a
+ * hardcoded assumption is now wrong in both directions. Ollama advertises
+ * the real numbers in two places, and
  * they answer *different questions*:
  *
  *   - **`GET /api/ps`** reports `context_length` for every currently-running
@@ -50,7 +53,7 @@ export type ContextLengthSource =
   | 'parameters'
   /** `POST /api/show` `model_info["*.context_length"]` — native GGUF maximum. */
   | 'model-info'
-  /** Nothing discoverable — Ollama's conservative unset-`num_ctx` default (2048). */
+  /** Nothing discoverable — the 2048 worst-case floor for the unset-`num_ctx` window (current daemons tier by VRAM: 4k / 32k / 256k). */
   | 'fallback';
 
 /** Result of {@link ModelsClient.getContextLength}. */
@@ -58,7 +61,7 @@ export interface DiscoveredContextLength {
   /**
    * The effective context window to program against, resolved by precedence:
    * `running` (exact, when loaded) → `parameters` (Modelfile default) →
-   * `model-info` (native max) → `2048` fallback.
+   * `model-info` (native max) → worst-case `2048` fallback.
    */
   readonly contextLength: number;
   /** Which source produced {@link contextLength}. */
@@ -171,7 +174,9 @@ function positiveInt(value: number | undefined): number | undefined {
  *      (Ollama's conservative default), so native is a *ceiling*, not an
  *      expectation.
  *   4. **Fallback** — {@link OLLAMA_FALLBACK_CONTEXT_LENGTH} (2048), the
- *      conservative server-side default, so the result is always actionable.
+ *      worst-case floor for the unset-`num_ctx` window (current daemons tier
+ *      by VRAM up to 262,144), so the result is always actionable and can
+ *      never over-estimate a real window.
  *
  * Pure — used by `ModelsClient.getContextLength()` and exported for callers
  * that already hold `/api/ps` / `/api/show` responses.
