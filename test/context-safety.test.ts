@@ -156,7 +156,8 @@ describe('contextWarningMessage', () => {
       },
       'chat',
     );
-    expect(fallbackMsg).toContain('server-default');
+    expect(fallbackMsg).toContain('worst-case floor');
+    expect(fallbackMsg).toContain('tiered by VRAM');
   });
 });
 

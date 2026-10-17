@@ -2,11 +2,14 @@
  * Context-window safety: client-side token estimation and pre-flight overflow
  * warnings for `/api/chat` and `/api/generate`.
  *
- * Why this exists: when `options.num_ctx` is left unset, Ollama loads the
- * model with a conservative default context window (commonly 2048–4096
- * tokens, model-dependent) and **silently truncates** any prompt that doesn't
- * fit — the model just loses the top of the conversation with no error, no
- * warning, and often no visible symptom beyond degraded answers. This module
+ * Why this exists: when `options.num_ctx` is left unset, Ollama sizes the
+ * default context window by available VRAM (4,096 tokens below 24 GiB,
+ * 32,768 at 24–48 GiB, 262,144 at 48 GiB and up; daemon-wide override via
+ * `OLLAMA_CONTEXT_LENGTH`, and cloud models run at their maximum — see the
+ * "Context length" page in the Ollama docs) and **silently truncates** any
+ * prompt that doesn't fit — the model just loses the top of the conversation
+ * with no error, no warning, and often no visible symptom beyond degraded
+ * answers. This module
  * estimates the prompt size client-side (a fast heuristic — no tokenizer
  * download, no model dependency) and surfaces a warning *before* the request
  * is sent, when the estimate approaches the effective context window.
@@ -135,7 +138,7 @@ export type ContextWindowSource =
   | 'request'
   /** Client `defaultContextLength` config — injected as `num_ctx` by the pipeline. */
   | 'client-default'
-  /** Neither set; Ollama's server default applies (2048–4096, model-dependent). */
+  /** Neither set; Ollama's VRAM-tiered server default applies (4k / 32k / 256k). */
   | 'server-fallback';
 
 /** What the pre-flight check concluded about one request. */
@@ -218,10 +221,13 @@ function check(
   options: ContextCheckOptions,
 ): ContextCheck {
   const threshold = options.threshold ?? DEFAULT_CONTEXT_WARNING_THRESHOLD;
-  // With no explicit window anywhere, compare against the conservative 2048
-  // fallback *without* the safety margin — the real server default may be as
-  // high as 4096, so warning at merely 90% of an assumed 2048 would produce
-  // false positives. Only flag prompts that outright exceed the fallback.
+  // With no explicit window anywhere, compare against the 2048 worst-case
+  // floor *without* the safety margin — current daemons tier the unset
+  // default by VRAM (4,096–262,144 tokens), so warning at merely 90% of an
+  // assumed 2048 would produce false positives on almost every system. Only
+  // flag prompts that outright exceed the floor: the one case where
+  // truncation is near-certain across daemon vintages and admin overrides
+  // (an `OLLAMA_CONTEXT_LENGTH` pin can set any value, including 2048).
   if (requestNumCtx !== undefined) {
     const exceeds = estimatedPromptTokens > requestNumCtx * threshold;
     return {
@@ -253,9 +259,15 @@ function check(
 }
 
 /**
- * The conservative server-side default (2048) Ollama most commonly applies
- * when `num_ctx` is unset — used to warn about *likely* truncation even when
- * no effective window is known client-side.
+ * 2048 — the worst-case floor for the window a daemon allocates when
+ * `num_ctx` is unset, used to warn about *likely* truncation even when no
+ * effective window is known client-side. Deliberately not a prediction:
+ * current daemons tier the unset default by VRAM (4,096 / 32,768 / 262,144
+ * tokens), older daemons defaulted lower, and an admin can pin any value via
+ * `OLLAMA_CONTEXT_LENGTH`. Sizing the floor at the minimum plausible window
+ * keeps this check unable to over-estimate a real window — over-estimation
+ * is the failure that silently re-enables truncation. Use
+ * `client.models.getContextLength()` when the real number matters.
  */
 export const OLLAMA_FALLBACK_CONTEXT_LENGTH = 2048;
 
@@ -296,12 +308,14 @@ export function contextWarningMessage(check: ContextCheck, kind: 'chat' | 'gener
     );
   }
   return (
-    `${where}: estimated prompt size ${estimate} outright exceeds Ollama's conservative ` +
-    `server-default context window (${OLLAMA_FALLBACK_CONTEXT_LENGTH}–4096 tokens when ` +
-    `\`num_ctx\` is unset — model-dependent). Unless the model's default is larger, the ` +
-    `server will silently truncate the top of the conversation — the model loses earlier ` +
-    `turns with no error. Set \`options.num_ctx\` (or the client's \`defaultContextLength\`) ` +
-    `to an explicit window to make truncation visible and controllable.${suggestion} ` +
-    `Estimates are heuristic (±20–30%); see \`estimateTokens\`.`
+    `${where}: estimated prompt size ${estimate} outright exceeds the worst-case floor for ` +
+    `the unset-\`num_ctx\` window (${OLLAMA_FALLBACK_CONTEXT_LENGTH} tokens — current daemons ` +
+    `default higher, tiered by VRAM: 4096 / 32768 / 262144; \`OLLAMA_CONTEXT_LENGTH\` can ` +
+    `override either way). If your daemon's effective window is that small, the server will ` +
+    `silently truncate the top of the conversation — the model loses earlier turns with no ` +
+    `error. Set \`options.num_ctx\` (or the client's \`defaultContextLength\`) to an explicit ` +
+    `window — or discover the real one via \`client.models.getContextLength()\` — to make ` +
+    `truncation visible and controllable.${suggestion} Estimates are heuristic (±20–30%); ` +
+    `see \`estimateTokens\`.`
   );
 }

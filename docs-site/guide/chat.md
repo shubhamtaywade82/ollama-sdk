@@ -83,7 +83,11 @@ for await (const event of stream) {
       process.stdout.write(`\x1b[33m${event.data.delta}\x1b[0m`);
       break;
     case 'tool_call':
-      console.log('Tool call:', event.data.toolCall.function.name, event.data.toolCall.function.arguments);
+      console.log(
+        'Tool call:',
+        event.data.toolCall.function.name,
+        event.data.toolCall.function.arguments,
+      );
       break;
     case 'done':
       console.log('\n\nFinal:', event.data.result.message.content);
@@ -105,11 +109,11 @@ The full event surface and patterns are covered in [Streaming](./streaming).
 
 Reasoning models (`qwen3`, `deepseek-r1`, `gpt-oss`) expose a `think` parameter on `chat`:
 
-| Value           | Meaning                                              |
-| --------------- | ---------------------------------------------------- |
-| `true`          | Use the model's default thinking budget (recommended). |
-| `false`         | Disable thinking entirely.                            |
-| `null`          | Model default (same as omitting).                     |
+| Value                               | Meaning                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `true`                              | Use the model's default thinking budget (recommended).                                         |
+| `false`                             | Disable thinking entirely.                                                                     |
+| `null`                              | Model default (same as omitting).                                                              |
 | `'high'`/`'low'`/`'medium'`/`'max'` | Model-defined string levels — discover them with `client.capabilities(model).thinking.values`. |
 
 ```typescript
@@ -228,7 +232,11 @@ const res = await client.chat({
 });
 
 for (const entry of res.logprobs ?? []) {
-  console.log(entry.token, entry.logprob, entry.top_logprobs?.map((t) => t.token));
+  console.log(
+    entry.token,
+    entry.logprob,
+    entry.top_logprobs?.map((t) => t.token),
+  );
 }
 ```
 
@@ -254,15 +262,15 @@ await client.chat({
 
 Common ones:
 
-| Option           | Default    | Effect                                                   |
-| ---------------- | ---------- | -------------------------------------------------------- |
-| `temperature`    | model      | Sampling temperature (higher = more random).             |
-| `top_p`          | model      | Nucleus sampling cutoff.                                 |
-| `top_k`          | model      | Top-k token cutoff.                                       |
-| `num_predict`    | -1 (unlim) | Maximum tokens to generate.                              |
-| `num_ctx`        | 2048       | Context window size in tokens.                           |
-| `seed`           | unset      | Deterministic sampling for the same prompt.              |
-| `stop`           | unset      | Stop sequences — generation ends when any is matched.    |
+| Option        | Default     | Effect                                                                                                                                                               |
+| ------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temperature` | model       | Sampling temperature (higher = more random).                                                                                                                         |
+| `top_p`       | model       | Nucleus sampling cutoff.                                                                                                                                             |
+| `top_k`       | model       | Top-k token cutoff.                                                                                                                                                  |
+| `num_predict` | -1 (unlim)  | Maximum tokens to generate.                                                                                                                                          |
+| `num_ctx`     | VRAM-tiered | Context window size in tokens — when unset, the daemon defaults it by VRAM (4k / 32k / 256k; see the [Context length](https://docs.ollama.com/context-length) docs). |
+| `seed`        | unset       | Deterministic sampling for the same prompt.                                                                                                                          |
+| `stop`        | unset       | Stop sequences — generation ends when any is matched.                                                                                                                |
 
 See the [`ModelOptions` type](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/src/types.ts) for the complete list.
 
@@ -282,7 +290,11 @@ await client.chat({ model: 'qwen3:8b', messages: [], keep_alive: 0 });
 Every failure is an `OllamaClientError` subclass. Catch the base class or narrow to a specific `code`:
 
 ```typescript
-import { OllamaClientError, OllamaRateLimitError, OllamaNotFoundError } from '@nemesis-oss/ollama-sdk';
+import {
+  OllamaClientError,
+  OllamaRateLimitError,
+  OllamaNotFoundError,
+} from '@nemesis-oss/ollama-sdk';
 
 try {
   await client.chat({ model: 'nonexistent-model', messages });

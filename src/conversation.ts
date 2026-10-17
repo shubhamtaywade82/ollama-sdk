@@ -252,8 +252,8 @@ export function sanitizeHistoryForNextTurn(
 export interface SessionCompactionOptions {
   /**
    * Token budget for the compacted history. Defaults to the session's own
-   * window: `options.num_ctx` from the session config, or Ollama's
-   * conservative 2048 fallback when unset — pair with
+   * window: `options.num_ctx` from the session config, or the 2048
+   * worst-case fallback when unset — pair with
    * `client.models.getContextLength()` to program against the real window.
    */
   readonly maxEstimatedTokens?: number | undefined;

@@ -216,7 +216,8 @@ export class ModelsClient {
 
   /**
    * Discovers the model's real context window from the server — no more
-   * 2048/4096 guesswork. Consults, in precedence order:
+   * default-window guesswork (current daemons tier the unset-`num_ctx`
+   * default by VRAM: 4k / 32k / 256k). Consults, in precedence order:
    *
    *   1. `GET /api/ps` — the window the **running instance actually
    *      allocated** (exact, reflects the Modelfile `num_ctx` default and
@@ -228,7 +229,7 @@ export class ModelsClient {
    *   3. `POST /api/show` `model_info["<arch>.context_length"]` — the
    *      model's **native GGUF maximum** (a ceiling to raise `num_ctx`
    *      toward, not the allocated window).
-   *   4. Fallback — Ollama's conservative unset-`num_ctx` default (2048).
+   *   4. Fallback — the 2048 worst-case floor for the unset-`num_ctx` window.
    *
    * The result carries every signal it found, so `nativeContextLength:
    * 131072` vs `contextLength: 4096` (a 32× gap seen in the official API
