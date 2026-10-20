@@ -64,16 +64,18 @@ ADRs 0023–0029 document the production-readiness waves driven by external audi
 | [0028](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0028-telemetry-normalization-host-affinity-root-ping.md)            | Telemetry Normalization, Dynamic Host Model-Affinity Routing, Root Liveness Probe                                 |
 | [0029](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0029-public-testing-subpath-speculative-draft-conveniences.md)      | Public Testing Subpath, Speculative-Draft Conveniences                                                            |
 
-### Recent decisions (ADR 0030–0033)
+### Recent decisions (ADR 0030–0035)
 
-The October 2026 wave: the speculative draft benchmark and request-aware mock routes, zero-copy stream observation with structural network-error classification, streaming blob uploads with typed-array view-safety pins, and the progress speed tracker with System One decision confidence gates and the score 26→10 contract refresh.
+The October 2026 wave: the speculative draft benchmark and request-aware mock routes, zero-copy stream observation with structural network-error classification, streaming blob uploads with typed-array view-safety pins, the progress speed tracker with System One decision confidence gates and the score 26→10 contract refresh, the System One cloud launch contract refresh, and closing the dead-`retryAfterMs` gap by honoring `Retry-After` on 429s.
 
-| ADR                                                                                                                                                 | Title                                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [0030](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0030-draft-benchmark-request-aware-mock-routes.md)                         | Draft Benchmark Utility, Request-Aware Mock Routes                                                                      |
-| [0031](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0031-stream-observation-network-classification-context-recommendations.md) | Stream Observation (`observeStream`), Network-Error Classification, Context-Window Recommendations                      |
-| [0032](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0032-streaming-blob-uploads-tracing-verdicts-view-safety.md)               | Streaming Blob Uploads (`duplex:'half'`, Two-Pass File Upload), Tracing-Header Verdicts, Typed-Array View Safety        |
-| [0033](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0033-progress-speed-decision-gates-abort-pin-systemone-refresh.md)         | Progress Speed Tracking, Decision Confidence Gates, Abort-Safety Invariant Pin, System One Score 26→10 Contract Refresh |
+| ADR                                                                                                                                                 | Title                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [0030](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0030-draft-benchmark-request-aware-mock-routes.md)                         | Draft Benchmark Utility, Request-Aware Mock Routes                                                                       |
+| [0031](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0031-stream-observation-network-classification-context-recommendations.md) | Stream Observation (`observeStream`), Network-Error Classification, Context-Window Recommendations                       |
+| [0032](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0032-streaming-blob-uploads-tracing-verdicts-view-safety.md)               | Streaming Blob Uploads (`duplex:'half'`, Two-Pass File Upload), Tracing-Header Verdicts, Typed-Array View Safety         |
+| [0033](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0033-progress-speed-decision-gates-abort-pin-systemone-refresh.md)         | Progress Speed Tracking, Decision Confidence Gates, Abort-Safety Invariant Pin, System One Score 26→10 Contract Refresh  |
+| [0034](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0034-systemone-cloud-launch-contract-refresh.md)                           | System One Cloud Launch: 2026-10-16 Re-Pin (d9b8601), Dual Request-Size Cap, 402 Taxonomy, Enum-Repair Deviation Retired |
+| [0035](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0035-retry-after-honoring.md)                                              | Honoring `Retry-After` on 429s — Closing the Dead-`retryAfterMs` Gap (Audit v1.19.0 Parity)                              |
 
 ## Highlights
 

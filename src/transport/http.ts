@@ -97,6 +97,37 @@ function sameHeaders(actual: Record<string, string>, expected: Headers): boolean
   );
 }
 
+/**
+ * Extracts the `Retry-After` response header (RFC 9110 § 10.2.3) into a
+ * minimal headers record for error contexts: `{ 'retry-after': value }`.
+ *
+ * Deliberately captures ONLY this one header — the single field the error
+ * hierarchy interprets (429 → `OllamaRateLimitError.retryAfterMs` via
+ * `parseRetryAfterMs` in `src/errors.ts`) — rather than enumerating every
+ * response header, so sensitive fields (`set-cookie`, auth echoes) never
+ * leak into thrown error objects that callers may log.
+ *
+ * Defensive by design: error paths must never throw while enriching errors.
+ * Mock `Response` shapes and alternative fetch implementations may not
+ * implement `headers.get` uniformly, so every access is guarded and failure
+ * degrades to `undefined` — the pre-1.19.1 error-context shape.
+ */
+function retryAfterHeaderFrom(response: Response): Record<string, string> | undefined {
+  try {
+    const headers = response?.headers as Headers | null | undefined;
+    if (headers === null || headers === undefined || typeof headers.get !== 'function') {
+      return undefined;
+    }
+    const value = headers.get('retry-after');
+    if (value === null || value === '') {
+      return undefined;
+    }
+    return { 'retry-after': value };
+  } catch {
+    return undefined;
+  }
+}
+
 export interface HttpClientOptions {
   readonly baseUrl: string;
   readonly apiKey?: string | undefined;
@@ -209,7 +240,12 @@ export class HttpClient {
             durationMs: Date.now() - startedAt,
             error: mapError(new Error(`HTTP ${response.status}`), {
               request: { method: request.method, url: request.url },
-              response: { status: response.status },
+              // Mirrors the middleware path, which reports context.headers:
+              // a 429 lifecycle event carries the server's Retry-After.
+              response: {
+                status: response.status,
+                headers: retryAfterHeaderFrom(response),
+              },
             }),
             timestamp: Date.now(),
           });
@@ -344,7 +380,11 @@ export class HttpClient {
 
             throw mapError(new Error(message), {
               request: { method, url },
-              response: { status: response.status, body: errorBody },
+              response: {
+                status: response.status,
+                headers: retryAfterHeaderFrom(response),
+                body: errorBody,
+              },
             });
           }
 
@@ -422,7 +462,11 @@ export class HttpClient {
             const errorText = await response.text();
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
-              response: { status: response.status, body: errorText },
+              response: {
+                status: response.status,
+                headers: retryAfterHeaderFrom(response),
+                body: errorText,
+              },
             });
           }
 
@@ -496,7 +540,11 @@ export class HttpClient {
             const errorText = await response.text();
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
-              response: { status: response.status, body: errorText },
+              response: {
+                status: response.status,
+                headers: retryAfterHeaderFrom(response),
+                body: errorText,
+              },
             });
           }
 

@@ -107,6 +107,7 @@ export {
   mapError,
   isNetworkLevelError,
   NETWORK_ERROR_CODES,
+  parseRetryAfterMs,
   type OllamaErrorRequestContext,
   type OllamaErrorResponseContext,
   type OllamaClientErrorOptions,

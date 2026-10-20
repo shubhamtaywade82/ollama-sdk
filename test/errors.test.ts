@@ -3,6 +3,8 @@ import {
   mapError,
   isNetworkLevelError,
   NETWORK_ERROR_CODES,
+  lookupHeader,
+  parseRetryAfterMs,
   OllamaAbortError,
   OllamaAuthError,
   OllamaGenericClientError,
@@ -49,6 +51,24 @@ describe('Error Hierarchy & Mapping', () => {
     expect(mapped).toBeInstanceOf(OllamaRateLimitError);
     expect(mapped.code).toBe('rate_limited');
     expect(mapped.retryable).toBe(true);
+    expect((mapped as OllamaRateLimitError).retryAfterMs).toBeUndefined();
+  });
+
+  it('maps HTTP 429 with a Retry-After header into retryAfterMs', () => {
+    const mapped = mapError(new Error('too many requests'), {
+      response: { status: 429, headers: { 'Retry-After': '2' } },
+    });
+    expect(mapped).toBeInstanceOf(OllamaRateLimitError);
+    expect((mapped as OllamaRateLimitError).retryAfterMs).toBe(2_000);
+  });
+
+  it('parses Retry-After wire formats (delay-seconds and HTTP-date)', () => {
+    expect(parseRetryAfterMs('30')).toBe(30_000);
+    expect(parseRetryAfterMs('0')).toBe(0);
+    expect(parseRetryAfterMs(undefined)).toBeUndefined();
+    expect(parseRetryAfterMs('soon')).toBeUndefined();
+    expect(lookupHeader({ 'Retry-After': '10' }, 'retry-after')).toBe('10');
+    expect(lookupHeader(undefined, 'retry-after')).toBeUndefined();
   });
 
   it('maps HTTP 500 to OllamaServerError', () => {

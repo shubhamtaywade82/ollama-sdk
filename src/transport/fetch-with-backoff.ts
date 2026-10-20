@@ -10,8 +10,11 @@
  * fan-out embed batches, speculative-decoding pipelines) can't always
  * predict saturation ahead of time, so the SDK exposes this helper —
  * a thin wrapper around `fetch` that retries 503/429 responses with
- * the same jittered exponential backoff used by the SDK's internal
- * transport (see `./backoff.ts` and `./retry.ts`).
+ * the same retry discipline used by the SDK's internal transport (see
+ * `./backoff.ts` and `./retry.ts`): jittered exponential backoff, except
+ * that a 429 carrying `Retry-After` (RFC 9110 § 10.2.3) is honored
+ * verbatim — the server said when to retry, and sleeping less than that
+ * would only compound the rate limiting.
  *
  * The helper is intentionally standalone: it works with any
  * `fetch`-shaped function (browser `globalThis.fetch`, `undici`, an
@@ -28,6 +31,7 @@
  */
 
 import { calculateBackoff, DEFAULT_BACKOFF, type BackoffOptions } from './backoff.js';
+import { parseRetryAfterMs } from '../errors.js';
 
 /**
  * Configuration for {@link fetchWithBackoff}.
@@ -52,12 +56,12 @@ export interface FetchWithBackoffConfig {
    *
    * Receives the attempt index (0-based for the original request,
    * 1+ for retries), the HTTP status that triggered the retry
-   * (or `0` for network-level failures), and the calculated delay
-   * in milliseconds (already jittered).
+   * (or `0` for network-level failures), and the delay
+   * in milliseconds that will be slept (the server's `Retry-After`
+   * verbatim on a 429 that carried one; otherwise the jittered
+   * backoff sample).
    */
-  readonly onRetry?:
-    | ((attempt: number, status: number, delayMs: number) => void)
-    | undefined;
+  readonly onRetry?: ((attempt: number, status: number, delayMs: number) => void) | undefined;
   /**
    * Optional `AbortSignal` forwarded to the underlying `fetch`.
    * Aborting mid-backoff cancels the sleep and rejects with an
@@ -124,14 +128,39 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
+ * Defensively parses a 429 response's `Retry-After` header into
+ * milliseconds. Never throws — mock `Response` shapes and alternative
+ * fetch implementations may not implement `headers.get` uniformly, and a
+ * malformed or absent header simply falls back to jittered backoff.
+ */
+function retryAfterMsFromResponse(response: Response): number | undefined {
+  try {
+    const headers = response?.headers as Headers | null | undefined;
+    if (headers === null || headers === undefined || typeof headers.get !== 'function') {
+      return undefined;
+    }
+    const value = headers.get('retry-after');
+    if (value === null || value === '') {
+      return undefined;
+    }
+    return parseRetryAfterMs(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Wrapper around any `fetch`-shaped function that retries HTTP 429 / 503
  * responses with jittered exponential backoff (full-jitter strategy —
  * see `./backoff.ts` for the rationale and AWS Architecture Blog
- * citation).
+ * citation), honoring `Retry-After` on 429s when the server sends it.
  *
  * The wrapper:
  *   - forwards `input`/`init` unchanged to every attempt,
- *   - sleeps before each retry using the configured backoff,
+ *   - sleeps before each retry using the configured backoff — or the
+ *     server's `Retry-After` value verbatim when a 429 carries one
+ *     (no jitter, no clamping; same policy as the SDK's internal
+ *     `withRetry`, see `./retry.ts`),
  *   - retries up to `maxRetries` times (default 3), then returns the
  *     final `Response` (whatever its status) so the caller can
  *     branch on it,
@@ -189,11 +218,14 @@ export async function fetchWithBackoff(
         ...(signal !== undefined ? { signal } : {}),
       });
 
-      if (
-        RETRYABLE_STATUS_CODES.has(response.status) &&
-        attempt < maxRetries
-      ) {
-        const delayMs = calculateBackoff(attempt, backoff);
+      if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < maxRetries) {
+        // A 429 that carries Retry-After (RFC 9110 § 10.2.3) is the server
+        // telling us when we may retry — honor it verbatim (no jitter, no
+        // clamp), matching the SDK transport's policy in `./retry.ts`.
+        // 503s don't carry the header in practice and keep full-jitter.
+        const serverDelayMs =
+          response.status === 429 ? retryAfterMsFromResponse(response) : undefined;
+        const delayMs = serverDelayMs ?? calculateBackoff(attempt, backoff);
         config.onRetry?.(attempt, response.status, delayMs);
         await sleep(delayMs, signal);
         continue;
@@ -204,10 +236,7 @@ export async function fetchWithBackoff(
       lastError = err;
       // WHATWG fetch rejects with an AbortError-shaped DOMException
       // when the signal fires. Never retry those — propagate immediately.
-      if (
-        signal?.aborted ||
-        (err instanceof Error && err.name === 'AbortError')
-      ) {
+      if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
         throw err;
       }
       // Network-level failures (TypeError under WHATWG fetch, or

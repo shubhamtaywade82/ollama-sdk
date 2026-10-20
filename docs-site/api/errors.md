@@ -104,7 +104,19 @@ class OllamaRateLimitError extends OllamaClientError {
 }
 ```
 
-The endpoint returned `429`. Carries `retryAfterMs` parsed from the `Retry-After` header when present. `retryable: true` — failover applies.
+The endpoint returned `429`. Carries `retryAfterMs` parsed from the `Retry-After` header when present — both wire formats are accepted: delay-seconds (`"120"` → `120_000`) and HTTP-date (`"Wed, 21 Oct 2026 07:28:00 GMT"` → milliseconds until that instant). The pinned upstream contract declares this header on the 429 responses of both cloud account endpoints (`/api/usage`, `/api/balance`); malformed values leave the field `undefined`. `retryable: true` — failover applies.
+
+The SDK's own retry loop honors the field as **server authority**: `withRetry` (and the standalone `fetchWithBackoff` helper) sleep exactly `retryAfterMs` before the next attempt — no jitter, no clamping — and fall back to full-jitter exponential backoff when the field is absent. Callers who consider a server value excessive should reject the retry via `shouldRetry`, abort via the signal, or bound attempts via `maxRetries` (see [ADR 0035](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0035-retry-after-honoring.md)).
+
+The parser itself is root-exported for your own header handling:
+
+```typescript
+import { parseRetryAfterMs } from '@nemesis-oss/ollama-sdk';
+
+parseRetryAfterMs('120'); // 120_000
+parseRetryAfterMs('Wed, 21 Oct 2026 07:28:00 GMT'); // ms until then (0 if past)
+parseRetryAfterMs('soon'); // undefined — fall back to your own pacing
+```
 
 #### `OllamaServerError`
 
@@ -366,7 +378,9 @@ try {
   if (err instanceof OllamaNotFoundError) {
     console.error('Model not found. Run `ollama pull qwen3:8b`.');
   } else if (err instanceof OllamaRateLimitError) {
-    console.warn(`Rate limited; retry after ${err.retryAfterMs}ms`);
+    // retryAfterMs is the server's Retry-After when the 429 carried one
+    // (undefined otherwise — fall back to your own pacing then).
+    console.warn(`Rate limited; retry after ${err.retryAfterMs ?? 'your own backoff'}ms`);
   } else if (err instanceof OllamaAuthError) {
     console.error('Authentication failed. Check your API key.');
   } else if (err instanceof OllamaNetworkError) {
@@ -476,7 +490,7 @@ const DEFAULT_FAILOVER_CODES = [
 | `OllamaAuthError`                  | `auth_error`                    | `false`     | Endpoint returned `401`/`403`.                                                                                                     |
 | `OllamaPaymentRequiredError`       | `payment_required`              | `false`     | Endpoint returned `402` (cloud billing — not credentials).                                                                         |
 | `OllamaNotFoundError`              | `not_found`                     | `false`     | Endpoint returned `404` (e.g. unknown model).                                                                                      |
-| `OllamaRateLimitError`             | `rate_limited`                  | `true`      | Endpoint returned `429`.                                                                                                           |
+| `OllamaRateLimitError`             | `rate_limited`                  | `true`      | Endpoint returned `429`; carries `retryAfterMs` when the response's `Retry-After` parsed.                                          |
 | `OllamaQuotaExceededError`         | `quota_exceeded`                | `false`     | `QuotaManager.assertCanProceed` would exceed a configured budget (client-side).                                                    |
 | `OllamaModelRoutingError`          | `model_routing_error`           | `false`     | No configured endpoint is authorized for the requested model (client-side).                                                        |
 | `OllamaServerError`                | `server_error`                  | `true`      | Endpoint returned `5xx`.                                                                                                           |

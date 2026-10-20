@@ -2,7 +2,7 @@
  * Retry policy and execution runner.
  */
 
-import { OllamaAbortError, OllamaClientError } from '../errors.js';
+import { OllamaAbortError, OllamaClientError, OllamaRateLimitError } from '../errors.js';
 import { calculateBackoff, type BackoffOptions, DEFAULT_BACKOFF } from './backoff.js';
 
 export interface RetryConfig {
@@ -58,7 +58,36 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
+ * Computes the pre-retry delay for a failed attempt.
+ *
+ * When the error is an `OllamaRateLimitError` carrying `retryAfterMs` —
+ * parsed from the server's `Retry-After` header (RFC 9110 § 10.2.3) — the
+ * server's value is authoritative and is honored verbatim: no jitter, and no
+ * clamping to `maxDelayMs`. The server has explicitly said when the client
+ * may retry, and re-issuing earlier than that would only compound the rate
+ * limiting the 429 is protecting against; callers who consider a server
+ * value excessive should bail out via `shouldRetry`, the abort signal, or a
+ * `maxRetries` budget rather than silently shrinking the delay.
+ *
+ * Every other retryable error falls back to full-jitter exponential backoff
+ * (`calculateBackoff`), since only the server knows its own 429 cadence.
+ */
+export function retryDelayMs(error: Error, attempt: number, backoff: BackoffOptions): number {
+  if (error instanceof OllamaRateLimitError && error.retryAfterMs !== undefined) {
+    return error.retryAfterMs;
+  }
+  return calculateBackoff(attempt, backoff);
+}
+
+/**
  * Executes an async operation with retries according to config.
+ *
+ * Retry pacing: a 429 whose `Retry-After` header produced
+ * `OllamaRateLimitError.retryAfterMs` sleeps exactly that long before the
+ * next attempt (server authority — see {@link retryDelayMs}); all other
+ * retryable errors sleep a full-jitter exponential backoff. The delay
+ * actually used is reported to `onRetry` either way, and remains abortable
+ * through `signal` for the whole wait.
  */
 export async function withRetry<T>(
   operation: (attempt: number) => Promise<T>,
@@ -75,7 +104,7 @@ export async function withRetry<T>(
       if (attempt >= config.maxRetries || !shouldRetry(error, attempt)) {
         throw error;
       }
-      const delayMs = calculateBackoff(attempt, config.backoff);
+      const delayMs = retryDelayMs(error, attempt, config.backoff);
       config.onRetry?.(error, attempt, delayMs);
       await sleep(delayMs, signal);
       attempt += 1;
