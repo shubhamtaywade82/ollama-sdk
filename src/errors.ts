@@ -105,6 +105,16 @@ export class OllamaNotFoundError extends OllamaClientError {
   }
 }
 
+/**
+ * Thrown for HTTP 429 responses. When the server sends a `Retry-After`
+ * header (RFC 9110 § 10.2.3 — delay-seconds or HTTP-date), it is parsed into
+ * {@link OllamaRateLimitError.retryAfterMs} so callers — and the SDK's own
+ * `withRetry` transport loop — can pace retries by the server's explicit
+ * signal instead of local backoff heuristics. The header is advisory: callers
+ * remain free to ignore it or cap it, and when it is absent or unparseable
+ * the field stays `undefined` and retries fall back to full-jitter
+ * exponential backoff.
+ */
 export class OllamaRateLimitError extends OllamaClientError {
   readonly retryAfterMs?: number | undefined;
   constructor(
@@ -645,6 +655,90 @@ export function isNetworkLevelError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * Case-insensitive header lookup on an {@link OllamaErrorResponseContext.headers}
+ * record. HTTP field names are case-insensitive (RFC 9110 § 5.1), but the
+ * record can originate from different fetch implementations or hand-built
+ * test fixtures that normalize names differently — "retry-after",
+ * "Retry-After", and "RETRY-AFTER" must all resolve. Returns `undefined`
+ * when the record or the field is absent.
+ */
+export function lookupHeader(
+  headers: Record<string, string> | undefined,
+  name: string,
+): string | undefined {
+  if (headers === undefined) {
+    return undefined;
+  }
+  const needle = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === needle) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Strict IMF-fixdate shape (RFC 9110 § 5.6.1) — the one HTTP-date form
+ * senders are required to use for `Retry-After`. Validating the shape
+ * BEFORE `Date.parse` matters: engine date parsers are lenient to the
+ * point of danger (V8 accepts `"1.5"` as a date in the year 2001), so an
+ * unvalidated fallback would turn garbage header values into delays —
+ * or into `0`, which would hammer the server — instead of `undefined`.
+ * The obsolete RFC 850 / asctime forms are deliberately not accepted;
+ * no Retry-After sender in practice uses them.
+ */
+const HTTP_DATE_PATTERN =
+  /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
+/**
+ * Parses an HTTP `Retry-After` header value (RFC 9110 § 10.2.3) into
+ * milliseconds relative to `now`.
+ *
+ * Two wire formats are legal:
+ * - delay-seconds — `"120"` → `120_000`
+ * - HTTP-date — `"Wed, 21 Oct 2026 07:28:00 GMT"` → milliseconds until that
+ *   instant (`0` when the date is already in the past, since a server saying
+ *   "retry now" carries no delay signal worth encoding)
+ *
+ * Returns `undefined` for missing, empty, or malformed values, and for
+ * delay-seconds strings too large to represent. Malformed means anything
+ * that is neither digits nor a strict IMF-fixdate — including near-misses
+ * like `"1.5"` that a bare `Date.parse` would happily accept. The result is
+ * deliberately NOT capped: clamping an absurd server value is caller
+ * policy, not parser policy.
+ */
+export function parseRetryAfterMs(
+  headerValue: string | undefined,
+  now: number = Date.now(),
+): number | undefined {
+  if (headerValue === undefined) {
+    return undefined;
+  }
+  const trimmed = headerValue.trim();
+  if (trimmed === '') {
+    return undefined;
+  }
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    // Digit strings long enough to overflow Number precision (or Infinity)
+    // would poison delay math downstream — treat them as unparseable.
+    if (!Number.isSafeInteger(seconds)) {
+      return undefined;
+    }
+    return seconds * 1000;
+  }
+  if (!HTTP_DATE_PATTERN.test(trimmed)) {
+    return undefined;
+  }
+  const instant = Date.parse(trimmed);
+  if (Number.isNaN(instant)) {
+    return undefined;
+  }
+  return Math.max(0, instant - now);
+}
+
 function statusToError(
   status: number,
   message: string,
@@ -665,7 +759,13 @@ function statusToError(
     return new OllamaNotFoundError(message, { ...options, status });
   }
   if (status === 429) {
-    return new OllamaRateLimitError(message, { ...options, status });
+    // Surface the server's Retry-After (RFC 9110 § 10.2.3) as
+    // `retryAfterMs` so `withRetry` can pace retries by the server's
+    // authority instead of guessing with jittered backoff. Absent or
+    // malformed headers leave the field undefined and retry timing falls
+    // back to the client's own backoff curve.
+    const retryAfterMs = parseRetryAfterMs(lookupHeader(options.response?.headers, 'retry-after'));
+    return new OllamaRateLimitError(message, { ...options, status, retryAfterMs });
   }
   if (status === 502) {
     // Cloud model could not be reached. Distinct from generic 5xx so

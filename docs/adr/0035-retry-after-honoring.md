@@ -1,0 +1,41 @@
+# ADR 0035: Honoring `Retry-After` on 429s — closing the dead-`retryAfterMs` gap (audit v1.19.0 parity)
+
+**Status**: Accepted
+**Date**: 2026-10-21
+**Context**: The daily audit report against the v1.19.0 baseline (commit `2d3ec47`, PRs #62/#63) claimed six capability domains all PASS — "Native client methods with `OllamaRateLimitError.retryAfterMs` and jittered 429 retries" among them. Point-by-point verification found five of the six claims true and this one false: the field existed, the docs already described it, but nothing populated or consumed it.
+
+## Context
+
+The audit's row 5 asserted that 429 responses surface `retryAfterMs` and that retries pace themselves accordingly. Code-level verification told a different story — a fully-built but unwired feature:
+
+- `OllamaRateLimitError.retryAfterMs` (added in an earlier wave) was **dead code**: `OllamaErrorResponseContext.headers` existed, but no transport call site ever populated it.
+- `src/transport/http.ts`'s three error-mapping sites — `request()`, `requestSseStream()`, `requestStream()` — built error contexts with `{status, body}` only, **discarding the response headers** on every non-OK response.
+- `statusToError`'s 429 branch (in `src/errors.ts`) constructed `OllamaRateLimitError` without ever looking at `Retry-After`.
+- `withRetry` (in `src/transport/retry.ts`) slept full-jitter exponential backoff regardless of any server-provided delay.
+
+Two facts sharpen the gap. First, the pinned upstream contract **requires** this behavior: the OpenAPI snapshot (re-pinned at `d9b8601` in ADR 0034) documents `Retry-After` ("Seconds to wait before retrying", `type: integer, minimum: 1`) on the 429 responses of both cloud account endpoints, `/api/usage` and `/api/balance`. Second, our own documentation was already ahead of the code: `docs-site/api/errors.md` stated that `OllamaRateLimitError` "carries `retryAfterMs` parsed from the `Retry-After` header when present" — a claim the implementation could not satisfy. The audit's false PASS was, in effect, trusting the docs over the code.
+
+## Decisions
+
+1. **Parse in the error layer, at the single mapping chokepoint.**
+   `statusToError`'s 429 branch now looks up `retry-after` (case-insensitively, via `lookupHeader`) in `options.response.headers` and injects the parsed value as `retryAfterMs`. One place, one status: every transport shape that flows through `mapError` gets the field for free, and no other status mapping is touched. The parsing itself is a new exported `parseRetryAfterMs(headerValue, now?)`: delay-seconds (`^\d+$` → seconds × 1000, with `Number.isSafeInteger` guarding overflow strings) or HTTP-date (→ `max(0, instant − now)`). The HTTP-date branch validates the strict IMF-fixdate shape **before** `Date.parse` — engine date parsers are lenient to the point of danger (V8 accepts `"1.5"` as a date in the year 2001), and an unvalidated fallback would turn garbage headers into `0`, i.e. retry-immediately-forever, instead of the intended `undefined` → jitter fallback. The contract's own declaration (`type: integer`) is the common case; IMF-fixdate support keeps the parser RFC 9110 § 10.2.3-complete.
+
+2. **Capture exactly one header, defensively, at the throw sites.**
+   `HttpClient` gains a module-private `retryAfterHeaderFrom(response)` that reads `retry-after` off the response and passes `{ 'retry-after': value }` into the error context. It deliberately captures **only this header** — the single field the error hierarchy interprets — rather than enumerating the full header set, so sensitive fields (`set-cookie`, auth echoes) never leak into thrown error objects that callers log. It is wrapped in guards (`headers.get` typeof check, try/catch) because error paths must never throw while enriching errors: mock `Response` shapes and alternative fetch implementations may not implement `Headers` uniformly, and failure degrades to the pre-1.19.1 error-context shape. All three mapping sites (`request`, `requestStream`, `requestSseStream`) and the no-middleware lifecycle error event (for parity with the middleware path, which already reported `context.headers`) now carry it.
+
+3. **Server authority in retry pacing — verbatim, no jitter, no clamp.**
+   `withRetry` computes its delay through a new `retryDelayMs(error, attempt, backoff)`: when the error is an `OllamaRateLimitError` carrying `retryAfterMs`, that value is used **exactly as the server stated it** — no jitter, and no clamping to `maxDelayMs`. The server has explicitly said when the client may retry (RFC 9110: "the user agent ought to wait"); re-issuing earlier would only compound the rate limiting the 429 exists to prevent. Callers who consider a server value excessive have three sanctioned exits: `shouldRetry` rejecting the error, the abort signal (live for the whole sleep), or a `maxRetries` budget. Absent or unparseable headers — and every other retryable error — keep the full-jitter exponential backoff, unchanged. The delay actually used is reported to `onRetry` either way, so observability sees the real pacing.
+
+4. **`fetchWithBackoff` honors the header too — its own docs demanded it.**
+   The standalone helper's module docstring claims "the same retry discipline used by the SDK's internal transport"; that claim is kept honest rather than re-worded. A 429 carrying `Retry-After` now sleeps the server's value verbatim (same no-jitter/no-clamp policy, via the same `parseRetryAfterMs`); 429s without it and all 503s keep full jitter. The honoring is scoped to 429: Ollama's 503 (queue saturation) does not document `Retry-After`, and the contract declares the header only on the two cloud account endpoints' 429s — extending it to 503/502 would be honoring a signal no sender sends.
+
+5. **Public surface grows by one name.**
+   `parseRetryAfterMs` is root-exported from `src/index.ts` (next to `mapError`/`isNetworkLevelError` — the error-utility slot), so callers can parse `Retry-After` values from their own header handling with the same strictness. `lookupHeader` and `retryDelayMs` are exported at module level (test seams and reuse) but deliberately **not** added to the root barrel — the public API grows only where consumers have a use.
+
+## Consequences
+
+- Version 1.19.1 (patch): a behavioral fix to existing machinery plus one new root export; no breaking changes, no contract or generated-surface changes — the entire fix lives in the handwritten layer (`src/errors.ts`, `src/transport/http.ts`, `src/transport/retry.ts`, `src/transport/fetch-with-backoff.ts`, `src/index.ts`), per the contract-first discipline of ADR 0013.
+- 28 new tests in `test/retry-after.test.ts` walk the pipeline end to end — parser unit tests (including the `"1.5"` lenience trap and overflow digits), `mapError` wiring (case-insensitivity, HTTP-date, malformed-fallback, non-429 isolation), `HttpClient` capture across all three request shapes (including a headers-less duck-typed response), `withRetry` precedence (server delay verbatim, with elapsed-time proof; jitter bounds on fallback), and `fetchWithBackoff` parity (verbatim delay, `Retry-After: 0`, jitter fallback, 503 scope). `test/errors.test.ts` gains the header-aware 429 mappings.
+- Docs are synced to match now-true statements: `docs-site/api/errors.md`'s `OllamaRateLimitError` section describes the honored-by-`withRetry` semantics and the new export; `client.ts`'s cloud-endpoint JSDoc notes that 429s may carry `Retry-After` per the pinned contract; `CHANGELOG.md` carries the 1.19.1 entry.
+- Declined alternatives, with reasons: (a) clamping the server value to `maxDelayMs` — would shrink a server-mandated wait and re-trigger the limit; (b) capturing the full response header record into error contexts — sensitive-header leakage into logged errors; (c) extending `Retry-After` parsing to 503/502 mappings — no documented sender, no audit or contract basis (the same invented-behavior reasoning that declined the cloud-limit enforcement in ADR 0034 § 5); (d) jittering the server value — jitter exists to de-synchronize clients the server cannot see; when the server states a delay, it has already made the pacing decision.
+- The audit ledger closes at 5-of-6 verified + 1 fixed: row 5's claim is now true in code, not just in docs.

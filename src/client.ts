@@ -1014,7 +1014,9 @@ export class OllamaClient {
    * through a local server. Requires an Ollama account API key: pass `apiKey` to the
    * client constructor or set `OLLAMA_API_KEY`. Applies the same default `timeoutMs` and
    * retry policy as inference calls, but never cross-endpoint-fails-over — there is only
-   * ever the one cloud endpoint to call.
+   * ever the one cloud endpoint to call. If the service answers 429 with a `Retry-After`
+   * header, the transport parses it into `OllamaRateLimitError.retryAfterMs` and the
+   * retry loop sleeps exactly that long instead of jittered backoff (see ADR 0035).
    */
   async webSearch(req: WebSearchRequestOptions): Promise<WebSearchResponse> {
     const { count, max_results, ...rest } = req;
@@ -1049,8 +1051,11 @@ export class OllamaClient {
    * web search, and web fetch, bucketed by hour (`range: '24h'`) or day (`'7d'`/`'30d'`).
    *
    * See {@link OllamaClient.webSearch} for the cloud-endpoint/auth/timeout/retry
-   * behavior, which applies identically here. Query parameters mirror the official
-   * endpoint: `range` (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope`
+   * behavior, which applies identically here. The pinned contract documents this
+   * endpoint's 429 with a `Retry-After` header ("Seconds to wait before retrying"),
+   * which the SDK parses into `OllamaRateLimitError.retryAfterMs` and honors verbatim
+   * when retrying. Query parameters mirror the official endpoint: `range`
+   * (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope`
    * (`'self' | 'team'`, server default `'self'`; team scope requires a team admin).
    * Omitted options are left unset so the server applies its own defaults.
    *
@@ -1084,7 +1089,9 @@ export class OllamaClient {
    * object (`balance_usd`/`allowance_usd`/`period`) or, on legacy plans, session/weekly
    * percentage limits; the shape is discriminated at runtime by the server response.
    * See {@link OllamaClient.webSearch} for the cloud-endpoint/auth/timeout/retry
-   * behavior, which applies identically here.
+   * behavior, which applies identically here. Like `/api/usage`, the pinned contract
+   * documents this endpoint's 429 with a `Retry-After` header, parsed into
+   * `OllamaRateLimitError.retryAfterMs` and honored verbatim when retrying (ADR 0035).
    *
    * ```ts
    * const balance = await client.balance();
