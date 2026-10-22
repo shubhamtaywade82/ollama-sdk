@@ -214,3 +214,100 @@ describe('usage / balance target Ollama Cloud correctly', () => {
     expect(events).toEqual(['start', 'success', 'start', 'success']);
   });
 });
+
+describe('usage group_by=model (2026-10-22 pin, upstream 2476d5e)', () => {
+  const groupedPayload: UsageResponse = {
+    range: '7d',
+    scope: 'self',
+    granularity: 'day',
+    group_by: 'model',
+    from: '2026-10-15T00:00:00Z',
+    until: '2026-10-22T00:00:00Z',
+    totals: {
+      request_count: 42,
+      usage_usd: 0.31,
+      input_tokens: 900_000,
+      cached_input_tokens: 300_000,
+      output_tokens: 90_000,
+      groups: [
+        {
+          model: 'clef:cloud',
+          request_count: 30,
+          usage_usd: 0.25,
+          input_tokens: 700_000,
+          cached_input_tokens: 250_000,
+          output_tokens: 70_000,
+        },
+        {
+          model: 'tev1:4b',
+          request_count: 12,
+          usage_usd: 0.06,
+          input_tokens: 200_000,
+          cached_input_tokens: 50_000,
+          output_tokens: 20_000,
+        },
+      ],
+      remainder: {
+        request_count: 3,
+        usage_usd: 0.01,
+        input_tokens: 20_000,
+        cached_input_tokens: 0,
+        output_tokens: 4_000,
+      },
+    },
+    buckets: [
+      {
+        from: '2026-10-21T00:00:00Z',
+        until: '2026-10-22T00:00:00Z',
+        groups: [{ model: 'clef:cloud', request_count: 5, usage_usd: 0.04 }],
+      },
+    ],
+  };
+
+  it('usage({ groupBy: "model" }) forwards group_by as a query parameter', async () => {
+    const fetchMock = jsonFetchMock(groupedPayload);
+    const client = new OllamaClient({ apiKey: 'k', fetch: fetchMock as never });
+
+    await client.usage({ groupBy: 'model' });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe(`${OLLAMA_CLOUD_BASE_URL}/api/usage?group_by=model`);
+  });
+
+  it('usage() composes group_by with range and scope', async () => {
+    const fetchMock = jsonFetchMock(groupedPayload);
+    const client = new OllamaClient({ apiKey: 'k', fetch: fetchMock as never });
+
+    await client.usage({ range: '24h', scope: 'team', groupBy: 'model' });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe(`${OLLAMA_CLOUD_BASE_URL}/api/usage?range=24h&scope=team&group_by=model`);
+  });
+
+  it('grouped responses expose per-model groups, the remainder roll-up, and the group_by echo', async () => {
+    const fetchMock = jsonFetchMock(groupedPayload);
+    const client = new OllamaClient({ apiKey: 'k', fetch: fetchMock as never });
+
+    const res = await client.usage({ groupBy: 'model' });
+
+    expect(res.group_by).toBe('model');
+    expect(res.totals.groups).toHaveLength(2);
+    expect(res.totals.groups?.[0]?.model).toBe('clef:cloud');
+    expect(res.totals.groups?.[0]?.request_count).toBe(30);
+    expect(res.totals.remainder?.request_count).toBe(3);
+    // Buckets inherit the same summary shape (upstream: UsageBucket allOf UsageSummary).
+    expect(res.buckets[0]?.groups?.[0]?.model).toBe('clef:cloud');
+  });
+
+  it('ungrouped responses keep the plain UsageMetrics totals shape (groups absent)', async () => {
+    const fetchMock = jsonFetchMock(usagePayload);
+    const client = new OllamaClient({ apiKey: 'k', fetch: fetchMock as never });
+
+    const res = await client.usage();
+
+    expect(res.group_by).toBeUndefined();
+    expect(res.totals.groups).toBeUndefined();
+    expect(res.totals.remainder).toBeUndefined();
+    expect(res.totals.request_count).toBe(15);
+  });
+});

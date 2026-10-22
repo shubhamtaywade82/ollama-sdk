@@ -1,5 +1,5 @@
 {
-  "$comment": "Index of every upstream docs source the contract system consults. Adding a new source here makes the bidirectional discovery validator aware of it. See generator/parser/docs.ts.",
+  "$comment": "Index of every upstream docs source the contract system consults. Adding a new source here makes the bidirectional discovery validator aware of it. See generator/parser/docs.ts. For the openapi source, pinnedSha records the upstream main COMMIT SHA from the pin header (unified on commit SHAs since the 2026-10-22 refresh — previously a blob SHA that silently lagged the pin); test/contract/pin-consistency.test.ts asserts it matches the header.",
   "version": 1,
   "sources": [
     {
@@ -7,8 +7,8 @@
       "kind": "openapi-yaml",
       "path": "contracts/sources/ollama.openapi.yaml",
       "upstream": "https://github.com/ollama/ollama/blob/main/docs/openapi.yaml",
-      "pinnedSha": "2a9ffe398cf8ab94d356981dfb9390b9511c1a8e",
-      "pinnedAt": "2026-10-15"
+      "pinnedSha": "36a6e994d2f6c4ab94b3555185154d069e5dba87",
+      "pinnedAt": "2026-10-22"
     },
     {
       "id": "openai-compatibility",

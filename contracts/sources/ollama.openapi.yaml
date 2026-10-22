@@ -1,5 +1,4 @@
-#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-07 (source SHA: 675c8bb59da99c32aabee4900f358ac074999c16). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carried for those schemas (block-style `[24h, 7d, 30d]`, `[hour, day]`). The 2026-10-11 refresh raises the System One choice-criteria limit to 255 (model-dependent) and adds the documented /api/copy JSON status body and 400/404 errors. The 2026-10-15 refresh (source SHA: 2a9ffe398cf8ab94d356981dfb9390b9511c1a8e) syncs the System One schemas to upstream's now-native openapi.yaml definitions: score criteria tighten to 2-10 levels (answer maximum 9), the noul criteria drop the hardcoded 'Yes'/'No' defaults (omitted entries use model-specific defaults), and the model/images descriptions are simplified to the upstream wording. The 2026-10-16 refresh (source SHA: d9b86018cba1d222fd28e28f42e5cdc15a060f39) brings in the System One cloud launch: the model field accepts cloud models (clef:cloud), /v1/systemone declares local and cloud servers with optional bearerAuth, the local byte caps are clarified to text-and-schema (excluding images) within 64 KiB AND the whole request within 32 MiB, cloud requests gain their own limits (paid plan or credits, up to 64 questions named with up to 100 ASCII letters/digits/`_`/`.`/`-`, up to 4 images of at most 4 MiB and 16 megapixels each and 8 MiB in total, requests within 13 MiB, and input within the model's 65,536-token context window), and the /v1/systemone response set adds 401 (cloud model requested without signing in; through a local server the response includes a signin_url) and 402 (cloud model not included in the Free plan, or a payment failure), with 413 now also covering cloud requests that exceed 13 MiB or the model's context window. Upstream also fixed the Usage enum literals inline (`[24h, 7d, 30d]`, `[hour, day]`), retiring the 2026-10-07 repair deviation. One intentional deviation from upstream remains: `ModelSummary.details.families` is typed `[array, null]` (upstream says `array`) because the server serializes a nil Go slice as JSON `null` for models without family metadata, and a strict array schema would reject real /api/tags responses.
-
+#  Pinned from ollama/ollama/docs/openapi.yaml@main on 2026-10-22 (source SHA: 36a6e994d2f6c4ab94b3555185154d069e5dba87). Used as a deterministic native API parity fallback when rendered docs do not expose field metadata in machine-readable form. System One schemas and /v1/systemone path are added from the upstream Ollama documentation. The 2026-10-07 refresh brings in the Ollama Cloud account endpoints GET /api/usage and GET /api/balance (plus their Usage*/Balance* schemas) and repairs the corrupted enum literals the upstream file carried for those schemas (block-style `, 7d, 30d]`, `our, day]`). The 2026-10-11 refresh raises the System One choice-criteria limit to 255 (model-dependent) and adds the documented /api/copy JSON status body and 400/404 errors. The 2026-10-15 refresh (source SHA: 2a9ffe398cf8ab94d356981dfb9390b9511c1a8e) syncs the System One schemas to upstream's now-native openapi.yaml definitions: score criteria tighten to 2-10 levels (answer maximum 9), the noul criteria drop the hardcoded 'Yes'/'No' defaults (omitted entries use model-specific defaults), and the model/images descriptions are simplified to the upstream wording. The 2026-10-16 refresh (source SHA: d9b86018cba1d222fd28e28f42e5cdc15a060f39) brings in the System One cloud launch: the model field accepts cloud models (clef:cloud), /v1/systemone declares local and cloud servers with optional bearerAuth, the local byte caps are clarified to text-and-schema (excluding images) within 64 KiB AND the whole request within 32 MiB, cloud requests gain their own limits (paid plan or credits, up to 64 questions named with up to 100 ASCII letters/digits/`_`/`.`/`-`, up to 4 images of at most 4 MiB and 16 megapixels each and 8 MiB in total, requests within 13 MiB, and input within the model's 65,536-token context window), and the /v1/systemone response set adds 401 (cloud model requested without signing in; through a local server the response includes a signin_url) and 402 (cloud model not included in the Free plan, or a payment failure), with 413 now also covering cloud requests that exceed 13 MiB or the model's context window. Upstream also fixed the Usage enum literals inline (`, 7d, 30d]`, `our, day]`), retiring the 2026-10-07 repair deviation. The 2026-10-22 refresh (source SHA: 36a6e994d2f6c4ab94b3555185154d069e5dba87 — the state of upstream main since 2026-10-17, no intervening changes) brings in two upstream commits: 2476d5e adds model grouping to cloud usage — GET /api/usage gains a group_by=model query parameter, new UsageGroup and UsageSummary schemas, totals becomes a UsageSummary (carrying optional groups of up to 10 usage entries ranked by usage_usd or request_count, plus a remainder), and the response echoes the selected group_by; 36a6e99 populates the ShowResponse renderer/parser fields and adds template_source (where the chat prompt comes from: renderer_parser | renderer | parser | harmony | go_template | gguf_chat_template | none). One intentional deviation from upstream remains: `ModelSummary.details.families` is typed `[array, null]` (upstream says `array`) because the server serializes a nil Go slice as JSON `null` for models without family metadata, and a strict array schema would reject real /api/tags responses.
 openapi: 3.1.0
 info:
   title: Ollama API
@@ -636,6 +635,15 @@ components:
         template:
           type: string
           description: The template used by the model to render prompts
+        renderer:
+          type: string
+          description: The effective chat renderer of the model (aliases resolved), when one is set
+        parser:
+          type: string
+          description: The output parser configured on the model, when one is set
+        template_source:
+          type: string
+          description: Where the chat prompt actually comes from; one of `renderer_parser`, `renderer`, `parser` (a Go renderer runs and any packaged template is inert), `harmony`, `go_template`, `gguf_chat_template` (the runner renders the GGUF's embedded jinja), or `none`
         capabilities:
           type: array
           items:
@@ -1039,9 +1047,31 @@ components:
         output_tokens:
           type: integer
           description: Recorded output tokens.
-    UsageBucket:
+    UsageGroup:
       allOf:
         - $ref: "#/components/schemas/UsageMetrics"
+        - type: object
+          required: [model]
+          properties:
+            model:
+              type: string
+              description: Model name.
+    UsageSummary:
+      allOf:
+        - $ref: "#/components/schemas/UsageMetrics"
+        - type: object
+          properties:
+            groups:
+              type: array
+              description: Present when group_by is requested. Currently returns up to 10 groups selected across the entire range, ranked by usage_usd or by request_count when the range includes legacy requests. Groups use the same order in every bucket; groups without requests in a bucket are omitted.
+              items:
+                $ref: "#/components/schemas/UsageGroup"
+            remainder:
+              $ref: "#/components/schemas/UsageMetrics"
+              description: Combined usage from groups outside the current limit. Omitted when there are no requests from additional groups.
+    UsageBucket:
+      allOf:
+        - $ref: "#/components/schemas/UsageSummary"
         - type: object
           required: [from, until]
           properties:
@@ -1072,6 +1102,10 @@ components:
           type: string
           enum: [hour, day]
           description: "Set automatically: hour for 24h, day for 7d and 30d."
+        group_by:
+          type: string
+          enum: [model]
+          description: Selected grouping. Present when group_by is requested.
         from:
           type: string
           format: date-time
@@ -1081,8 +1115,8 @@ components:
           format: date-time
           description: End of the range in UTC, exclusive.
         totals:
-          $ref: "#/components/schemas/UsageMetrics"
-          description: Usage across the entire range.
+          $ref: "#/components/schemas/UsageSummary"
+          description: Usage across the entire range, including groups in the remainder.
         buckets:
           type: array
           description: Usage in chronological order, including buckets with no recorded requests.
@@ -2155,6 +2189,12 @@ paths:
             type: string
             enum: [self, team]
             default: self
+        - name: group_by
+          in: query
+          description: "How to group usage within totals and buckets. Supported values: model."
+          schema:
+            type: string
+            enum: [model]
       responses:
         "200":
           description: Usage for the selected range and scope.

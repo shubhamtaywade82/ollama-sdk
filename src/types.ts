@@ -347,6 +347,12 @@ export interface ShowResponse {
   readonly modelfile?: string | undefined;
   readonly parameters?: string | undefined;
   readonly template?: string | undefined;
+  /** Effective chat renderer of the model (aliases resolved), when one is set (upstream 36a6e99, 2026-10-22 pin). */
+  readonly renderer?: string | undefined;
+  /** Output parser configured on the model, when one is set (upstream 36a6e99, 2026-10-22 pin). */
+  readonly parser?: string | undefined;
+  /** Where the chat prompt actually comes from: `renderer_parser` | `renderer` | `parser` | `harmony` | `go_template` | `gguf_chat_template` | `none` (upstream 36a6e99, 2026-10-22 pin). */
+  readonly template_source?: string | undefined;
   readonly system?: string | undefined;
   readonly details: ModelDetails;
   readonly messages?: readonly Message[] | undefined;
@@ -513,6 +519,14 @@ export interface UsageRequestOptions extends RequestCancellationOptions {
   readonly range?: UsageRange | undefined;
   /** Whose requests are reported. Server default: `'self'`; `'team'` requires a team admin. */
   readonly scope?: UsageScope | undefined;
+  /**
+   * Group usage by model (`group_by=model`, upstream 2476d5e, 2026-10-22 pin).
+   * When set, `totals` and each bucket carry up to 10 per-model
+   * {@link UsageGroup} entries (ranked by usage or request count) plus a
+   * `remainder` roll-up for everything outside the limit, and the response
+   * echoes the selection in `group_by`.
+   */
+  readonly groupBy?: UsageGroupBy | undefined;
 }
 
 /** Time range for {@link OllamaClient.usage} (`range` query parameter). */
@@ -520,6 +534,9 @@ export type UsageRange = '24h' | '7d' | '30d';
 
 /** Reporting scope for {@link OllamaClient.usage} (`scope` query parameter). */
 export type UsageScope = 'self' | 'team';
+
+/** Grouping selector for {@link OllamaClient.usage} (`group_by` query parameter). Upstream currently documents `model` only. */
+export type UsageGroupBy = 'model';
 
 /**
  * See {@link UsageRequestOptions} — same fixed Ollama Cloud endpoint and auth.
@@ -536,6 +553,8 @@ export type {
   UsageResponse,
   UsageMetrics,
   UsageBucket,
+  UsageGroup,
+  UsageSummary,
   BalanceResponse,
   IncludedBalance,
   LegacyBalanceLimit,

@@ -100,6 +100,56 @@ export const MAX_SYSTEM_ONE_IMAGES_BYTES = 32 * 1024 * 1024; // 32 MiB
 export const MAX_SYSTEM_ONE_REQUEST_BYTES = 64 * 1024; // 64 KiB
 
 /**
+ * Suffix that marks a System One cloud model (e.g. `clef:cloud`).
+ *
+ * Since the 2026-10-16 upstream cloud launch, `/v1/systemone` accepts
+ * cloud models on the model field. A local Ollama server fronts these
+ * requests to Ollama's cloud — but only from Ollama >= 0.40.5
+ * ({@link CLOUD_MODEL_MIN_OLLAMA_VERSION}); the hosted
+ * `https://ollama.com` endpoint always supports them.
+ */
+export const CLOUD_MODEL_SUFFIX = ':cloud';
+
+/**
+ * Minimum local Ollama server version that can front cloud models
+ * (`clef:cloud` and friends) for `/v1/systemone`, per the upstream
+ * System One cloud-launch documentation. The blanket operation-level
+ * floor (0.35.0) stays on the IR constraint; this finer, model-dependent
+ * gate is enforced by `OllamaClient.systemOne` before the request is
+ * sent — closing a docs-vs-runtime gap where the 0.40.5 requirement was
+ * documented but never implemented (ADR 0036).
+ */
+export const CLOUD_MODEL_MIN_OLLAMA_VERSION = '0.40.5';
+
+/**
+ * Whether `model` names a System One cloud model (ends with
+ * {@link CLOUD_MODEL_SUFFIX}, e.g. `clef:cloud`).
+ */
+export function isCloudModel(model: string): boolean {
+  return model.endsWith(CLOUD_MODEL_SUFFIX);
+}
+
+/**
+ * Compare two dot-separated Ollama version strings numerically
+ * (e.g. `'0.40.5'` vs `'0.9.0'` → positive — 40 > 9 component-wise,
+ * NOT lexicographic). Mirrors the generated runtime's private
+ * `compareVersions` so the client-side cloud-model gate ranks versions
+ * identically to the IR-constraint gate.
+ *
+ * Returns negative when `a < b`, `0` when equal, positive when `a > b`.
+ */
+export function compareOllamaVersions(a: string, b: string): number {
+  const pa = a.split('.').map((s) => Number.parseInt(s, 10) || 0);
+  const pb = b.split('.').map((s) => Number.parseInt(s, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const va = pa[i] ?? 0;
+    const vb = pb[i] ?? 0;
+    if (va !== vb) return va - vb;
+  }
+  return 0;
+}
+
+/**
  * Discriminated union of the three question kinds. The upstream OpenAPI
  * defines this inline as `oneOf` within SystemOneRequest.questions; we
  * reconstruct it as a named type for SDK ergonomics.

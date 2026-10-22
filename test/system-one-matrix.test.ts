@@ -528,6 +528,175 @@ describe('Wave 13: System One — OllamaClient.systemOne() ergonomic method', ()
   });
 });
 
+describe('System One cloud-model version gate (ADR 0036)', () => {
+  /**
+   * Closes the docs-vs-runtime gap: since the 2026-10-16 upstream cloud
+   * launch the docs promised "cloud models require Ollama >= 0.40.5,
+   * enforced automatically" — but only the blanket 0.35.0 IR constraint
+   * was ever enforced. The gate now lives in OllamaClient.systemOne:
+   * cloud model (ends with :cloud) + local-mode client → probe /api/version
+   * (cached per client) and throw OllamaCloudModelVersionError below 0.40.5.
+   * Hosted ollama.com endpoints always support cloud models (no gate).
+   */
+  const systemOneOk = {
+    model: 'clef:cloud',
+    answers: { q: { type: 'noul', noul: 0.95 } },
+    usage: { input_tokens: 10, output_tokens: 2 },
+  };
+
+  function routedFetch(version: string | null): {
+    fetchImpl: typeof globalThis.fetch;
+    versionCalls: () => number;
+    systemOneCalls: () => number;
+  } {
+    let versionCalls = 0;
+    let systemOneCalls = 0;
+    const fetchImpl = (async (url: string | URL | Request) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/api/version')) {
+        versionCalls += 1;
+        if (version === null) {
+          return new Response('server exploded', { status: 500 });
+        }
+        return new Response(JSON.stringify({ version }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      systemOneCalls += 1;
+      return new Response(JSON.stringify(systemOneOk), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+    return { fetchImpl, versionCalls: () => versionCalls, systemOneCalls: () => systemOneCalls };
+  }
+
+  it('isCloudModel and compareOllamaVersions basics (numeric, not lexicographic)', async () => {
+    const { isCloudModel, compareOllamaVersions, CLOUD_MODEL_MIN_OLLAMA_VERSION } = await import(
+      '../src/system-one.js'
+    );
+    expect(isCloudModel('clef:cloud')).toBe(true);
+    expect(isCloudModel('tev1:4b')).toBe(false);
+    expect(isCloudModel('cloud')).toBe(false); // suffix must be a tag, not the whole name
+    expect(CLOUD_MODEL_MIN_OLLAMA_VERSION).toBe('0.40.5');
+    // '0.9.0' < '0.40.5' NUMERICALLY (9 < 40) — the classic lexicographic trap.
+    expect(compareOllamaVersions('0.9.0', '0.40.5')).toBeLessThan(0);
+    expect(compareOllamaVersions('0.40.5', '0.40.5')).toBe(0);
+    expect(compareOllamaVersions('0.41.0', '0.40.5')).toBeGreaterThan(0);
+    expect(compareOllamaVersions('1.0.0', '0.40.5')).toBeGreaterThan(0);
+  });
+
+  it('throws OllamaCloudModelVersionError before any request when the local server is too old', async () => {
+    const { OllamaCloudModelVersionError } = await import('../src/errors.js');
+    const { fetchImpl, systemOneCalls } = routedFetch('0.39.0');
+    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+
+    const error = await client
+      .systemOne({
+        model: 'clef:cloud',
+        state: 'test',
+        questions: { q: { type: 'noul', instructions: '?' } },
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+
+    expect(error).toBeInstanceOf(OllamaCloudModelVersionError);
+    const typed = error as InstanceType<typeof OllamaCloudModelVersionError>;
+    expect(typed.model).toBe('clef:cloud');
+    expect(typed.serverVersion).toBe('0.39.0');
+    expect(typed.minRequiredVersion).toBe('0.40.5');
+    expect(typed.code).toBe('cloud_model_version');
+    expect(typed.retryable).toBe(false);
+    expect(typed.message).toContain('0.40.5');
+    // The whole point: no /v1/systemone round-trip was wasted.
+    expect(systemOneCalls()).toBe(0);
+  });
+
+  it('allows cloud models on a local server at exactly 0.40.5', async () => {
+    const { fetchImpl, systemOneCalls } = routedFetch('0.40.5');
+    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+
+    const result = await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+
+    expect(result.answers.q?.type).toBe('noul');
+    expect(systemOneCalls()).toBe(1);
+  });
+
+  it('does not gate non-cloud models on the same too-old server (model-dependent, not blanket)', async () => {
+    // Same server reporting 0.39.0 as the rejection test above — but a
+    // local model sails through (0.39 >= the blanket 0.35.0 floor).
+    const { fetchImpl, systemOneCalls } = routedFetch('0.39.0');
+    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+
+    const result = await client.systemOne({
+      model: 'tev1:4b',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+
+    expect(result.model).toBe('clef:cloud'); // mock echoes; the point is: no throw
+    expect(systemOneCalls()).toBe(1);
+  });
+
+  it('hosted ollama.com endpoints bypass the gate even on an "old" version', async () => {
+    // Same 0.39.0 — but pointed at Ollama's hosted endpoint, which always
+    // fronts cloud models. No OllamaCloudModelVersionError may fire.
+    const { fetchImpl, systemOneCalls } = routedFetch('0.39.0');
+    const client = new OllamaClient({ baseUrl: 'https://api.ollama.com', fetch: fetchImpl });
+
+    await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+
+    expect(systemOneCalls()).toBe(1);
+  });
+
+  it('fails open when the version probe errors (auto policy)', async () => {
+    const { fetchImpl, systemOneCalls } = routedFetch(null);
+    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+
+    await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+
+    // The server's own response is the next signal — request went through.
+    expect(systemOneCalls()).toBe(1);
+  });
+
+  it('caches the version probe per client (one probe per cache, not per call)', async () => {
+    const { fetchImpl, versionCalls, systemOneCalls } = routedFetch('0.40.5');
+    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+
+    await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+    await client.systemOne({
+      model: 'clef:cloud',
+      state: 'test',
+      questions: { q: { type: 'noul', instructions: '?' } },
+    });
+
+    // Two probes total after two calls: the client-side gate cache and the
+    // runtime's own 0.35.0-constraint cache — NOT one per call (that would
+    // be 4+), proving both caches held.
+    expect(versionCalls()).toBe(2);
+    expect(systemOneCalls()).toBe(2);
+  });
+});
+
 describe('Wave 13: System One — contract integrity', () => {
   it('/v1/systemone is discoverable from the OpenAPI source (not just documented-endpoints)', () => {
     // The OpenAPI source now declares /v1/systemone as a path, so the

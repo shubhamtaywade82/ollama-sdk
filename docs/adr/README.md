@@ -44,6 +44,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0033](./0033-progress-speed-decision-gates-abort-pin-systemone-refresh.md)         | Progress Speed Tracking, Decision Confidence Gates, Abort-Safety Invariant Pin, System One Score 26→10 Contract Refresh  |
 | [0034](./0034-systemone-cloud-launch-contract-refresh.md)                           | System One Cloud Launch: 2026-10-16 Re-Pin (d9b8601), Dual Request-Size Cap, 402 Taxonomy, Enum-Repair Deviation Retired |
 | [0035](./0035-retry-after-honoring.md)                                              | Honoring `Retry-After` on 429s — Closing the Dead-`retryAfterMs` Gap (Audit v1.19.0 Parity)                              |
+| [0036](./0036-post-audit-v1191-refresh-usage-grouping-cloud-gate.md)               | Post-Audit v1.19.1 Refresh: Re-Pin 36a6e99, Usage Model Grouping, ShowResponse Prompt Provenance, 0.40.5 Cloud-Model Gate, Pin-Provenance Unification |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives
