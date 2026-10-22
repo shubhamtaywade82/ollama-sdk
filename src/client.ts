@@ -17,6 +17,7 @@ import {
 import {
   OllamaAbortError,
   OllamaClientError,
+  OllamaCloudModelVersionError,
   OllamaModelRoutingError,
   OllamaUnsupportedCapabilityError,
 } from './errors.js';
@@ -74,6 +75,11 @@ import type {
   SystemOneResponse as SystemOneResponseBase,
 } from './generated/models/index.js';
 import type { SystemOneQuestions, SystemOneRequest, SystemOneResponse } from './system-one.js';
+import {
+  CLOUD_MODEL_MIN_OLLAMA_VERSION,
+  compareOllamaVersions,
+  isCloudModel,
+} from './system-one.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
 import { withEncodedImages, withEncodedMessageImages } from './utils.js';
 import {
@@ -968,9 +974,13 @@ export class OllamaClient {
    * launch): `model` also accepts cloud models such as `clef:cloud` —
    * cloud models require Ollama >= 0.40.5 or the hosted
    * `https://ollama.com` endpoint. Requires Ollama >= 0.35.0 locally.
-   * The runtime enforces the version constraint automatically (lazily
+   * Both version constraints are enforced client-side before the request
+   * is sent: the blanket 0.35.0 floor by the generated runtime (lazily
    * fetching `/api/version` when `enforceVersion` is `'auto'` or
-   * `'strict'`). Request size is checked client-side as a dual cap:
+   * `'strict'`), and the model-dependent 0.40.5 cloud gate by this
+   * wrapper — a cloud model through a local server older than 0.40.5
+   * throws {@link OllamaCloudModelVersionError} without a round-trip
+   * (ADR 0036). Request size is checked client-side as a dual cap:
    * text and schema (images excluded) within 64 KiB AND the whole
    * request within 32 MiB.
    *
@@ -997,6 +1007,13 @@ export class OllamaClient {
   async systemOne<Q extends SystemOneQuestions = SystemOneQuestions>(
     request: SystemOneRequest<Q>,
   ): Promise<SystemOneResponse<Q>> {
+    // Model-dependent cloud gate (ADR 0036): a cloud model (e.g. clef:cloud)
+    // through a LOCAL server needs Ollama >= 0.40.5. The hosted ollama.com
+    // endpoint always supports cloud models, so cloud-mode clients skip the
+    // gate entirely (no version probe). Mirrors the runtime's 'auto' policy:
+    // fail-open when the version cannot be determined — the server will
+    // reject with its own error if it truly cannot front the request.
+    await this.assertCloudModelSupported(request.model);
     // Delegate to the generated NativeApi. The cast through `unknown`
     // is necessary because the generic SystemOneRequest<Q> extends but
     // doesn't sufficiently overlap with the base SystemOneRequest for
@@ -1006,6 +1023,45 @@ export class OllamaClient {
       request as unknown as SystemOneRequestBase,
     ) as Promise<SystemOneResponseBase> as Promise<SystemOneResponse<Q>>;
   }
+
+  /**
+   * Cloud-model version gate for {@link systemOne} — throws
+   * {@link OllamaCloudModelVersionError} when a cloud model is requested
+   * through a local server older than {@link CLOUD_MODEL_MIN_OLLAMA_VERSION}
+   * (0.40.5). No-op for non-cloud models and for cloud-mode clients
+   * (hosted `ollama.com`). The `/api/version` probe goes through the normal
+   * failover machinery and is cached per client instance (reset on failure,
+   * so a later gated call retries), so at most one extra round-trip happens
+   * across all gated calls.
+   */
+  private async assertCloudModelSupported(model: string): Promise<void> {
+    if (!isCloudModel(model)) return;
+    const candidates = this.registry.candidates();
+    const baseUrl = candidates[0]?.baseUrl ?? DEFAULT_BASE_URL;
+    if (inferRuntimeMode(baseUrl) !== 'local') return; // hosted endpoint
+    let version: string | undefined;
+    try {
+      if (this.serverVersionCache === undefined) {
+        this.serverVersionCache = this.native.version().then((v) => v.version);
+      }
+      version = await this.serverVersionCache;
+    } catch {
+      // Fail-open (matches the runtime's 'auto' enforceVersion policy): let
+      // the request through — the server's own response is the next signal.
+      // Drop the rejected probe so a later gated call can retry.
+      this.serverVersionCache = undefined;
+      return;
+    }
+    if (version && compareOllamaVersions(version, CLOUD_MODEL_MIN_OLLAMA_VERSION) < 0) {
+      throw new OllamaCloudModelVersionError(
+        `System One cloud model "${model}" requires Ollama >= ${CLOUD_MODEL_MIN_OLLAMA_VERSION} ` +
+          `when routed through a local server (this server reports ${version}). ` +
+          `Upgrade Ollama, or point an endpoint at https://ollama.com.`,
+        { model, serverVersion: version, minRequiredVersion: CLOUD_MODEL_MIN_OLLAMA_VERSION },
+      );
+    }
+  }
+  private serverVersionCache: Promise<string | undefined> | undefined;
 
   // --- Web Endpoints ---
   /**
@@ -1055,13 +1111,20 @@ export class OllamaClient {
    * endpoint's 429 with a `Retry-After` header ("Seconds to wait before retrying"),
    * which the SDK parses into `OllamaRateLimitError.retryAfterMs` and honors verbatim
    * when retrying. Query parameters mirror the official endpoint: `range`
-   * (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope`
-   * (`'self' | 'team'`, server default `'self'`; team scope requires a team admin).
+   * (`'24h' | '7d' | '30d'`, server default `'7d'`), `scope`
+   * (`'self' | 'team'`, server default `'self'`; team scope requires a team
+   * admin), and — since the 2026-10-22 pin (upstream 2476d5e) — `groupBy`
+   * (`group_by=model`), which makes `totals` and every bucket carry up to 10
+   * per-model `UsageGroup` entries plus a `remainder` roll-up, with the
+   * selection echoed back as `group_by` on the response.
    * Omitted options are left unset so the server applies its own defaults.
    *
    * ```ts
-   * const usage = await client.usage({ range: '24h' });
+   * const usage = await client.usage({ range: '24h', groupBy: 'model' });
    * console.log(usage.totals.request_count, usage.totals.usage_usd);
+   * for (const group of usage.totals.groups ?? []) {
+   *   console.log(group.model, group.usage_usd);
+   * }
    * for (const bucket of usage.buckets) {
    *   if (bucket.partial) continue; // current hour, still in progress
    *   // ...
@@ -1072,6 +1135,7 @@ export class OllamaClient {
     const params = new URLSearchParams();
     if (req.range !== undefined) params.set('range', req.range);
     if (req.scope !== undefined) params.set('scope', req.scope);
+    if (req.groupBy !== undefined) params.set('group_by', req.groupBy);
     const query = params.toString();
     return this.executeCloudRequest(
       (http, signal) =>

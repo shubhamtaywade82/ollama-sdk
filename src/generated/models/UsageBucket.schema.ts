@@ -3,10 +3,10 @@
 // Pairs with ./<name>.ts (the TypeScript interface).
 
 import { z } from 'zod';
-import { UsageMetricsSchema } from './UsageMetrics.schema.js';
+import { UsageSummarySchema } from './UsageSummary.schema.js';
 
 export const UsageBucketSchema = z.intersection(
-  UsageMetricsSchema,
+  UsageSummarySchema,
   z.object({
     from: z.string(),
     until: z.string(),

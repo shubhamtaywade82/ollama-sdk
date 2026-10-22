@@ -398,6 +398,40 @@ export class OllamaToolTimeoutError extends OllamaClientError {
 }
 
 /**
+ * Thrown client-side by `OllamaClient.systemOne` BEFORE any request is sent,
+ * when a cloud model (e.g. `clef:cloud`) is requested through a LOCAL Ollama
+ * server older than 0.40.5 — the first local version able to front System One
+ * cloud requests (upstream System One cloud-launch documentation; ADR 0036).
+ * The hosted `https://ollama.com` endpoint never triggers this error.
+ *
+ * Distinct from {@link OllamaServerVersionUnknownError} (version could not be
+ * determined) and from the runtime's generic too-old rejection (which covers
+ * the blanket operation-level 0.35.0 floor and throws
+ * {@link OllamaGenericClientError}): this error is model-dependent and carries
+ * the offending model, the server's reported version, and the required floor,
+ * so callers can branch precisely — e.g. suggest upgrading Ollama or pointing
+ * a second endpoint at `https://ollama.com`.
+ */
+export class OllamaCloudModelVersionError extends OllamaClientError {
+  readonly model: string;
+  readonly serverVersion: string;
+  readonly minRequiredVersion: string;
+  constructor(
+    message: string,
+    options: Omit<OllamaClientErrorOptions, 'code' | 'retryable'> & {
+      model: string;
+      serverVersion: string;
+      minRequiredVersion: string;
+    },
+  ) {
+    super(message, { ...options, code: 'cloud_model_version', retryable: false });
+    this.model = options.model;
+    this.serverVersion = options.serverVersion;
+    this.minRequiredVersion = options.minRequiredVersion;
+  }
+}
+
+/**
  * Thrown client-side, before a network request is made, when a request asks for a
  * capability an endpoint is known not to support (e.g. structured output `format` against
  * an Ollama Cloud endpoint — see `ModelCapabilities.supportsStructuredOutputRequest` in

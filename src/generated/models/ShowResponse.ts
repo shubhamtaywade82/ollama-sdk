@@ -18,6 +18,12 @@ export interface ShowResponse {
   readonly details?: Record<string, unknown> | undefined;
   /** The template used by the model to render prompts */
   readonly template?: string | undefined;
+  /** The effective chat renderer of the model (aliases resolved), when one is set */
+  readonly renderer?: string | undefined;
+  /** The output parser configured on the model, when one is set */
+  readonly parser?: string | undefined;
+  /** Where the chat prompt actually comes from; one of `renderer_parser`, `renderer`, `parser` (a Go renderer runs and any packaged template is inert), `harmony`, `go_template`, `gguf_chat_template` (the runner renders the GGUF's embedded jinja), or `none` */
+  readonly template_source?: string | undefined;
   /** List of supported features */
   readonly capabilities?: readonly string[] | undefined;
   /** Additional model metadata */

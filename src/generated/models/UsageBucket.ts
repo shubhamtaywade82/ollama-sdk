@@ -4,9 +4,9 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { UsageMetrics } from './index.js';
+import type { UsageSummary } from './index.js';
 
-export type UsageBucket = UsageMetrics & {
+export type UsageBucket = UsageSummary & {
   /** Start of the bucket in UTC, inclusive. */
   readonly from: string;
   /** End of the bucket in UTC, exclusive. */

@@ -4,7 +4,7 @@
  * See ADR 0013 and ADR 0014 for the contract-first architecture.
  */
 
-import type { UsageBucket, UsageMetrics } from './index.js';
+import type { UsageBucket, UsageSummary } from './index.js';
 
 export interface UsageResponse {
   /** Selected time range. */
@@ -13,12 +13,14 @@ export interface UsageResponse {
   readonly scope: 'self' | 'team';
   /** Set automatically: hour for 24h, day for 7d and 30d. */
   readonly granularity: 'hour' | 'day';
+  /** Selected grouping. Present when group_by is requested. */
+  readonly group_by?: 'model' | undefined;
   /** Start of the range in UTC, inclusive. */
   readonly from: string;
   /** End of the range in UTC, exclusive. */
   readonly until: string;
-  /** Usage across the entire range. */
-  readonly totals: UsageMetrics;
+  /** Usage across the entire range, including groups in the remainder. */
+  readonly totals: UsageSummary;
   /** Usage in chronological order, including buckets with no recorded requests. */
   readonly buckets: readonly UsageBucket[];
 }

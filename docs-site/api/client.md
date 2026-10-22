@@ -188,11 +188,14 @@ usage(req?: UsageRequestOptions): Promise<UsageResponse>;
 balance(req?: BalanceRequestOptions): Promise<BalanceResponse>;
 ```
 
-Wrap Ollama's cloud account endpoints (`GET https://ollama.com/api/usage` and `GET https://ollama.com/api/balance`) — request counts, USD spend, and token totals (including cached input) bucketed by hour (`range: '24h'`) or day (`'7d'`/`'30d'`), plus remaining included/purchased credits. `usage` accepts `range` (`'24h' | '7d' | '30d'`, server default `'7d'`) and `scope` (`'self' | 'team'`, team requires an admin); `balance` takes no parameters — its options object exists for cancellation (`signal`/`timeoutMs`) only. The included balance is a runtime-discriminated union: current plans return `balance_usd`/`allowance_usd`/`period`, legacy plans return `session`/`weekly` percentage limits. Same cloud pipeline as the web tools — fixed host, API key, timeout, and retry — and both endpoints are rate-limited to 10 requests/minute per user, surfaced as `OllamaRateLimitError` with `retryAfterMs` parsed from the `Retry-After` header.
+Wrap Ollama's cloud account endpoints (`GET https://ollama.com/api/usage` and `GET https://ollama.com/api/balance`) — request counts, USD spend, and token totals (including cached input) bucketed by hour (`range: '24h'`) or day (`'7d'`/`'30d'`), plus remaining included/purchased credits. `usage` accepts `range` (`'24h' | '7d' | '30d'`, server default `'7d'`), `scope` (`'self' | 'team'`, team requires an admin), and `groupBy` (`group_by=model`, since 1.20.0) — grouping rolls `totals` and every bucket into up to 10 per-model `UsageGroup` entries plus a `remainder` roll-up, with the selection echoed as `group_by` on the response; `balance` takes no parameters — its options object exists for cancellation (`signal`/`timeoutMs`) only. The included balance is a runtime-discriminated union: current plans return `balance_usd`/`allowance_usd`/`period`, legacy plans return `session`/`weekly` percentage limits. Same cloud pipeline as the web tools — fixed host, API key, timeout, and retry — and both endpoints are rate-limited to 10 requests/minute per user, surfaced as `OllamaRateLimitError` with `retryAfterMs` parsed from the `Retry-After` header.
 
 ```typescript
-const usage = await client.usage({ range: '24h' });
+const usage = await client.usage({ range: '24h', groupBy: 'model' });
 console.log(usage.totals.request_count, usage.totals.usage_usd);
+for (const group of usage.totals.groups ?? []) {
+  console.log(group.model, group.usage_usd, 'USD');
+}
 
 const balance = await client.balance();
 if ('balance_usd' in balance.included) {

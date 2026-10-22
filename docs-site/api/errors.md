@@ -304,6 +304,19 @@ class OllamaServerVersionUnknownError extends OllamaClientError {
 
 Thrown when `enforceVersion: 'strict'` is set and the runtime couldn't obtain a server version to compare against (e.g. `/api/version` was unreachable). Distinct from `OllamaGenericClientError` so callers can branch on the failure mode.
 
+#### `OllamaCloudModelVersionError`
+
+```typescript
+class OllamaCloudModelVersionError extends OllamaClientError {
+  readonly model: string;
+  readonly serverVersion: string;
+  readonly minRequiredVersion: string; // '0.40.5'
+  // code: 'cloud_model_version', retryable: false
+}
+```
+
+Thrown by `client.systemOne()` — before any HTTP call — when a cloud model (name ending `:cloud`, e.g. `clef:cloud`) is requested through a **local** Ollama server older than 0.40.5, the first version able to front System One cloud requests. Hosted `ollama.com` endpoints never throw this (they always support cloud models), non-cloud models never trigger it, and a failed `/api/version` probe fails open (the server's own response is the next signal). The fields carry the offending model, the server's reported version, and the required floor, so callers can suggest upgrading Ollama or pointing a second endpoint at `https://ollama.com`. Since 1.20.0 (ADR 0036).
+
 ### MCP errors
 
 #### `OllamaMcpError`
@@ -506,6 +519,7 @@ const DEFAULT_FAILOVER_CODES = [
 | `OllamaResponseValidationError`    | `response_validation_error`     | `false`     | `validateResponses: true` and response failed Zod validation.                                                                      |
 | `OllamaRequestTooLargeError`       | `request_too_large`             | `false`     | Request body exceeds `constraints.maxRequestBytes` (no HTTP call made).                                                            |
 | `OllamaServerVersionUnknownError`  | `server_version_unknown`        | `false`     | `enforceVersion: 'strict'` and `/api/version` was unreachable.                                                                     |
+| `OllamaCloudModelVersionError`     | `cloud_model_version`           | `false`     | `client.systemOne()` with a `:cloud` model through a local server older than 0.40.5 (no HTTP call made). Since 1.20.0.              |
 | `OllamaMcpError`                   | `mcp_error`                     | varies      | MCP `listTools`/`callTool`/task call failed.                                                                                       |
 | `OllamaSkillNotFoundError`         | `skill_not_found`               | `false`     | `applySkill` referenced an unregistered skill.                                                                                     |
 | `OllamaSkillInvalidError`          | `skill_invalid`                 | `false`     | Skill frontmatter/contents failed to parse.                                                                                        |

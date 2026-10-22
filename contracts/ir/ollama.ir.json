@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "05155158e9c5c8ff",
+  "sourceHash": "147ef9a0bd164b57",
   "operations": [
     {
       "id": "balance",
@@ -713,6 +713,9 @@
             "modified_at",
             "details",
             "template",
+            "renderer",
+            "parser",
+            "template_source",
             "capabilities",
             "model_info",
             "thinking"
@@ -847,7 +850,7 @@
       "notes": [
         "Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.",
         "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
-        "Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin).",
+        "Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin), group_by = model (2026-10-22 pin: upstream 2476d5e — groups totals into per-model UsageGroup entries, up to 10 ranked by usage_usd or request_count, with a remainder bucket for the rest).",
         "Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.",
         "Use OllamaClient.usage() — the generated NativeApi class does not expose this operation."
       ]
@@ -2587,6 +2590,18 @@
             "type": "string",
             "description": "The template used by the model to render prompts"
           },
+          "renderer": {
+            "type": "string",
+            "description": "The effective chat renderer of the model (aliases resolved), when one is set"
+          },
+          "parser": {
+            "type": "string",
+            "description": "The output parser configured on the model, when one is set"
+          },
+          "template_source": {
+            "type": "string",
+            "description": "Where the chat prompt actually comes from; one of `renderer_parser`, `renderer`, `parser` (a Go renderer runs and any packaged template is inert), `harmony`, `go_template`, `gguf_chat_template` (the runner renders the GGUF's embedded jinja), or `none`"
+          },
           "capabilities": {
             "type": "array",
             "items": {
@@ -3211,7 +3226,7 @@
       "definition": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/UsageMetrics"
+            "$ref": "#/components/schemas/UsageSummary"
           },
           {
             "type": "object",
@@ -3233,6 +3248,31 @@
               "partial": {
                 "type": "boolean",
                 "description": "Present and true for the current hour or day, which is still in progress."
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UsageGroup",
+      "source": {
+        "openapi": "#/components/schemas/UsageGroup"
+      },
+      "definition": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UsageMetrics"
+          },
+          {
+            "type": "object",
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "Model name."
               }
             }
           }
@@ -3316,6 +3356,13 @@
             ],
             "description": "Set automatically: hour for 24h, day for 7d and 30d."
           },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "model"
+            ],
+            "description": "Selected grouping. Present when group_by is requested."
+          },
           "from": {
             "type": "string",
             "format": "date-time",
@@ -3327,8 +3374,8 @@
             "description": "End of the range in UTC, exclusive."
           },
           "totals": {
-            "$ref": "#/components/schemas/UsageMetrics",
-            "description": "Usage across the entire range."
+            "$ref": "#/components/schemas/UsageSummary",
+            "description": "Usage across the entire range, including groups in the remainder."
           },
           "buckets": {
             "type": "array",
@@ -3338,6 +3385,35 @@
             }
           }
         }
+      }
+    },
+    {
+      "name": "UsageSummary",
+      "source": {
+        "openapi": "#/components/schemas/UsageSummary"
+      },
+      "definition": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UsageMetrics"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "groups": {
+                "type": "array",
+                "description": "Present when group_by is requested. Currently returns up to 10 groups selected across the entire range, ranked by usage_usd or by request_count when the range includes legacy requests. Groups use the same order in every bucket; groups without requests in a bucket are omitted.",
+                "items": {
+                  "$ref": "#/components/schemas/UsageGroup"
+                }
+              },
+              "remainder": {
+                "$ref": "#/components/schemas/UsageMetrics",
+                "description": "Combined usage from groups outside the current limit. Omitted when there are no requests from additional groups."
+              }
+            }
+          }
+        ]
       }
     },
     {

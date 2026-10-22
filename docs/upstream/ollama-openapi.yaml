@@ -1,4 +1,4 @@
-# Pinned from https://raw.githubusercontent.com/ollama/ollama/main/docs/openapi.yaml (source SHA: d9b86018cba1d222fd28e28f42e5cdc15a060f39, content hash: b03e073683d54515) on 2026-10-16.
+# Pinned from https://raw.githubusercontent.com/ollama/ollama/main/docs/openapi.yaml (source SHA: 36a6e994d2f6c4ab94b3555185154d069e5dba87, content hash: e94c8f02969c6807) on 2026-10-22.
 # Run `npm run contract:fetch` to refresh.
 openapi: 3.1.0
 info:
@@ -636,6 +636,15 @@ components:
         template:
           type: string
           description: The template used by the model to render prompts
+        renderer:
+          type: string
+          description: The effective chat renderer of the model (aliases resolved), when one is set
+        parser:
+          type: string
+          description: The output parser configured on the model, when one is set
+        template_source:
+          type: string
+          description: Where the chat prompt actually comes from; one of `renderer_parser`, `renderer`, `parser` (a Go renderer runs and any packaged template is inert), `harmony`, `go_template`, `gguf_chat_template` (the runner renders the GGUF's embedded jinja), or `none`
         capabilities:
           type: array
           items:
@@ -1037,9 +1046,31 @@ components:
         output_tokens:
           type: integer
           description: Recorded output tokens.
-    UsageBucket:
+    UsageGroup:
       allOf:
         - $ref: "#/components/schemas/UsageMetrics"
+        - type: object
+          required: [model]
+          properties:
+            model:
+              type: string
+              description: Model name.
+    UsageSummary:
+      allOf:
+        - $ref: "#/components/schemas/UsageMetrics"
+        - type: object
+          properties:
+            groups:
+              type: array
+              description: Present when group_by is requested. Currently returns up to 10 groups selected across the entire range, ranked by usage_usd or by request_count when the range includes legacy requests. Groups use the same order in every bucket; groups without requests in a bucket are omitted.
+              items:
+                $ref: "#/components/schemas/UsageGroup"
+            remainder:
+              $ref: "#/components/schemas/UsageMetrics"
+              description: Combined usage from groups outside the current limit. Omitted when there are no requests from additional groups.
+    UsageBucket:
+      allOf:
+        - $ref: "#/components/schemas/UsageSummary"
         - type: object
           required: [from, until]
           properties:
@@ -1070,6 +1101,10 @@ components:
           type: string
           enum: [hour, day]
           description: "Set automatically: hour for 24h, day for 7d and 30d."
+        group_by:
+          type: string
+          enum: [model]
+          description: Selected grouping. Present when group_by is requested.
         from:
           type: string
           format: date-time
@@ -1079,8 +1114,8 @@ components:
           format: date-time
           description: End of the range in UTC, exclusive.
         totals:
-          $ref: "#/components/schemas/UsageMetrics"
-          description: Usage across the entire range.
+          $ref: "#/components/schemas/UsageSummary"
+          description: Usage across the entire range, including groups in the remainder.
         buckets:
           type: array
           description: Usage in chronological order, including buckets with no recorded requests.
@@ -2153,6 +2188,12 @@ paths:
             type: string
             enum: [self, team]
             default: self
+        - name: group_by
+          in: query
+          description: "How to group usage within totals and buckets. Supported values: model."
+          schema:
+            type: string
+            enum: [model]
       responses:
         "200":
           description: Usage for the selected range and scope.

@@ -174,3 +174,50 @@ describe('IR schemas: definitions are present', () => {
     }
   });
 });
+
+describe('2026-10-22 pin: ShowResponse prompt provenance + usage model grouping', () => {
+  // Upstream 36a6e99 (ShowResponse renderer/parser/template_source) and
+  // 2476d5e (usage group_by, UsageGroup, UsageSummary) — the first upstream
+  // drift after the 2026-10-16 System One cloud launch pin.
+
+  it('ShowResponse carries renderer, parser, and template_source', () => {
+    const ir = loadIR();
+    const show = ir.schemas.find((s) => s.name === 'ShowResponse');
+    expect(show).toBeDefined();
+    const props = show?.definition.properties ?? {};
+    for (const field of ['renderer', 'parser', 'template_source']) {
+      expect(props[field], `ShowResponse.${field} missing from the IR`).toBeDefined();
+      expect(props[field]?.type).toBe('string');
+    }
+  });
+
+  it('UsageGroup and UsageSummary schemas exist with the grouping shape', () => {
+    const ir = loadIR();
+    const group = ir.schemas.find((s) => s.name === 'UsageGroup');
+    const summary = ir.schemas.find((s) => s.name === 'UsageSummary');
+    expect(group).toBeDefined();
+    expect(summary).toBeDefined();
+    expect(group?.definition.allOf).toBeDefined();
+    expect(group?.definition.allOf?.[1]?.properties?.model?.type).toBe('string');
+    const summaryProps = summary?.definition.allOf?.[1]?.properties ?? {};
+    expect(summaryProps.groups?.type).toBe('array');
+    expect(summaryProps.remainder?.$ref).toContain('UsageMetrics');
+  });
+
+  it('UsageResponse totals becomes a UsageSummary and echoes group_by', () => {
+    const ir = loadIR();
+    const usage = ir.schemas.find((s) => s.name === 'UsageResponse');
+    expect(usage).toBeDefined();
+    const props = usage?.definition.properties ?? {};
+    expect(props.totals?.$ref).toContain('UsageSummary');
+    expect(props.group_by?.enum).toEqual(['model']);
+  });
+
+  it('UsageBucket composes UsageSummary (buckets can carry per-model groups)', () => {
+    const ir = loadIR();
+    const bucket = ir.schemas.find((s) => s.name === 'UsageBucket');
+    expect(bucket).toBeDefined();
+    const allOf = bucket?.definition.allOf ?? [];
+    expect(allOf.some((node) => node.$ref === '#/components/schemas/UsageSummary')).toBe(true);
+  });
+});

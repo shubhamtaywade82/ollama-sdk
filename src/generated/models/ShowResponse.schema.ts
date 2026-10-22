@@ -12,6 +12,9 @@ export const ShowResponseSchema = z.object({
   modified_at: z.string().optional(),
   details: z.object({}).optional(),
   template: z.string().optional(),
+  renderer: z.string().optional(),
+  parser: z.string().optional(),
+  template_source: z.string().optional(),
   capabilities: z.array(z.string()).optional(),
   model_info: z.object({}).optional(),
 });

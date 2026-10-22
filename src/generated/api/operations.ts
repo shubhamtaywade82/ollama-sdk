@@ -265,7 +265,7 @@ export const usageOp = {
   notes: [
     'Cloud-only account endpoint — targets https://ollama.com, not the local Ollama server.',
     'Requires an Ollama Cloud API key (set via OllamaClient credentials).',
-    'Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin).',
+    'Query parameters (not modeled by the generated runtime): range = 24h | 7d | 30d (server default 7d), scope = self | team (server default self; team scope requires a team admin), group_by = model (2026-10-22 pin: upstream 2476d5e — groups totals into per-model UsageGroup entries, up to 10 ranked by usage_usd or request_count, with a remainder bucket for the rest).',
     'Rate limited to 10 requests/minute per user; 429 responses carry a Retry-After header.',
     'Use OllamaClient.usage() — the generated NativeApi class does not expose this operation.',
   ],

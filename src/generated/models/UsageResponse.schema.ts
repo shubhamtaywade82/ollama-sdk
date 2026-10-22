@@ -4,14 +4,15 @@
 
 import { z } from 'zod';
 import { UsageBucketSchema } from './UsageBucket.schema.js';
-import { UsageMetricsSchema } from './UsageMetrics.schema.js';
+import { UsageSummarySchema } from './UsageSummary.schema.js';
 
 export const UsageResponseSchema = z.object({
   range: z.enum(['24h', '7d', '30d']),
   scope: z.enum(['self', 'team']),
   granularity: z.enum(['hour', 'day']),
+  group_by: z.enum(['model']).optional(),
   from: z.string(),
   until: z.string(),
-  totals: UsageMetricsSchema,
+  totals: UsageSummarySchema,
   buckets: z.array(UsageBucketSchema),
 });
