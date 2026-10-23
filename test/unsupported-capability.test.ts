@@ -62,6 +62,28 @@ describe('Fail-fast structured output capability check', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each(['http://ollama:11434', 'https://llm.mycompany.com'])(
+    'sends format requests to a self-hosted endpoint (%s) instead of refusing it as cloud',
+    async (baseUrl) => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => chatResponseBody,
+      });
+      const client = new OllamaClient({ baseUrl, fetch: fetchMock as never });
+
+      const res = await client.chat({
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        format: { type: 'object' },
+        stream: false,
+      });
+
+      expect(res.message.content).toBe('{"ok":true}');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('does not apply to requests without a format field, even against a cloud endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

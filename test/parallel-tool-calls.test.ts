@@ -311,29 +311,19 @@ describe('parallelToolCalls: never claims yes for models without tools capabilit
 });
 
 describe('parallelToolCalls: unknown runtime mode', () => {
-  it('returns "unknown" when the baseUrl hostname is unrecognized (cloud by default)', async () => {
-    // `inferRuntimeMode` returns 'cloud' for any non-localhost, non-RFC1918
-    // hostname. So a hostname like `my-internal-host` (no dots, no scheme)
-    // actually parses as 'cloud'. For genuinely 'unknown' mode we'd need
-    // a URL that fails `new URL()` parsing — but HttpClient's telemetry
-    // span attributes also call `new URL()`, so the test would crash
-    // before reaching detectModelCapabilities.
-    //
-    // Instead, this test documents that hostnames other than
-    // localhost/127.0.0.1/RFC1918 are treated as 'cloud' — which means
-    // they go through the cloud-mode heuristic. This is the documented
-    // behavior in `inferRuntimeMode`'s docstring.
+  it('returns "unknown" for a public hostname that is neither ollama.com nor private-network', async () => {
+    // A public self-hosted proxy is neither proven cloud nor proven local, so it
+    // gets neither the cloud heuristic (which would claim parallel calls for any
+    // tool-capable model) nor the local family/name heuristic.
     const http = new HttpClient({
-      baseUrl: 'https://my-ollama-proxy.internal.corp:11434',
+      baseUrl: 'https://my-ollama-proxy.example.com:11434',
       fetch: showResponseFetch({
         capabilities: ['tools', 'completion'],
         architecture: 'qwen2',
       }) as never,
     });
     const caps = await detectModelCapabilities(http, 'qwen2.5:7b');
-    // https://my-ollama-proxy.internal.corp is NOT localhost/RFC1918,
-    // so inferRuntimeMode returns 'cloud' — and cloud-mode with tools
-    // capability returns 'yes'.
-    expect(caps.parallelToolCalls).toBe<ParallelToolCallBehavior>('yes');
+    expect(inferRuntimeMode(http.baseUrl)).toBe('unknown');
+    expect(caps.parallelToolCalls).toBe<ParallelToolCallBehavior>('unknown');
   });
 });

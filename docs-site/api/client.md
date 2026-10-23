@@ -220,10 +220,10 @@ Queries `/api/show` and returns normalized capability flags (`supportsTools`, `s
 ### `runtimeMode()`
 
 ```typescript
-runtimeMode(): 'local' | 'cloud';
+runtimeMode(): 'local' | 'cloud' | 'unknown';
 ```
 
-Returns whether the first candidate endpoint is inferred as local or cloud. Used by `assertStructuredOutputSupported` to reject `format` requests against Ollama Cloud.
+Classifies the first candidate endpoint by hostname: `cloud` for `ollama.com` and `*.ollama.com`, `local` for private-network hosts (loopback, RFC 1918, `*.local`, `*.internal`, single-label service names), and `unknown` for any other host. Used by `assertStructuredOutputSupported` to reject `format` requests against Ollama Cloud only.
 
 ### `healthCheck()`
 

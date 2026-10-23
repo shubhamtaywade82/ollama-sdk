@@ -1038,7 +1038,8 @@ export class OllamaClient {
     if (!isCloudModel(model)) return;
     const candidates = this.registry.candidates();
     const baseUrl = candidates[0]?.baseUrl ?? DEFAULT_BASE_URL;
-    if (inferRuntimeMode(baseUrl) !== 'local') return; // hosted endpoint
+    // Only self-hosted (`local`) servers are version-probed; hosted and unrecognized endpoints are skipped.
+    if (inferRuntimeMode(baseUrl) !== 'local') return;
     let version: string | undefined;
     try {
       if (this.serverVersionCache === undefined) {
