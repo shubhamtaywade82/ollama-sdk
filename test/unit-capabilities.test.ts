@@ -67,19 +67,37 @@ describe('inferRuntimeMode', () => {
     'http://[::1]',
     'http://192.168.1.20:11434',
     'http://10.0.0.5:11434',
+    'http://172.17.0.1:11434',
+    'http://172.31.255.1:11434',
+    'http://[fd00::1]:11434',
     'http://box.local:11434',
+    'http://ollama.internal:11434',
+    'http://host.docker.internal:11434',
+    // Single-label Docker / Kubernetes service name, as in docker-compose
+    'http://ollama:11434',
   ])('classifies %s as local', (url) => {
     expect(inferRuntimeMode(url)).toBe('local');
   });
 
+  it.each(['https://ollama.com', 'https://api.ollama.com'])('classifies %s as cloud', (url) => {
+    expect(inferRuntimeMode(url)).toBe('cloud');
+  });
+
   it.each([
-    'https://ollama.com',
-    'https://api.ollama.com',
+    // Self-hosted servers on public domains are not refused as cloud
     'http://gpu-box.example.net:11434',
+    'https://llm.mycompany.com',
     // Public IPv6 must not be mistaken for loopback by the bracket handling
     'http://[2001:db8::1]:11434',
-  ])('classifies %s as cloud', (url) => {
-    expect(inferRuntimeMode(url)).toBe('cloud');
+    // Just outside 172.16.0.0/12
+    'http://172.32.0.1:11434',
+    // A hostname that starts like an address is not an address
+    'http://10.example.com:11434',
+    // Suffix lookalikes of ollama.com are not Ollama Cloud
+    'http://ollama.com.evil.net:11434',
+    'http://evilollama.com:11434',
+  ])('classifies %s as unknown', (url) => {
+    expect(inferRuntimeMode(url)).toBe('unknown');
   });
 
   it('classifies an unparseable base URL as unknown', () => {
@@ -92,10 +110,17 @@ describe('inferRuntimeMode', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'application/json' }),
       json: async () => ({ model: 'm', created_at: '', response: '{"a":1}', done: true }),
-      text: async () => JSON.stringify({ model: 'm', created_at: '', response: '{"a":1}', done: true }),
+      text: async () =>
+        JSON.stringify({ model: 'm', created_at: '', response: '{"a":1}', done: true }),
     });
-    const client = new OllamaClient({ baseUrl: 'http://[::1]:11434', fetch: fetchMock as never, retries: 0 });
-    await expect(client.generateText({ model: 'm', prompt: 'p', format: 'json' })).resolves.toBe('{"a":1}');
+    const client = new OllamaClient({
+      baseUrl: 'http://[::1]:11434',
+      fetch: fetchMock as never,
+      retries: 0,
+    });
+    await expect(client.generateText({ model: 'm', prompt: 'p', format: 'json' })).resolves.toBe(
+      '{"a":1}',
+    );
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

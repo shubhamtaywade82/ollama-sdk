@@ -86,25 +86,44 @@ export interface ModelCapabilities {
   readonly parallelToolCalls: ParallelToolCallBehavior;
 }
 
+/**
+ * Classifies the server behind `baseUrl` from its hostname alone (no network call).
+ *
+ * - `cloud`: the hosted Ollama Cloud API (`ollama.com`, `*.ollama.com`). This is the only host
+ *   known to reject structured output (`format`), so only it is refused pre-flight.
+ * - `local`: a private-network server — loopback, RFC 1918 / ULA addresses, `*.localhost`,
+ *   `*.local`, `*.internal`, or a single-label name such as a Docker or Kubernetes service
+ *   (`http://ollama:11434`).
+ * - `unknown`: any other hostname, including self-hosted servers on public domains. Those are
+ *   not refused for `format`, and they are not assumed to be local either.
+ */
 export function inferRuntimeMode(baseUrl: string): RuntimeMode {
+  let host: string;
   try {
-    const url = new URL(baseUrl);
     // WHATWG URL keeps the brackets on an IPv6 literal ("[::1]"), so strip them before comparing
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-    if (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '::1' ||
-      host.endsWith('.local') ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.')
-    ) {
-      return 'local';
-    }
-    return 'cloud';
+    host = new URL(baseUrl).hostname.toLowerCase().replace(/^\[|\]$/g, '');
   } catch {
     return 'unknown';
   }
+  if (host === 'ollama.com' || host.endsWith('.ollama.com')) return 'cloud';
+  if (isPrivateNetworkHost(host)) return 'local';
+  return 'unknown';
+}
+
+function isPrivateNetworkHost(host: string): boolean {
+  // Single-label names (no dot, no colon) resolve only inside the network that defines them.
+  if (!host.includes('.') && !host.includes(':')) return true;
+  if (host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal'))
+    return true;
+  if (host === '::1' || host === '0.0.0.0') return true;
+  // IPv6 unique-local addresses (fc00::/7).
+  if (host.includes(':') && /^f[cd][0-9a-f]{0,2}:/.test(host)) return true;
+  // IPv4 literals only: a hostname such as `10.example.com` is not an address.
+  return (
+    /^(?:127|10)\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host)
+  );
 }
 
 /**

@@ -187,7 +187,7 @@ You don't need to pre-process the model's output — `chatWithSchema` handles it
 ## Cloud limitation
 
 ::: warning Ollama Cloud doesn't support structured output
-Structured output (`format` with a JSON Schema) is **rejected pre-flight** against Ollama Cloud endpoints with `OllamaUnsupportedCapabilityError`. The SDK infers the runtime mode (`local` vs `cloud`) from the `baseUrl` and throws before any network call.
+Structured output (`format` with a JSON Schema) is **rejected pre-flight** against Ollama Cloud endpoints with `OllamaUnsupportedCapabilityError`. The SDK infers the runtime mode from the `baseUrl` hostname and throws before any network call, but only for `ollama.com` and its subdomains. Self-hosted servers, including ones reached by a Docker service name or a public domain, accept `format` requests.
 
 In a multi-endpoint setup, `unsupported_capability` is in `DEFAULT_FAILOVER_CODES`, so the request fails over to the next candidate that supports it (typically your local endpoint). If every candidate is rejected, the error surfaces to your `catch` block.
 

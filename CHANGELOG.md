@@ -24,6 +24,33 @@ The Decision Plane in nexum could not bound a System One call: its `AbortSignal`
 
 - Two `[Unreleased]` headings held entries that had already shipped. The 1.9.0-era entries (the IPv6 loopback fix, host normalization, and the digest work) now sit under 1.9.0, since their commits are in the `v1.9.0` tag. The MCP bridge and stdio entries now sit under "Releases 1.5.0 to 1.8.0", since their first commits are between `v1.5.0` and `v1.8.0`. There are still no release sections for 1.5.0, 1.5.1, or 1.6.0 in this file.
 
+## [1.20.1] — Self-hosted servers are no longer refused as Ollama Cloud
+
+Structured output (`format`) was refused pre-flight for every base URL outside `localhost`, `*.local`, `192.168.*` and `10.*`. The classifier treated any other host as cloud, so a self-hosted server reached by a Docker or Kubernetes service name (`http://ollama:11434`), a `172.16/12` address, or a public domain of its own threw `OllamaUnsupportedCapabilityError` on every `format` request. There was no opt-out. Caught while wiring `@nemesis-oss/ollama-sdk` into agentic-tui, whose docker-compose stack points the supervisor at `http://ollama:11434`.
+
+### The classification rule
+
+`inferRuntimeMode(baseUrl)` now classifies by hostname alone, with three outcomes:
+
+- **`cloud`**: `ollama.com` and `*.ollama.com` only. A suffix lookalike such as `ollama.com.evil.net` is not cloud. Only this host is refused for `format`.
+- **`local`**: a private-network server. That covers loopback (`127.0.0.0/8`, `::1`, `0.0.0.0`, `*.localhost`), RFC 1918 IPv4 (`10/8`, `172.16/12`, `192.168/16`), IPv6 unique-local (`fc00::/7`), `*.local`, `*.internal`, and single-label names with no dot or colon, such as Docker or Kubernetes service names.
+- **`unknown`**: every other hostname, including self-hosted servers on public domains. These are not refused for `format`, and they are not assumed to be local.
+
+The IPv4 checks match address literals only, so `10.example.com` is no longer mistaken for `10.0.0.0/8`.
+
+### Behavior changes
+
+- `format` requests go to self-hosted servers on any host. Only `ollama.com` is refused.
+- `parallelToolCalls` for `local` hosts uses the local family and name heuristics. For `unknown` hosts it reports `'unknown'`. Previously every non-private host got the cloud heuristic, which reported `'yes'` for any tool-capable model.
+- The cloud-model version gate (`OllamaCloudModelVersionError`) probes `/api/version` only for `local` endpoints. Previously a self-hosted server with a non-private hostname skipped the gate. It now still skips it when the hostname is `unknown`.
+- `runtimeMode()` can now return `'unknown'`, as it already could for an unparseable base URL.
+
+### Tests
+
+- `test/unit-capabilities.test.ts`: classification table for each outcome, including the lookalike and address-literal edge cases.
+- `test/parallel-tool-calls.test.ts`: a public self-hosted host reports `parallelToolCalls: 'unknown'` (previously `'yes'`).
+- `test/unsupported-capability.test.ts`: `format` requests reach a self-hosted endpoint on a Docker service name and on a public domain.
+
 ## [1.20.0] — Post-audit v1.19.1 refresh: re-pin 36a6e99, usage model grouping, ShowResponse prompt provenance, the 0.40.5 cloud-model gate
 
 The daily audit against the v1.19.1 baseline claimed "zero upstream drift since d9b8601, no action needed"; independent verification (raw content diff of upstream `docs/openapi.yaml` against the pin — the same discipline that caught the v1.19.0 audit's false row) found the headline false and two repository-internal defects besides. Two upstream commits had landed after the 2026-10-16 pin: `2476d5e` adds model grouping to cloud usage, and `36a6e99` populates `ShowResponse.renderer/parser` and adds `template_source`. Separately: the docs had promised since 1.19.0 that cloud models (`clef:cloud`) require "Ollama >= 0.40.5, enforced automatically" while only the blanket 0.35.0 floor was ever enforced, and `docs-index.json`'s `pinnedSha` silently lagged the pin by one refresh (nothing consumed it, no test covered it). All changes additive or gap-closing; no breaking changes (see [ADR 0036](./docs/adr/0036-post-audit-v1191-refresh-usage-grouping-cloud-gate.md)). 1087 pre-existing tests stay green, 14 net-new tests added.
