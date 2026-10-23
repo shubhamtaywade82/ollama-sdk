@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed — structural guard against rebase artifacts
+
+- **New `test/repo-hygiene.test.ts` fails the suite on any unresolved conflict marker in any tracked file.** The v1.22.0 PR head had shipped a green eight-check CI run carrying a stray rebase marker at `CHANGELOG.md:23` — caught only by pre-tag manual review and dropped in the `ac9a385` amendment. The changelog was (and is) neither linted nor imported by tests, so no existing gate could see it; this test scans every file `git ls-files` reports for the four conflict-marker line shapes (`<<<<<<<`, `=======` as a whole line, `|||||||`, `>>>>>>>`) and runs everywhere `npm test` runs — PR CI, the publish workflow's pre-publish suite, and local development. It is the structural fix for the artifact-class lessons of ADR 0036 (display artifacts) and ADR 0038 (piped exit codes): the class can no longer reach `main` behind a passing build.
+
 ## [1.22.0] — `/v1/audio/speech` recorded as a generation-excluded contract operation; MDX pin provenance for every docs source
 
 The second daily audit claimed "zero upstream drift since d9b8601" while verifying the v1.20.0 release that had absorbed exactly the two commits landing after that (retired) pin — and missed real in-window documentation drift besides: upstream `6ef847b8` ("mlxrunner: add Phonon text-to-speech support", 2026-10-22 18:36 UTC) added a `### /v1/audio/speech` section to the OpenAI-compatibility page inside the audit's own 24-hour window. The endpoint is documented (Ollama v0.40.8+; `model`/`input` ≤ 4,096 chars/`voice`/`response_format` `wav`+`pcm`/`speed` `1`/`stream_format` `audio` supported; `instructions` and the `mp3`/`opus`/`aac`/`flac` formats unsupported; 16-bit mono 24 kHz; unsupported values rejected with `400`) but absent from upstream's own `openapi.yaml` — docs ahead of spec, so no openapi re-pin. The live openapi content itself is byte-identical to the `36a6e99` pin (raw sha256 `e94c8f02…`), confirming zero *spec* drift; the audit's error was the anchor and the unchecked MDX surfaces. This release closes the documentation-alignment gap (see [ADR 0038](./docs/adr/0038-audio-speech-contract-mdx-pin-provenance.md)). 1125 pre-existing tests stay green (including the 1.21.0 cancellation-signal suite), 8 net-new tests added.
