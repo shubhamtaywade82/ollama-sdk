@@ -45,7 +45,7 @@ import { OllamaStream } from './streaming/stream.js';
 import type { ChatStreamResult, GenerateStreamResult } from './streaming/types.js';
 import { HttpClient, type BinaryBody, type FetchLike } from './transport/http.js';
 import { DEFAULT_RETRY_CONFIG, withRetry, type RetryConfig } from './transport/retry.js';
-import { createTimeoutSignal } from './transport/timeout.js';
+import { createTimeoutSignal, untilAborted } from './transport/timeout.js';
 import { ModelsClient } from './models-client.js';
 import { OpenAICompatClient } from './integrations/openai.js';
 import { AnthropicCompatClient } from './integrations/anthropic.js';
@@ -68,6 +68,7 @@ import {
 import type { ContextDiscoveryRequestOptions } from './context-discovery.js';
 import type { ModelOptions } from './types.js';
 import { NativeApi } from './generated/api/native-api.js';
+import { systemOneOp } from './generated/api/operations.js';
 import { FailoverHttpClient } from './failover-http-client.js';
 import { createDecision, type Decision } from './decision.js';
 import type {
@@ -1003,9 +1004,14 @@ export class OllamaClient {
    *
    * For the low-level generated API (without the generic wrapper), use
    * `client.native.systemOne(request)` directly.
+   *
+   * @param options.signal Cancels the whole call, including the cloud-model
+   *   version probe that runs first, so the gate never extends a caller's
+   *   deadline. An abort rejects with an {@link OllamaAbortError}.
    */
   async systemOne<Q extends SystemOneQuestions = SystemOneQuestions>(
     request: SystemOneRequest<Q>,
+    options: { readonly signal?: AbortSignal } = {},
   ): Promise<SystemOneResponse<Q>> {
     // Model-dependent cloud gate (ADR 0036): a cloud model (e.g. clef:cloud)
     // through a LOCAL server needs Ollama >= 0.40.5. The hosted ollama.com
@@ -1013,15 +1019,17 @@ export class OllamaClient {
     // gate entirely (no version probe). Mirrors the runtime's 'auto' policy:
     // fail-open when the version cannot be determined — the server will
     // reject with its own error if it truly cannot front the request.
-    await this.assertCloudModelSupported(request.model);
-    // Delegate to the generated NativeApi. The cast through `unknown`
-    // is necessary because the generic SystemOneRequest<Q> extends but
-    // doesn't sufficiently overlap with the base SystemOneRequest for
-    // TypeScript's direct conversion check. The generic Q is purely a
-    // compile-time wrapper — the runtime behavior is identical.
-    return this.native.systemOne(
-      request as unknown as SystemOneRequestBase,
-    ) as Promise<SystemOneResponseBase> as Promise<SystemOneResponse<Q>>;
+    await this.assertCloudModelSupported(request.model, options.signal);
+    // Same operation and body as `native.systemOne`, plus the caller's signal.
+    // The generated NativeApi method takes no options, so the call goes
+    // through the runtime directly. The cast through `unknown` is because the
+    // generic SystemOneRequest<Q> does not overlap the base request type enough
+    // for a direct conversion; Q is purely a compile-time wrapper.
+    return this.runtime.invoke<SystemOneResponseBase>({
+      operation: systemOneOp,
+      body: request as unknown as SystemOneRequestBase,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    }) as Promise<SystemOneResponseBase> as Promise<SystemOneResponse<Q>>;
   }
 
   /**
@@ -1034,22 +1042,32 @@ export class OllamaClient {
    * so a later gated call retries), so at most one extra round-trip happens
    * across all gated calls.
    */
-  private async assertCloudModelSupported(model: string): Promise<void> {
+  private async assertCloudModelSupported(model: string, signal?: AbortSignal): Promise<void> {
     if (!isCloudModel(model)) return;
     const candidates = this.registry.candidates();
     const baseUrl = candidates[0]?.baseUrl ?? DEFAULT_BASE_URL;
     if (inferRuntimeMode(baseUrl) !== 'local') return; // hosted endpoint
+    if (this.serverVersionCache === undefined) {
+      this.serverVersionCache = this.native.version().then((v) => v.version);
+    }
+    const probe = this.serverVersionCache;
     let version: string | undefined;
     try {
-      if (this.serverVersionCache === undefined) {
-        this.serverVersionCache = this.native.version().then((v) => v.version);
-      }
-      version = await this.serverVersionCache;
-    } catch {
-      // Fail-open (matches the runtime's 'auto' enforceVersion policy): let
-      // the request through — the server's own response is the next signal.
-      // Drop the rejected probe so a later gated call can retry.
-      this.serverVersionCache = undefined;
+      // The probe is shared and cached, so the caller's signal races it rather
+      // than cancelling it: an impatient caller must not poison later calls.
+      version = await untilAborted(
+        probe,
+        signal,
+        'System One call aborted while probing the Ollama server version',
+      );
+    } catch (error) {
+      // The caller gave up: propagate the abort and keep the probe cached.
+      if (signal?.aborted) throw error;
+      // The probe itself failed. Fail open (matches the runtime's 'auto'
+      // enforceVersion policy): let the request through, since the server's own
+      // response is the next signal. Drop the rejected probe so a later gated
+      // call can retry.
+      if (this.serverVersionCache === probe) this.serverVersionCache = undefined;
       return;
     }
     if (version && compareOllamaVersions(version, CLOUD_MODEL_MIN_OLLAMA_VERSION) < 0) {

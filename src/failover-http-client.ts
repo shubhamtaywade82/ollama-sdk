@@ -84,15 +84,13 @@ export class FailoverHttpClient implements RuntimeHttpClient {
   async request<T>(options: HttpRequestOptions & { model?: string }): Promise<T> {
     const { model, ...httpOptions } = options;
     return this.client.executeWithFailover(
-      async (http, signal) => {
-        const mergedOptions: HttpRequestOptions = {
-          ...httpOptions,
-          ...(httpOptions.signal !== undefined ? { signal } : { signal }),
-        };
-        return http.request<T>(mergedOptions);
-      },
+      // The signal handed to the operation already combines the caller's signal
+      // (passed below) with the failover scope and timeout. Using it, rather than
+      // the caller's, keeps the request cancellable by `destroy()` as well.
+      async (http, signal) => http.request<T>({ ...httpOptions, signal }),
       {
         singleEndpoint: false,
+        ...(httpOptions.signal !== undefined ? { signal: httpOptions.signal } : {}),
         ...(model !== undefined ? { model } : {}),
       },
     );

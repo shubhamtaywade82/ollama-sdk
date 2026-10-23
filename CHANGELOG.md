@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.21.0] — `systemOne` takes a cancellation signal; the failover layer stops dropping caller signals (ADR 0037)
+
+The Decision Plane in nexum could not bound a System One call: its `AbortSignal` never reached the wire. Tracing that found a defect in the SDK, not in nexum. `FailoverHttpClient.request` replaced the caller's signal with the failover layer's own in every attempt, so a signal passed to any runtime operation that accepts one was silently ignored. [ADR 0037](./docs/adr/0037-systemone-signal-failover-cancellation.md) records the root cause and the declined alternatives.
+
+### Fixed — per-call signals are honoured
+
+- **`native.tags`, `native.ps`, `native.version`, `native.blobs`, and `runtime.invoke({ signal })`** now cancel in flight. They accepted the option and ignored it before this release. A caller that relied on the signal being ignored will now see an abort, and a caller that passes an already-aborted signal fails immediately without sending the request.
+
+### Added
+
+- **`client.systemOne(request, { signal })`.** The signal covers the whole call: the cloud-model version probe that runs first (ADR 0036), and the request on the wire. An abort rejects with `OllamaAbortError`. The probe is raced against the signal rather than cancelled, so one impatient caller cannot poison the cached probe for later calls.
+
+### Changed
+
+- `systemOne` calls `runtime.invoke` with the same operation and body that `NativeApi.systemOne` uses. Calls that pass no signal send the same request as before.
+
+### Docs
+
+- `docs-site/api/client.md` and `docs-site/guide/system-one.md` document the signal. ADR 0037 is added to both ADR indexes.
+
+### Notes — CHANGELOG tidy
+
+- Two `[Unreleased]` headings held entries that had already shipped. The 1.9.0-era entries (the IPv6 loopback fix, host normalization, and the digest work) now sit under 1.9.0, since their commits are in the `v1.9.0` tag. The MCP bridge and stdio entries now sit under "Releases 1.5.0 to 1.8.0", since their first commits are between `v1.5.0` and `v1.8.0`. There are still no release sections for 1.5.0, 1.5.1, or 1.6.0 in this file.
+
 ## [1.20.0] — Post-audit v1.19.1 refresh: re-pin 36a6e99, usage model grouping, ShowResponse prompt provenance, the 0.40.5 cloud-model gate
 
 The daily audit against the v1.19.1 baseline claimed "zero upstream drift since d9b8601, no action needed"; independent verification (raw content diff of upstream `docs/openapi.yaml` against the pin — the same discipline that caught the v1.19.0 audit's false row) found the headline false and two repository-internal defects besides. Two upstream commits had landed after the 2026-10-16 pin: `2476d5e` adds model grouping to cloud usage, and `36a6e99` populates `ShowResponse.renderer/parser` and adds `template_source`. Separately: the docs had promised since 1.19.0 that cloud models (`clef:cloud`) require "Ollama >= 0.40.5, enforced automatically" while only the blanket 0.35.0 floor was ever enforced, and `docs-index.json`'s `pinnedSha` silently lagged the pin by one refresh (nothing consumed it, no test covered it). All changes additive or gap-closing; no breaking changes (see [ADR 0036](./docs/adr/0036-post-audit-v1191-refresh-usage-grouping-cloud-gate.md)). 1087 pre-existing tests stay green, 14 net-new tests added.
@@ -393,18 +417,18 @@ A second full audit against the current official Ollama docs (`docs/openapi.yaml
 - Five runnable examples: `examples/vision-inputs.ts`, `examples/responses-bridge.ts`, `examples/conversation-session.ts`, `examples/context-safety.ts`, `examples/blob-publishing.ts` (`npm run example <file>`) — plus `examples/usage-balance.ts` from the docs-recheck pass.
 - 50 new unit tests (mocked fetch — CI-safe, no daemon): `test/vision-resolver.test.ts`, `test/responses-bridge.test.ts`, `test/conversation-session.test.ts`, `test/context-safety.test.ts`, `test/blob-helpers.test.ts` — plus 10 more in `test/usage-balance.test.ts`.
 
-## [Unreleased]
+### Also shipped in 1.9.0 (filed under Unreleased)
 
-### Fix: IPv6 loopback was classified as Ollama Cloud
+#### Fix: IPv6 loopback was classified as Ollama Cloud
 
 - `inferRuntimeMode()` compared `URL.hostname` to `'::1'`, but WHATWG URL reports an IPv6 literal with its brackets (`'[::1]'`), so `http://[::1]:11434` was classified as `cloud`. Structured-output (`format`) requests to a local Ollama on IPv6 loopback were therefore refused pre-flight with `OllamaUnsupportedCapabilityError`, and `localMode` was off for capability detection. The brackets are now stripped before comparing. Public IPv6 addresses are still `cloud`.
 
-### Host normalization and scoped `OLLAMA_API_KEY`
+#### Host normalization and scoped `OLLAMA_API_KEY`
 
 - **Base URL normalization.** `baseUrl`, `OLLAMA_HOST`, per-credential `baseUrl` and `endpoints[].baseUrl` now accept the bare forms the Ollama CLI accepts: `127.0.0.1:11434`, `0.0.0.0`, `:11434`, `myhost`. A missing scheme defaults to `http://`, a missing port on a scheme-less host defaults to `11434`, scheme-less port `443` selects `https://`, and `:port` means `127.0.0.1`. Full URLs and reverse-proxy path prefixes are unchanged. Previously a scheme-less value produced an invalid request URL.
 - **Behavior change: `OLLAMA_API_KEY` is no longer forwarded to arbitrary hosts.** The env-sourced key is applied to the default endpoint only when its host is Ollama Cloud (`ollama.com`, `*.ollama.com`) or loopback. An explicit `apiKey` is always sent, to any host. If you relied on `OLLAMA_API_KEY` for a LAN or proxied server, pass `apiKey` explicitly. Web search/fetch (always `https://ollama.com`) still use the env key.
 
-### Production-readiness audit — tool-call accumulator, mock server
+#### Production-readiness audit — tool-call accumulator, mock server
 
 - **Offline wire-format conformance tests** (`test/conformance/native-api-offline.test.ts`). The sibling `native-api.test.ts` hits a REAL Ollama server and skips when none is available. The new offline tests use `OllamaMockServer` to emit contract-shaped NDJSON frames without any model inference, so they run in every CI environment — including those without an Ollama daemon. They validate ONLY the wire format (schema conformance, error-class mapping, optional-field handling), NOT model behavior. The split exists because wire-format drift is a contract concern (catchable offline), while model-behavior drift is a server/model concern (only catchable against a live server). 22 new tests covering:
   - `GET /api/version`, `/api/tags`, `/api/ps`, `POST /api/show` schema conformance
@@ -416,7 +440,7 @@ A second full audit against the current official Ollama docs (`docs/openapi.yaml
   - `OllamaClient` vs `NativeApi` shape parity (mirrors the live parity test)
 - Updated `test/conformance/harness.ts` docstring to document the live-vs-offline split.
 
-### Production-readiness audit — tool-call accumulator, mock server
+#### Production-readiness audit — tool-call accumulator, mock server
 
 - **Defensive tool-call streaming accumulator (`src/tools/tool-call-accumulator.ts`).** The original `aggregateChat` in `src/streaming/normalize.ts` blindly appended every chunk's `tool_calls` array, which would produce duplicate entries if Ollama ever started streaming them incrementally. The new `ToolCallAccumulator` matches entries by `id` (the SDK-synthesized stable identifier) or by array position, and merges them with spread-semantics on `function.arguments`. For the documented native Ollama behavior (tool_calls arrive complete in one chunk), the accumulator is a no-op — one chunk carries the full array, the next chunk has nothing, and the accumulator appends exactly once. The accumulator is also exported for callers who want the same merge logic on raw NDJSON chunks.
   - New exports: `ToolCallAccumulator` class, `mergeToolCallArrays()` stateless helper, `mergeToolCall()` / `mergeToolCallArgumentsString()` / `isSameToolCall()` standalone helpers.
@@ -433,7 +457,7 @@ A second full audit against the current official Ollama docs (`docs/openapi.yaml
   - Idempotent `stop()` — safe to call from `afterEach` hooks without tracking whether `start()` ran.
   - Ephemeral port support (`port: 0`) for parallel test runs.
 
-### Second digest — mid-stream errors, 502/503 specialization, pull-progress ergonomics
+#### Second digest — mid-stream errors, 502/503 specialization, pull-progress ergonomics
 
 - **In-band stream-error trapping (NDJSON).** Ollama's streaming endpoints start with HTTP 200 OK and chunked transfer encoding; if generation fails mid-flight (GPU OOM, driver crash, context window overflow, model unload race), the server emits a final `{"error": "..."}` JSON frame and closes the stream. The HTTP status code never changes from 200, so HTTP-status-based error detection misses these errors entirely — they would silently bleed into the assistant's content stream as garbage tokens or undefined-field accesses.
   - `parseNdjsonStream` now detects bare `{"error": "..."}` frames and throws `OllamaStreamError` immediately, with the error message preserved.
@@ -469,7 +493,7 @@ A second full audit against the current official Ollama docs (`docs/openapi.yaml
   - Otherwise → `'unknown'` (caller should treat as "ask the model and see what it does").
   - The family is extracted from `/api/show`'s `model_info.*.architecture` (with fallbacks to `details.family` then `details.families[0]`).
 
-### First digest — VRAM lifecycle, fetchWithBackoff, System One image caps, done_reason decoder
+#### First digest — VRAM lifecycle, fetchWithBackoff, System One image caps, done_reason decoder
 
 - **VRAM lifecycle primitives.** Added ergonomic helpers for explicit GPU memory management, addressing the upstream `keep_alive` semantics documented in the Ollama FAQ:
   - `KeepAlive` type union (`string | number | 'unload' | 'indefinite'`) and `normalizeKeepAlive()` helper map the SDK-level sugar literals `'unload'` and `'indefinite'` to the wire-level `0` and `-1` sentinels.
@@ -527,7 +551,7 @@ A second full audit against the current official Ollama docs (`docs/openapi.yaml
 
 - MCP tool arguments are now validated against advertised JSON Schema constraints before dispatch, while `resultMode: 'structured'` preserves raw MCP `CallToolResult` objects for programmatic consumers.
 
-## [Unreleased]
+## Releases 1.5.0 to 1.8.0 (filed under Unreleased)
 
 - **MCP bridge hardening.** MCP tool discovery now supports bounded pagination, repeated-cursor protection, request cancellation, richer MCP metadata types, and structured/non-text result preservation.
 - **Optional Node MCP stdio adapter.** `@nemesis-oss/ollama-sdk/mcp/stdio` connects to local MCP servers using the official `@modelcontextprotocol/client` v2 transport without importing Node-only code into the root package.

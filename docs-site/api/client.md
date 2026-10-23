@@ -152,15 +152,18 @@ All model operations delegate to `ModelsClient` and target one specific endpoint
 
 ## System One
 
-### `systemOne(request)`
+### `systemOne(request, options?)`
 
 ```typescript
 systemOne<Q extends SystemOneQuestions = SystemOneQuestions>(
   request: SystemOneRequest<Q>,
+  options?: { readonly signal?: AbortSignal },
 ): Promise<SystemOneResponse<Q>>;
 ```
 
 Ollama's System One decision layer (`POST /v1/systemone`). Local and cloud (since the 2026-10-16 upstream cloud launch — `model` accepts cloud models such as `clef:cloud`, needing Ollama >= 0.40.5 or the hosted endpoint); requires Ollama >= 0.35.0 locally. The generic `Q` captures the caller's question map at compile time, giving key-safe answer access. See [System One Decisions](../guide/system-one).
+
+`options.signal` cancels the whole call: the cloud-model version probe that runs first, and the request on the wire. An abort rejects with `OllamaAbortError` (`code: 'aborted'`). Since 1.21.0 the signal reaches the wire for every runtime operation that accepts one; earlier releases silently dropped it (ADR 0037).
 
 ### `decision` (accessor)
 
