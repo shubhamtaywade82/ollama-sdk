@@ -75,3 +75,87 @@ describe('pin consistency: docs-index.json matches the pinned OpenAPI header', (
     expect(openapiText).toContain('template_source');
   });
 });
+
+describe('pin consistency: mdx pins match docs-index.json (since 2026-10-23)', () => {
+  // ADR 0038: the two compatibility MDX pins used to carry no provenance at
+  // all — the openai pin sat 11 days stale while upstream added the whole
+  // /v1/audio/speech section, and the anthropic pin missed the 2026-10-13
+  // model-recs removal, all behind a passing build. The same discipline the
+  // openapi pin got in ADR 0036 now applies here: the header records the
+  // last upstream commit touching the repo's docs/api/*.mdx source and the
+  // refresh date, and docs-index must agree.
+  const index = JSON.parse(readFileSync(DOCS_INDEX_PATH, 'utf8')) as {
+    sources: ReadonlyArray<{
+      id: string;
+      kind: string;
+      path: string | null;
+      upstream: string;
+      pinnedSha?: string;
+      pinnedAt?: string;
+    }>;
+  };
+  const mdxSources = index.sources.filter((s) => s.kind === 'mdx');
+
+  interface MdxPinHeader {
+    url: string;
+    date: string;
+    sha: string;
+  }
+
+  function readPinHeader(path: string): MdxPinHeader | undefined {
+    const text = readFileSync(resolve(PROJECT_ROOT, path), 'utf8');
+    const match = text.match(/Pinned from (\S+) on (\d{4}-\d{2}-\d{2}) \(source SHA: ([0-9a-f]{40})\)\./);
+    if (!match) return undefined;
+    return { url: match[1] ?? '', date: match[2] ?? '', sha: match[3] ?? '' };
+  }
+
+  it('docs-index records pinnedSha and pinnedAt for every mdx source', () => {
+    expect(mdxSources.length).toBe(2);
+    for (const source of mdxSources) {
+      expect(source.pinnedSha, `${source.id} pinnedSha`).toMatch(/^[0-9a-f]{40}$/);
+      expect(source.pinnedAt, `${source.id} pinnedAt`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('each mdx pin header carries the same sha and date as docs-index', () => {
+    for (const source of mdxSources) {
+      if (source.path === null) continue;
+      const header = readPinHeader(source.path);
+      expect(header, `${source.id} pin has a parseable header line`).toBeDefined();
+      expect(header?.sha).toBe(source.pinnedSha);
+      expect(header?.date).toBe(source.pinnedAt);
+    }
+  });
+
+  it('the openai pin documents the 2026-10-23 refresh (/v1/audio/speech)', () => {
+    const openaiPin = readFileSync(
+      resolve(PROJECT_ROOT, 'docs/upstream/ollama-openai-compatibility.mdx'),
+      'utf8',
+    );
+    // The refresh marker for upstream 6ef847b8 (Phonon TTS docs): the audio
+    // section with its supported/unsupported field matrix must be IN the pin.
+    expect(openaiPin).toContain('`/v1/audio/speech`');
+    expect(openaiPin).toContain('`stream_format`');
+    expect(openaiPin).toContain('`instructions`');
+  });
+
+  it('the anthropic pin reflects the 2026-10-13 upstream edit (model-recs list retired)', () => {
+    const anthropicPin = readFileSync(
+      resolve(PROJECT_ROOT, 'docs/upstream/ollama-anthropic-compatibility.mdx'),
+      'utf8',
+    );
+    // Upstream 33a3afa6 replaced the "Recommended local models" list with a
+    // Models-page link. The pin must not still carry the retired list.
+    expect(anthropicPin).not.toContain('Excellent for coding tasks');
+    // The compat surface itself is unchanged.
+    expect(anthropicPin).toContain('/v1/messages');
+  });
+
+  it('no raw base64 image payloads remain in the mdx pins', () => {
+    for (const source of mdxSources) {
+      if (source.path === null) continue;
+      const text = readFileSync(resolve(PROJECT_ROOT, source.path), 'utf8');
+      expect(text, `${source.id} pin elides base64`).not.toMatch(/base64,[A-Za-z0-9+/]{40,}/);
+    }
+  });
+});

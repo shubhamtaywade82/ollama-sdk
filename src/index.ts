@@ -392,6 +392,8 @@ export {
   type OllamaOpenAIEmbeddingRequest,
   type OpenAIEmbeddingItem,
   type OpenAIEmbeddingResponse,
+  type OpenAISpeechRequest,
+  type OllamaOpenAISpeechRequest,
   type OpenAIResponsesRequest,
   type OllamaOpenAIResponsesRequest,
   type OpenAIResponsesResponse,

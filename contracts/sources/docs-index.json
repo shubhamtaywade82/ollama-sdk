@@ -1,5 +1,5 @@
 {
-  "$comment": "Index of every upstream docs source the contract system consults. Adding a new source here makes the bidirectional discovery validator aware of it. See generator/parser/docs.ts. For the openapi source, pinnedSha records the upstream main COMMIT SHA from the pin header (unified on commit SHAs since the 2026-10-22 refresh — previously a blob SHA that silently lagged the pin); test/contract/pin-consistency.test.ts asserts it matches the header.",
+  "$comment": "Index of every upstream docs source the contract system consults. Adding a new source here makes the bidirectional discovery validator aware of it. See generator/parser/docs.ts. For the openapi source, pinnedSha records the upstream main COMMIT SHA from the pin header (unified on commit SHAs since the 2026-10-22 refresh — previously a blob SHA that silently lagged the pin). Since the 2026-10-23 refresh the mdx sources carry pinnedSha/pinnedAt too: pinnedSha is the last upstream commit touching the repo's docs/api/*.mdx source (the rendered markdown twin is what we pin, but its provenance anchor is that commit), pinnedAt is the refresh date; test/contract/pin-consistency.test.ts asserts both stay in lockstep with each pin's header.",
   "version": 1,
   "sources": [
     {
@@ -14,13 +14,17 @@
       "id": "openai-compatibility",
       "kind": "mdx",
       "path": "docs/upstream/ollama-openai-compatibility.mdx",
-      "upstream": "https://docs.ollama.com/api/openai-compatibility"
+      "upstream": "https://docs.ollama.com/api/openai-compatibility",
+      "pinnedSha": "6ef847b8fef4fef0e8d48a66517887d3b2fdbe21",
+      "pinnedAt": "2026-10-23"
     },
     {
       "id": "anthropic-compatibility",
       "kind": "mdx",
       "path": "docs/upstream/ollama-anthropic-compatibility.mdx",
-      "upstream": "https://docs.ollama.com/api/anthropic-compatibility"
+      "upstream": "https://docs.ollama.com/api/anthropic-compatibility",
+      "pinnedSha": "33a3afa604b4e5c90263f006d979bc433d39c38d",
+      "pinnedAt": "2026-10-23"
     },
     {
       "id": "native-docs",
