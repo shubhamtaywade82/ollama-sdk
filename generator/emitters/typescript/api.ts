@@ -236,7 +236,17 @@ export function emitDomainApi(
   // The generated runtime JSON-encodes request bodies, so binary-body
   // operations are handled by the hand-written OllamaClient methods.
   // They're in the IR for endpoint-discovery completeness only.
-  const BINARY_BODY_OPS = new Set(['createBlob']);
+  //
+  // v1.22.0 (ADR 0038): also skip operations whose RESPONSE is a binary
+  // byte stream — openaiAudioSpeech streams raw 16-bit mono 24 kHz audio,
+  // which none of the runtime's transport modes (json/ndjson/sse) can
+  // deliver. Same consequence as createBlob: declared in the IR for
+  // endpoint-discovery completeness and parity tracking only; the typed
+  // request shape lives in src/integrations/openai.ts and callers reach
+  // the endpoint through their own HTTP layer until an audio transport
+  // lands. Keep in sync with BINARY_TRANSPORT_MCP_EXCLUSIONS in
+  // generator/emitters/mcp/tools.ts.
+  const BINARY_BODY_OPS = new Set(['createBlob', 'openaiAudioSpeech']);
   const domainOps = operations.filter(
     (op) => op.domain === domain && !op.host && !BINARY_BODY_OPS.has(op.id),
   );

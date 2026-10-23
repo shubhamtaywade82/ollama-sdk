@@ -217,16 +217,20 @@ function annotationsFor(op: OperationContract): McpToolDescriptor['annotations']
 }
 
 /**
- * Wave 17 (P0): operations excluded from generated MCP tools because they
- * require binary request bodies (application/octet-stream) that the
- * generated runtime's JSON-encoding path cannot handle. These operations
- * are in the IR for endpoint-discovery completeness and are accessible
- * via the hand-written OllamaClient methods (e.g. createBlob), but they
- * must not be advertised as executable MCP tools — that would mislead
- * MCP consumers into calling a tool that cannot actually perform the
- * operation.
+ * Wave 17 (P0) / v1.22.0 (ADR 0038): operations excluded from generated MCP
+ * tools because the generated runtime cannot transport them:
+ *   - createBlob requires a binary request body (application/octet-stream)
+ *     that the runtime's JSON-encoding path cannot handle (accessible via
+ *     the hand-written OllamaClient.createBlob());
+ *   - openaiAudioSpeech streams a raw binary audio response (16-bit mono
+ *     24 kHz) that none of the transport modes (json/ndjson/sse) can
+ *     deliver — declared in the IR for endpoint-discovery completeness and
+ *     parity tracking only.
+ * Advertising either as an executable MCP tool would mislead MCP consumers
+ * into calling a tool that cannot actually perform the operation. Keep in
+ * sync with BINARY_BODY_OPS in generator/emitters/typescript/api.ts.
  */
-const BINARY_BODY_MCP_EXCLUSIONS = new Set(['createBlob']);
+const BINARY_TRANSPORT_MCP_EXCLUSIONS = new Set(['createBlob', 'openaiAudioSpeech']);
 
 /** Build the list of MCP tool descriptors from the IR. */
 export function buildToolDescriptors(
@@ -235,7 +239,7 @@ export function buildToolDescriptors(
 ): readonly McpToolDescriptor[] {
   const lookup = new Map(schemas.map((s) => [s.name, s] as const));
   return operations
-    .filter((op) => op.status.documented && !BINARY_BODY_MCP_EXCLUSIONS.has(op.id))
+    .filter((op) => op.status.documented && !BINARY_TRANSPORT_MCP_EXCLUSIONS.has(op.id))
     .map((op): McpToolDescriptor => {
       const reqRef = op.request?.$ref
         ?.replace(/^#\/schemas\//, '')

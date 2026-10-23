@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.22.0] — `/v1/audio/speech` recorded as a generation-excluded contract operation; MDX pin provenance for every docs source
+
+The second daily audit claimed "zero upstream drift since d9b8601" while verifying the v1.20.0 release that had absorbed exactly the two commits landing after that (retired) pin — and missed real in-window documentation drift besides: upstream `6ef847b8` ("mlxrunner: add Phonon text-to-speech support", 2026-10-22 18:36 UTC) added a `### /v1/audio/speech` section to the OpenAI-compatibility page inside the audit's own 24-hour window. The endpoint is documented (Ollama v0.40.8+; `model`/`input` ≤ 4,096 chars/`voice`/`response_format` `wav`+`pcm`/`speed` `1`/`stream_format` `audio` supported; `instructions` and the `mp3`/`opus`/`aac`/`flac` formats unsupported; 16-bit mono 24 kHz; unsupported values rejected with `400`) but absent from upstream's own `openapi.yaml` — docs ahead of spec, so no openapi re-pin. The live openapi content itself is byte-identical to the `36a6e99` pin (raw sha256 `e94c8f02…`), confirming zero *spec* drift; the audit's error was the anchor and the unchecked MDX surfaces. This release closes the documentation-alignment gap (see [ADR 0038](./docs/adr/0038-audio-speech-contract-mdx-pin-provenance.md)). 1125 pre-existing tests stay green (including the 1.21.0 cancellation-signal suite), 8 net-new tests added.
+
+### `/v1/audio/speech` — documented, typed, deliberately not transported
+
+- The operation is now declared in `contracts/overlays/openai.yaml` (POST, local+cloud, `minOllamaVersion: 0.40.8`, `experimental`) with its full field-matrix `parity` block — six supported fields, `instructions` unsupported, four nested unsupported `response_format` values — so the bidirectional discovery validator (27 declared / 26 discovered, no drift) and the live-docs parity verifier both track it.
+- Its response is a raw audio byte stream; none of the runtime's transports (`json`/`ndjson`/`sse`) can deliver it. Following the `createBlob` precedent, the op is **excluded from the generated `OpenAIApi` class and from MCP tools** (binary-transport exclusion sets in both emitters, kept in sync by a test) — advertising an executable method or tool the runtime cannot back would be a footgun. The `OperationDefinition` is still emitted for IR visibility.
+- The typed request ships instead: `OpenAISpeechRequest` (broad — full OpenAI `response_format`/`speed` unions for drop-in interop, with `@remarks` recording that Ollama rejects unsupported *values* with `400`, unlike the usual accept-and-ignore contract) and the strict `OllamaOpenAISpeechRequest` (`wav`/`pcm` only, `speed: 1` only, no `instructions`), exported from the integrations surface for callers driving the endpoint over their own HTTP layer until an audio transport lands.
+
+### MDX pin provenance — the last untracked sources
+
+- Both compatibility MDX pins are refreshed from the live `docs.ollama.com` twins (`scripts/refresh-mdx-pins.ts`): the openai pin picks up the audio section (upstream `6ef847b8`), the anthropic pin picks up the retired "Recommended local models" list (upstream `33a3afa6`, 2026-10-13 — two days after the previous pin; compat tables unchanged).
+- Each pin header now carries a machine-parseable provenance line — `Pinned from <url> on <date> (source SHA: <40-hex>)` — and `contracts/sources/docs-index.json` records `pinnedSha`/`pinnedAt` for both mdx sources. New pin-consistency tests assert header/index agreement, refresh-content markers, and base64 elision: a stale MDX pin can no longer hide behind a passing build, closing the exact defect class ADR 0036 fixed for the openapi source.
+
+### Docs
+
+- New [ADR 0038](./docs/adr/0038-audio-speech-contract-mdx-pin-provenance.md) recording the generation-exclusion decision (with the declined alternatives — including why the endpoint is *not* a curated openapi addition à la System One), the MDX provenance design, and the drift-anchor correction. ADR indexes updated (`docs/adr/README.md`, `docs-site/adr/index.md`).
+- The docs-site OpenAI-compat guide's support table gains the `/v1/audio/speech` row plus a note explaining the recorded-but-not-transported status.
+- Watch items carried (not acted on, all code-ahead-of-docs): upstream `816c36ac` (Responses-stream failure preservation) and `e61ba8b4` (reasoning before client tool calls) on the OpenAI bridge; `a79f7d74` (thinking reuse for web search) and the standing `efabf6bc` (mid-stream error events) on the Anthropic bridge. Tomorrow's audit must anchor drift tracking on `36a6e99` (openapi) and `6ef847b8`/`33a3afa6` (MDX pins) — never the retired `d9b8601`.
+
 ## [1.21.0] — `systemOne` takes a cancellation signal; the failover layer stops dropping caller signals (ADR 0037)
 
 The Decision Plane in nexum could not bound a System One call: its `AbortSignal` never reached the wire. Tracing that found a defect in the SDK, not in nexum. `FailoverHttpClient.request` replaced the caller's signal with the failover layer's own in every attempt, so a signal passed to any runtime operation that accepts one was silently ignored. [ADR 0037](./docs/adr/0037-systemone-signal-failover-cancellation.md) records the root cause and the declined alternatives.

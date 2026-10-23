@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "147ef9a0bd164b57",
+  "sourceHash": "8027c57865861a99",
   "operations": [
     {
       "id": "balance",
@@ -960,6 +960,61 @@
         "Requires an Ollama Cloud API key (set via OllamaClient credentials).",
         "Use OllamaClient.webSearch() — the generated NativeApi class does not expose this operation."
       ]
+    },
+    {
+      "id": "openaiAudioSpeech",
+      "method": "POST",
+      "path": "/v1/audio/speech",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {
+        "minOllamaVersion": "0.40.8"
+      },
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Generates audio with speech models; the response is a raw audio byte stream (16-bit mono, 24 kHz), not JSON/NDJSON/SSE — the generated runtime cannot transport it.",
+        "Recorded for endpoint-discovery completeness and docs parity tracking; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).",
+        "The typed request shape is exported as OpenAISpeechRequest (src/integrations/openai.ts) for direct use until an audio transport lands."
+      ],
+      "parity": {
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "model",
+            "input",
+            "voice",
+            "response_format",
+            "speed",
+            "stream_format"
+          ],
+          "unsupportedFields": [
+            "instructions"
+          ],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [
+            "response_format.mp3",
+            "response_format.opus",
+            "response_format.aac",
+            "response_format.flac"
+          ],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "OpenAISpeechRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
     },
     {
       "id": "openaiChatCompletions",
