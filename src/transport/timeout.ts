@@ -2,7 +2,7 @@
  * AbortSignal and timeout management for HTTP requests.
  */
 
-import { OllamaTimeoutError } from '../errors.js';
+import { OllamaAbortError, OllamaTimeoutError } from '../errors.js';
 
 export interface TimeoutSignal {
   readonly signal: AbortSignal;
@@ -51,4 +51,35 @@ export function createTimeoutSignal(timeoutMs?: number, userSignal?: AbortSignal
   };
 
   return { signal: controller.signal, cancel };
+}
+
+/**
+ * Waits for `promise`, rejecting with an {@link OllamaAbortError} as soon as
+ * `signal` aborts. The promise itself is not cancelled: it may be shared with
+ * other callers (the cached cloud-model version probe is one), so one caller's
+ * abort must not reject it for everyone.
+ */
+export function untilAborted<T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+  message: string,
+): Promise<T> {
+  if (signal === undefined) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(new OllamaAbortError(message));
+    // Always subscribe, even when already aborted: a probe that later rejects
+    // then has a handler and cannot surface as an unhandled rejection.
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  });
 }

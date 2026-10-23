@@ -5,7 +5,11 @@ import { OllamaClient } from '../src/client.js';
 import { NativeApi } from '../src/generated/api/native-api.js';
 import { OllamaRuntime } from '../src/generated/runtime/runtime.js';
 import { HttpClient } from '../src/transport/http.js';
-import { OllamaRequestTooLargeError } from '../src/errors.js';
+import {
+  OllamaAbortError,
+  OllamaCloudModelVersionError,
+  OllamaRequestTooLargeError,
+} from '../src/errors.js';
 import { systemOneOp } from '../src/generated/api/operations.js';
 import { SystemOneRequestSchema } from '../src/generated/models/SystemOneRequest.schema.js';
 import type { SystemOneRequest, SystemOneResponse } from '../src/system-one.js';
@@ -573,9 +577,8 @@ describe('System One cloud-model version gate (ADR 0036)', () => {
   }
 
   it('isCloudModel and compareOllamaVersions basics (numeric, not lexicographic)', async () => {
-    const { isCloudModel, compareOllamaVersions, CLOUD_MODEL_MIN_OLLAMA_VERSION } = await import(
-      '../src/system-one.js'
-    );
+    const { isCloudModel, compareOllamaVersions, CLOUD_MODEL_MIN_OLLAMA_VERSION } =
+      await import('../src/system-one.js');
     expect(isCloudModel('clef:cloud')).toBe(true);
     expect(isCloudModel('tev1:4b')).toBe(false);
     expect(isCloudModel('cloud')).toBe(false); // suffix must be a tag, not the whole name
@@ -734,5 +737,162 @@ describe('Wave 13: System One — contract integrity', () => {
     // The inline schemas block should be gone.
     expect(overlay).not.toContain('SystemOneChoiceQuestion:');
     expect(overlay).not.toContain('SystemOneYesNoQuestion:');
+  });
+});
+
+describe('System One — caller cancellation (ADR 0037)', () => {
+  const localRequest: SystemOneRequest = {
+    model: 'tev1:4b',
+    state: 'test',
+    questions: { q: { type: 'noul', instructions: '?' } },
+  };
+  const cloudRequest: SystemOneRequest = { ...localRequest, model: 'clef:cloud' };
+  const jsonHeaders = { 'content-type': 'application/json' };
+  const versionReply = (version: string): Response =>
+    new Response(JSON.stringify({ version }), { status: 200, headers: jsonHeaders });
+
+  /**
+   * Answers `/api/version` with 0.41.0 and stalls every request whose URL
+   * contains `path` until its signal aborts, like a real fetch would.
+   */
+  function fetchStalling(
+    path: string,
+    onStall: (signal: AbortSignal) => void,
+  ): typeof globalThis.fetch {
+    return ((url: string | URL | Request, init?: RequestInit) => {
+      if (!String(url).includes(path)) return Promise.resolve(versionReply('0.41.0'));
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal as AbortSignal;
+        onStall(signal);
+        if (signal.aborted) reject(signal.reason);
+        else signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    }) as unknown as typeof globalThis.fetch;
+  }
+
+  it('cancels the wire request when the caller aborts', async () => {
+    let stalled!: () => void;
+    const onStall = new Promise<void>((resolve) => {
+      stalled = resolve;
+    });
+    let wireSignal: AbortSignal | undefined;
+    const client = new OllamaClient({
+      baseUrl: 'http://localhost:11434',
+      retries: 0,
+      timeoutMs: 0,
+      fetch: fetchStalling('/v1/systemone', (signal) => {
+        wireSignal = signal;
+        stalled();
+      }),
+    });
+    const controller = new AbortController();
+
+    const pending = client.systemOne(localRequest, { signal: controller.signal });
+    await onStall;
+    controller.abort(new Error('caller gave up'));
+
+    await expect(pending).rejects.toThrow();
+    expect(wireSignal?.aborted).toBe(true);
+  });
+
+  it('bounds a stalled cloud-version probe by the caller signal, and never sends the request', async () => {
+    let probeRequested!: () => void;
+    const probeSeen = new Promise<void>((resolve) => {
+      probeRequested = resolve;
+    });
+    const systemOneUrls: string[] = [];
+    const fetchImpl = ((url: string | URL | Request, init?: RequestInit) => {
+      if (!String(url).includes('/api/version')) {
+        systemOneUrls.push(String(url));
+        return Promise.resolve(versionReply('0.41.0'));
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal as AbortSignal;
+        probeRequested();
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const client = new OllamaClient({
+      baseUrl: 'http://localhost:11434',
+      retries: 0,
+      timeoutMs: 0,
+      fetch: fetchImpl,
+    });
+    const controller = new AbortController();
+
+    const pending = client.systemOne(cloudRequest, { signal: controller.signal });
+    await probeSeen;
+    controller.abort(new Error('deadline'));
+
+    await expect(pending).rejects.toBeInstanceOf(OllamaAbortError);
+    expect(systemOneUrls).toEqual([]);
+  });
+
+  it('an aborted caller does not poison the shared version probe for the next call', async () => {
+    let probeRequested!: () => void;
+    const probeSeen = new Promise<void>((resolve) => {
+      probeRequested = resolve;
+    });
+    let releaseProbe!: (version: string) => void;
+    const probeReply = new Promise<string>((resolve) => {
+      releaseProbe = resolve;
+    });
+    let systemOneCalls = 0;
+    const fetchImpl = (async (url: string | URL | Request) => {
+      if (String(url).includes('/api/version')) {
+        probeRequested();
+        const version = await probeReply;
+        return versionReply(version);
+      }
+      systemOneCalls += 1;
+      return new Response(JSON.stringify({ model: 'clef:cloud', answers: {} }), {
+        status: 200,
+        headers: jsonHeaders,
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const client = new OllamaClient({
+      baseUrl: 'http://localhost:11434',
+      retries: 0,
+      timeoutMs: 0,
+      fetch: fetchImpl,
+    });
+    const impatient = new AbortController();
+
+    const first = client.systemOne(cloudRequest, { signal: impatient.signal });
+    await probeSeen;
+    impatient.abort(new Error('gave up'));
+    await expect(first).rejects.toBeInstanceOf(OllamaAbortError);
+
+    // The probe was never cancelled, so its answer is cached and gates this call.
+    releaseProbe('0.39.0');
+    await expect(client.systemOne(cloudRequest)).rejects.toBeInstanceOf(
+      OllamaCloudModelVersionError,
+    );
+    expect(systemOneCalls).toBe(0);
+  });
+
+  it('applies to every runtime operation that takes a signal, not only systemOne', async () => {
+    let stalled!: () => void;
+    const onStall = new Promise<void>((resolve) => {
+      stalled = resolve;
+    });
+    let wireSignal: AbortSignal | undefined;
+    const client = new OllamaClient({
+      baseUrl: 'http://localhost:11434',
+      retries: 0,
+      timeoutMs: 0,
+      fetch: fetchStalling('/api/tags', (signal) => {
+        wireSignal = signal;
+        stalled();
+      }),
+    });
+    const controller = new AbortController();
+
+    const pending = client.native.tags({ signal: controller.signal });
+    await onStall;
+    controller.abort(new Error('stop listing models'));
+
+    await expect(pending).rejects.toThrow();
+    expect(wireSignal?.aborted).toBe(true);
   });
 });
