@@ -395,6 +395,51 @@ export interface OpenAIEmbeddingResponse {
 }
 
 /**
+ * Request body for OpenAI's speech endpoint (`/v1/audio/speech`), added in
+ * Ollama v0.40.8 with the Phonon text-to-speech models.
+ *
+ * @remarks
+ * The response is a raw audio byte stream (16-bit mono, 24 kHz) — `wav` by
+ * default, or headerless little-endian `pcm` samples — not JSON, so the SDK's
+ * generated transports (json/ndjson/sse) do not cover this endpoint yet; the
+ * typed request is exported for callers driving the endpoint over their own
+ * HTTP layer (see ADR 0037). Unlike other unsupported fields, Ollama rejects
+ * unsupported VALUES here with a `400` instead of ignoring them.
+ */
+export interface OpenAISpeechRequest {
+  readonly model: string;
+  /** Text to synthesize — up to 4,096 characters. */
+  readonly input: string;
+  /** One of the model's voice names (such as `Freya`); omit for the model's default. */
+  readonly voice?: string | undefined;
+  /**
+   * `wav` is the default. `mp3`, `opus`, `aac`, and `flac` are documented as
+   * unsupported — typed for OpenAI interop, but the server returns a `400`.
+   */
+  readonly response_format?: 'wav' | 'pcm' | 'mp3' | 'opus' | 'aac' | 'flac' | undefined;
+  /** Only `1` is supported; other values return a `400`. */
+  readonly speed?: number | undefined;
+  /** Only `audio` is supported — the response streams while audio is generated. */
+  readonly stream_format?: 'audio' | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop, ignored by the server. */
+  readonly instructions?: string | undefined;
+}
+
+/**
+ * Strict Ollama-documented speech request: excludes `instructions` (documented
+ * as unsupported) and narrows `response_format` to the supported `wav`/`pcm`
+ * and `speed` to the supported `1`, so unsupported values are compile-time
+ * errors instead of runtime `400`s.
+ */
+export type OllamaOpenAISpeechRequest = Omit<
+  OpenAISpeechRequest,
+  'response_format' | 'speed' | 'instructions'
+> & {
+  readonly response_format?: 'wav' | 'pcm' | undefined;
+  readonly speed?: 1 | undefined;
+};
+
+/**
  * Request body for OpenAI's Responses API (`/v1/responses`), added in Ollama v0.13.3.
  *
  * @remarks

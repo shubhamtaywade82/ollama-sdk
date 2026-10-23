@@ -11,6 +11,13 @@
 # `fields`, `[ ]` entries are `unsupportedFields` (still typed on the broad
 # OpenAI* request interfaces for drop-in interop, excluded from the strict
 # OllamaOpenAI* request types).
+#
+# openaiAudioSpeech (added 2026-10-23, upstream docs commit 6ef847b8 —
+# documented ahead of upstream's own openapi.yaml) is declared for
+# endpoint-discovery completeness and field-matrix parity, but is excluded
+# from the generated API class and MCP tools: its response is a raw audio
+# byte stream the generated runtime cannot transport (the createBlob
+# precedent — see ADR 0037).
 
 version: 1
 service: ollama
@@ -205,6 +212,49 @@ operations:
           - 'OpenAIResponsesCompletedEvent'
           - 'OpenAIResponsesFailedEvent'
           - 'OpenAIResponsesIncompleteEvent'
+  openaiAudioSpeech:
+    path: /v1/audio/speech
+    method: POST
+    runtime:
+      # Truth: the response streams while audio is generated. transport stays
+      # 'json' (the request body IS JSON) and is inert for this operation —
+      # it is excluded from the generated API class and MCP tools because the
+      # runtime has no binary-audio response transport (createBlob precedent:
+      # declared in the IR for endpoint-discovery completeness only).
+      streaming: supported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    compatibility:
+      minVersion: '0.40.8'
+    status:
+      documented: true
+      experimental: true
+    notes:
+      - 'Generates audio with speech models; the response is a raw audio byte stream (16-bit mono, 24 kHz), not JSON/NDJSON/SSE — the generated runtime cannot transport it.'
+      - 'Recorded for endpoint-discovery completeness and docs parity tracking; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).'
+      - 'The typed request shape is exported as OpenAISpeechRequest (src/integrations/openai.ts) for direct use until an audio transport lands.'
+    parity:
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAISpeechRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'model'
+          - 'input'
+          - 'voice'
+          - 'response_format'
+          - 'speed'
+          - 'stream_format'
+        unsupportedFields:
+          - 'instructions'
+        nestedUnsupportedFields:
+          - 'response_format.mp3'
+          - 'response_format.opus'
+          - 'response_format.aac'
+          - 'response_format.flac'
   openaiModels:
     path: /v1/models
     method: GET

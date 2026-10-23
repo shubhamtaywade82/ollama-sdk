@@ -292,8 +292,28 @@ async function verifyOperationLiveDocs(
     // Nested unsupported fields must have evidence.
     const nestedUnsupported = parity.request.nestedUnsupportedFields;
     const nestedEvidence = unsupportedSection || fallbackUnsupportedSection;
+    // v1.21.0 (ADR 0037): the OpenAI-compat page documents nested value
+    // restrictions as unchecked checkbox items under a supported parent —
+    // `* [ ] \`mp3\`, \`opus\`, \`aac\`, \`flac\`` nested under
+    // `* [x] \`response_format\``. The first value on such a line is caught
+    // by the exact checkbox matcher in docsFieldStatus, but the rest only
+    // appear as backticked mentions on an unchecked line, which the token
+    // fallback would misread as 'supported'. An unchecked-checkbox line
+    // that mentions the leaf IS explicit unsupported evidence.
+    const uncheckedMentions = (section: string, leaf: string): boolean =>
+      section
+        .split(/\r?\n/)
+        .some((line) => /^\s*[-*] \[ \]/.test(line) && line.includes('`' + leaf + '`'));
     const invalidNested = nestedUnsupported.filter((path) => {
       const leaf = nestedFieldName(path);
+      const liveRequestFields = requestFieldSection(docs!, op.path);
+      const fallbackRequestFields = requestFieldSection(fallbackDocs, op.path) || fallbackDocs;
+      if (firstKnownStatus(liveRequestFields, fallbackRequestFields, [leaf]) === 'unsupported') {
+        return false;
+      }
+      if (uncheckedMentions(liveRequestFields || fallbackRequestFields, leaf)) {
+        return false;
+      }
       return (
         !docsMentionField(nestedEvidence, [leaf]) &&
         !explicitlyUnsupported(nestedEvidence, [leaf]) &&

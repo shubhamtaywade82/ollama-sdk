@@ -1,10 +1,17 @@
 <!--
-Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-10-11.
+Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-10-23 (source SHA: 6ef847b8fef4fef0e8d48a66517887d3b2fdbe21).
 Offline fallback for scripts/verify-contract-parity.ts. Fetched as markdown so the
 `[x]` / `[ ]` checkbox state (supported vs explicitly unsupported) is preserved.
+The source SHA is the last upstream commit touching ollama/ollama docs/api/openai-compatibility.mdx;
+the rendered twin differs from that source in site plumbing only (it prefixes the
+site's llms.txt index preamble, unwraps Mintlify CodeGroup components, and appends
+`.md` to internal doc links) — all parse-neutral for parity verification and
+endpoint discovery. The 2026-10-23 refresh picks up upstream 6ef847b8 (Phonon text-to-speech): the page gains the /v1/audio/speech section (Ollama v0.40.8+, wav/pcm, 16-bit mono 24 kHz) with its supported/unsupported request-field matrix.
 Inline base64 image payloads are elided.
 -->
-
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.ollama.com/llms.txt
+> Use this file to discover all available pages before exploring further.
 
 # OpenAI compatibility
 
@@ -44,167 +51,161 @@ Choose a [cloud model](https://ollama.com/search?c=cloud). The cloud API does no
 
 ## Local server usage
 
-These examples connect to your local Ollama server. The client requires an API key value, but Ollama ignores it. To use cloud models through this server, [sign in to Ollama](/api/authentication#signing-in).
+These examples connect to your local Ollama server. The client requires an API key value, but Ollama ignores it. To use cloud models through this server, [sign in to Ollama](/api/authentication.md#signing-in).
 
 ### Simple `/v1/chat/completions` example
 
-<CodeGroup dropdown>
-  ```python basic.py theme={"system"}
-  from openai import OpenAI
+```python basic.py theme={"system"}
+from openai import OpenAI
 
-  client = OpenAI(
-      base_url='http://localhost:11434/v1/',
-      api_key='ollama',  # required but ignored
-  )
+client = OpenAI(
+    base_url='http://localhost:11434/v1/',
+    api_key='ollama',  # required but ignored
+)
 
-  chat_completion = client.chat.completions.create(
-      messages=[
-          {
-              'role': 'user',
-              'content': 'Say this is a test',
-          }
-      ],
-      model='gpt-oss:20b',
-  )
-  print(chat_completion.choices[0].message.content)
-  ```
+chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            'role': 'user',
+            'content': 'Say this is a test',
+        }
+    ],
+    model='gpt-oss:20b',
+)
+print(chat_completion.choices[0].message.content)
+```
 
-  ```javascript basic.js theme={"system"}
-  import OpenAI from "openai";
+```javascript basic.js theme={"system"}
+import OpenAI from "openai";
 
-  const openai = new OpenAI({
-    baseURL: "http://localhost:11434/v1/",
-    apiKey: "ollama", // required but ignored
-  });
+const openai = new OpenAI({
+  baseURL: "http://localhost:11434/v1/",
+  apiKey: "ollama", // required but ignored
+});
 
-  const chatCompletion = await openai.chat.completions.create({
-    messages: [{ role: "user", content: "Say this is a test" }],
-    model: "gpt-oss:20b",
-  });
+const chatCompletion = await openai.chat.completions.create({
+  messages: [{ role: "user", content: "Say this is a test" }],
+  model: "gpt-oss:20b",
+});
 
-  console.log(chatCompletion.choices[0].message.content);
-  ```
+console.log(chatCompletion.choices[0].message.content);
+```
 
-  ```shell basic.sh theme={"system"}
-  curl -X POST http://localhost:11434/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-oss:20b",
-    "messages": [{ "role": "user", "content": "Say this is a test" }]
-  }'
-  ```
-</CodeGroup>
+```shell basic.sh theme={"system"}
+curl -X POST http://localhost:11434/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "gpt-oss:20b",
+  "messages": [{ "role": "user", "content": "Say this is a test" }]
+}'
+```
 
 ### Simple `/v1/responses` example
 
-<CodeGroup dropdown>
-  ```python responses.py theme={"system"}
-  from openai import OpenAI
+```python responses.py theme={"system"}
+from openai import OpenAI
 
-  client = OpenAI(
-      base_url='http://localhost:11434/v1/',
-      api_key='ollama',  # required but ignored
-  )
+client = OpenAI(
+    base_url='http://localhost:11434/v1/',
+    api_key='ollama',  # required but ignored
+)
 
-  responses_result = client.responses.create(
-    model='qwen3:8b',
-    input='Write a short poem about the color blue',
-  )
-  print(responses_result.output_text)
-  ```
+responses_result = client.responses.create(
+  model='qwen3:8b',
+  input='Write a short poem about the color blue',
+)
+print(responses_result.output_text)
+```
 
-  ```javascript responses.js theme={"system"}
-  import OpenAI from "openai";
+```javascript responses.js theme={"system"}
+import OpenAI from "openai";
 
-  const openai = new OpenAI({
-    baseURL: "http://localhost:11434/v1/",
-    apiKey: "ollama", // required but ignored
-  });
+const openai = new OpenAI({
+  baseURL: "http://localhost:11434/v1/",
+  apiKey: "ollama", // required but ignored
+});
 
-  const responsesResult = await openai.responses.create({
-    model: "qwen3:8b",
-    input: "Write a short poem about the color blue",
-  });
+const responsesResult = await openai.responses.create({
+  model: "qwen3:8b",
+  input: "Write a short poem about the color blue",
+});
 
-  console.log(responsesResult.output_text);
-  ```
+console.log(responsesResult.output_text);
+```
 
-  ```shell responses.sh theme={"system"}
-  curl -X POST http://localhost:11434/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3:8b",
-    "input": "Write a short poem about the color blue"
-  }'
-  ```
-</CodeGroup>
+```shell responses.sh theme={"system"}
+curl -X POST http://localhost:11434/v1/responses \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "qwen3:8b",
+  "input": "Write a short poem about the color blue"
+}'
+```
 
 ### `/v1/chat/completions` with vision example
 
-<CodeGroup dropdown>
-  ```python vision.py theme={"system"}
-  from openai import OpenAI
+```python vision.py theme={"system"}
+from openai import OpenAI
 
-  client = OpenAI(
-      base_url='http://localhost:11434/v1/',
-      api_key='ollama',  # required but ignored
-  )
+client = OpenAI(
+    base_url='http://localhost:11434/v1/',
+    api_key='ollama',  # required but ignored
+)
 
-  response = client.chat.completions.create(
-      model='qwen3-vl:8b',
-      messages=[
-          {
-              'role': 'user',
-              'content': [
-                  {'type': 'text', 'text': "What's in this image?"},
-                  {
-                      'type': 'image_url',
-                      'image_url': 'data:image/png;base64,<elided>',
-                  },
-              ],
-          }
-      ],
-      max_tokens=300,
-  )
-  print(response.choices[0].message.content)
-  ```
-
-  ```javascript vision.js theme={"system"}
-  import OpenAI from "openai";
-
-  const openai = new OpenAI({
-    baseURL: "http://localhost:11434/v1/",
-    apiKey: "ollama", // required but ignored
-  });
-
-  const response = await openai.chat.completions.create({
-    model: "qwen3-vl:8b",
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "What's in this image?" },
-          {
-            type: "image_url",
-            image_url:
-              "data:image/png;base64,<elided>",
-          },
-        ],
-      },
+response = client.chat.completions.create(
+    model='qwen3-vl:8b',
+    messages=[
+        {
+            'role': 'user',
+            'content': [
+                {'type': 'text', 'text': "What's in this image?"},
+                {
+                    'type': 'image_url',
+                    'image_url': 'data:image/png;base64,<elided>',
+                },
+            ],
+        }
     ],
-  });
-  console.log(response.choices[0].message.content);
-  ```
+    max_tokens=300,
+)
+print(response.choices[0].message.content)
+```
 
-  ```shell vision.sh theme={"system"}
-  curl -X POST http://localhost:11434/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-vl:8b",
-    "messages": [{ "role": "user", "content": [{"type": "text", "text": "What is this an image of?"}, {"type": "image_url", "image_url": "data:image/png;base64,<elided>"}]}]
-  }'
-  ```
-</CodeGroup>
+```javascript vision.js theme={"system"}
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:11434/v1/",
+  apiKey: "ollama", // required but ignored
+});
+
+const response = await openai.chat.completions.create({
+  model: "qwen3-vl:8b",
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "What's in this image?" },
+        {
+          type: "image_url",
+          image_url:
+            "data:image/png;base64,<elided>",
+        },
+      ],
+    },
+  ],
+});
+console.log(response.choices[0].message.content);
+```
+
+```shell vision.sh theme={"system"}
+curl -X POST http://localhost:11434/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "qwen3-vl:8b",
+  "messages": [{ "role": "user", "content": [{"type": "text", "text": "What is this an image of?"}, {"type": "image_url", "image_url": "data:image/png;base64,<elided>"}]}]
+}'
+```
 
 ## Endpoints
 
@@ -315,10 +316,36 @@ These examples connect to your local Ollama server. The client requires an API k
 * [x] `dimensions`
 * [ ] `user`
 
+### `/v1/audio/speech`
+
+> Note: Added in Ollama v0.40.8
+
+Generates audio with [speech models](/capabilities/speech.md). The response streams while audio is generated.
+
+#### Supported request fields
+
+* [x] `model`
+* [x] `input` (up to 4,096 characters)
+* [x] `voice` (one of the model's voice names, such as `Freya`; omit it for the model's default)
+* [x] `response_format`
+  * [x] `wav` (default)
+  * [x] `pcm`
+  * [ ] `mp3`, `opus`, `aac`, `flac`
+* [x] `speed` (`1` only)
+* [x] `stream_format` (`audio` only)
+* [ ] `instructions`
+
+#### Notes
+
+* Audio is 16-bit, mono, 24 kHz. `pcm` returns raw little-endian samples with no header.
+* The default `response_format` is `wav`, not `mp3`.
+* Unsupported values return a `400` error instead of being ignored.
+
 ### Responses API
 
 `POST /v1/responses`
 
+> Note: Added in Ollama v0.13.3
 
 Ollama supports the [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses). Only the non-stateful flavor is supported (i.e., there is no `previous_response_id` or `conversation` support).
 

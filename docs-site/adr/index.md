@@ -64,9 +64,9 @@ ADRs 0023–0029 document the production-readiness waves driven by external audi
 | [0028](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0028-telemetry-normalization-host-affinity-root-ping.md)            | Telemetry Normalization, Dynamic Host Model-Affinity Routing, Root Liveness Probe                                 |
 | [0029](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0029-public-testing-subpath-speculative-draft-conveniences.md)      | Public Testing Subpath, Speculative-Draft Conveniences                                                            |
 
-### Recent decisions (ADR 0030–0036)
+### Recent decisions (ADR 0030–0037)
 
-The October 2026 wave: the speculative draft benchmark and request-aware mock routes, zero-copy stream observation with structural network-error classification, streaming blob uploads with typed-array view-safety pins, the progress speed tracker with System One decision confidence gates and the score 26→10 contract refresh, the System One cloud launch contract refresh, closing the dead-`retryAfterMs` gap by honoring `Retry-After` on 429s, and the post-audit v1.19.1 refresh with usage model grouping and the 0.40.5 cloud-model gate.
+The October 2026 wave: the speculative draft benchmark and request-aware mock routes, zero-copy stream observation with structural network-error classification, streaming blob uploads with typed-array view-safety pins, the progress speed tracker with System One decision confidence gates and the score 26→10 contract refresh, the System One cloud launch contract refresh, closing the dead-`retryAfterMs` gap by honoring `Retry-After` on 429s, the post-audit v1.19.1 refresh with usage model grouping and the 0.40.5 cloud-model gate, and the `/v1/audio/speech` generation-excluded contract operation with MDX pin provenance.
 
 | ADR                                                                                                                                                 | Title                                                                                                                    |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -77,6 +77,7 @@ The October 2026 wave: the speculative draft benchmark and request-aware mock ro
 | [0034](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0034-systemone-cloud-launch-contract-refresh.md)                           | System One Cloud Launch: 2026-10-16 Re-Pin (d9b8601), Dual Request-Size Cap, 402 Taxonomy, Enum-Repair Deviation Retired |
 | [0035](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0035-retry-after-honoring.md)                                              | Honoring `Retry-After` on 429s — Closing the Dead-`retryAfterMs` Gap (Audit v1.19.0 Parity)                              |
 | [0036](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0036-post-audit-v1191-refresh-usage-grouping-cloud-gate.md)               | Post-Audit v1.19.1 Refresh: Re-Pin 36a6e99, Usage Model Grouping, ShowResponse Prompt Provenance, 0.40.5 Cloud-Model Gate, Pin-Provenance Unification |
+| [0037](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0037-audio-speech-contract-mdx-pin-provenance.md)                          | `/v1/audio/speech` as a Generation-Excluded Contract Operation, MDX Pin Provenance, Drift-Anchor Correction |
 
 ## Highlights
 

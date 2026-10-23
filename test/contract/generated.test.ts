@@ -8,6 +8,7 @@ import {
 } from '../../generator/emitters/typescript/drift-detector.js';
 import { emitOperations } from '../../generator/emitters/typescript/operations.js';
 import { emitApi } from '../../generator/emitters/typescript/api.js';
+import { emitMcpTools } from '../../generator/emitters/mcp/tools.js';
 import { normalizeContract } from '../../generator/normalize/contract-normalizer.js';
 import type { OllamaContract, SchemaContract } from '../../generator/types.js';
 
@@ -126,6 +127,47 @@ describe('generated api: domain classes', () => {
     expect(content).toMatch(
       /version\(options\?: \{ signal\?: AbortSignal \}\): Promise<VersionResponse>/,
     );
+  });
+});
+
+describe('openaiAudioSpeech: documented binary-audio endpoint (v1.21.0, ADR 0037)', () => {
+  // /v1/audio/speech is documented upstream (openai-compat MDX, Ollama
+  // v0.40.8+) but absent from upstream's own openapi.yaml and undeliverable
+  // by the runtime's json/ndjson/sse transports. Contract: declared in the IR
+  // for endpoint-discovery completeness + field-matrix parity, excluded from
+  // the generated API class and MCP tools (the createBlob precedent).
+  it('is declared in the IR with its documented contract', () => {
+    const ir = loadIR();
+    const op = ir.operations.find((o) => o.id === 'openaiAudioSpeech');
+    expect(op).toBeDefined();
+    expect(op?.method).toBe('POST');
+    expect(op?.path).toBe('/v1/audio/speech');
+    expect(op?.status.documented).toBe(true);
+    expect(op?.status.experimental).toBe(true);
+    expect(op?.constraints?.minOllamaVersion).toBe('0.40.8');
+    expect(op?.transport.streaming).toBe(true);
+    expect(op?.parity?.request?.interfaceName).toBe('OpenAISpeechRequest');
+    expect(op?.parity?.request?.fields).toContain('stream_format');
+    expect(op?.parity?.request?.unsupportedFields).toContain('instructions');
+    expect(op?.parity?.request?.nestedUnsupportedFields).toContain('response_format.mp3');
+  });
+
+  it('emits an OperationDefinition (IR visibility) but no generated API method', () => {
+    const ir = loadIR();
+    const opsFile = emitOperations('src/generated/api', ir.operations);
+    expect(opsFile.content).toMatch(/export const openaiAudioSpeechOp = \{/);
+    const apiFiles = emitApi('src/generated/api', ir.operations);
+    const openaiFile = apiFiles.find((f) => f.path.endsWith('/openai-api.ts'));
+    expect(openaiFile?.content ?? '').not.toContain('openaiAudioSpeech');
+  });
+
+  it('is not advertised as an executable MCP tool (nor is createBlob)', () => {
+    const ir = loadIR();
+    const toolsFile = emitMcpTools('src/generated/mcp', ir.operations, ir.schemas);
+    const parsed = JSON.parse(toolsFile.content) as { tools: { _operationId: string }[] };
+    expect(parsed.tools.some((t) => t._operationId === 'openaiAudioSpeech')).toBe(false);
+    // The two binary-transport exclusions must stay in sync.
+    expect(parsed.tools.some((t) => t._operationId === 'createBlob')).toBe(false);
   });
 });
 

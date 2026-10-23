@@ -321,6 +321,23 @@ export const webSearchOp = {
   ],
 } as const satisfies OperationDefinition;
 
+export const openaiAudioSpeechOp = {
+  operationId: 'openaiAudioSpeech',
+  method: 'POST',
+  path: '/v1/audio/speech',
+  environment: { local: true, cloud: true },
+  transport: { mode: 'json', streaming: true },
+  capabilities: {},
+  constraints: { minOllamaVersion: '0.40.8' },
+  status: { documented: true, experimental: true },
+  domain: 'openai',
+  notes: [
+    'Generates audio with speech models; the response is a raw audio byte stream (16-bit mono, 24 kHz), not JSON/NDJSON/SSE — the generated runtime cannot transport it.',
+    'Recorded for endpoint-discovery completeness and docs parity tracking; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).',
+    'The typed request shape is exported as OpenAISpeechRequest (src/integrations/openai.ts) for direct use until an audio transport lands.',
+  ],
+} as const satisfies OperationDefinition;
+
 export const openaiChatCompletionsOp = {
   operationId: 'openaiChatCompletions',
   method: 'POST',
@@ -436,6 +453,7 @@ export const allOperations = [
   versionOp,
   webFetchOp,
   webSearchOp,
+  openaiAudioSpeechOp,
   openaiChatCompletionsOp,
   openaiCompletionsOp,
   openaiEmbeddingsOp,

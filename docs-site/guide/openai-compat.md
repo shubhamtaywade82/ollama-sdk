@@ -218,8 +218,11 @@ Status mirrors the checkbox lists at [docs.ollama.com/api/openai-compatibility](
 | `/v1/completions`      | `model`, `prompt` (string only), `frequency_penalty`, `presence_penalty`, `seed`, `stop`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `suffix`      | `best_of`, `echo`, `logit_bias`, `user`, `n`, logprobs      |
 | `/v1/embeddings`       | `model`, `input` (string or string array), `encoding_format`, `dimensions`                                                                                                              | token / token-array `input`, `user`                         |
 | `/v1/responses`        | `model`, `input`, `instructions`, `tools`, `stream`, `temperature`, `top_p`, `max_output_tokens`, `reasoning.effort`, `think` (Ollama extension)                                        | `previous_response_id`, `conversation`, `truncation`        |
+| `/v1/audio/speech`     | `model`, `input` (≤ 4,096 chars), `voice`, `response_format` (`wav`, `pcm`), `speed` (`1`), `stream_format` (`audio`) — Ollama v0.40.8+                                                | `instructions`, `mp3`/`opus`/`aac`/`flac` formats           |
 
 `parallel_tool_calls` and `top_logprobs` are SDK-typed for interop but not part of Ollama's documented surface. For token log probabilities, use native `chat()`/`generate()` with `logprobs: true` and `top_logprobs`.
+
+`/v1/audio/speech` is documented ahead of upstream's own `openapi.yaml` and its response is a raw audio byte stream, so the SDK records it in the contract (typed `OpenAISpeechRequest`/`OllamaOpenAISpeechRequest`) but does not yet transport it — drive the endpoint over your own HTTP layer until an audio transport lands ([ADR 0037](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0037-audio-speech-contract-mdx-pin-provenance.md)).
 
 ### Direct Ollama Cloud access
 
