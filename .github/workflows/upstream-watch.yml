@@ -59,6 +59,7 @@ jobs:
           echo "has_drift=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Re-pin, regenerate, and run contract gates
+        id: gates
         if: steps.drift.outputs.has_drift == 'true'
         env:
           DRIFTED: ${{ steps.drift.outputs.drifted }}
@@ -100,6 +101,10 @@ jobs:
             echo '- [ ] Update content markers in `test/contract/pin-consistency.test.ts` / `scripts/refresh-mdx-pins.ts` if upstream retired one'
             echo '- [ ] ADR + CHANGELOG entry, version bump if the generated surface changed'
           } > "$RUNNER_TEMP/pr-body.md"
+          # The squash-merged title drives release-please (ADR 0040): a pin-only
+          # refresh releases nothing; a change to the generated surface is a feature.
+          if git diff --quiet -- src/generated; then type=chore; else type=feat; fi
+          echo "title=${type}(contract): re-pin drifted upstream docs sources (automated)" >> "$GITHUB_OUTPUT"
 
       - name: Ensure upstream-drift label
         if: steps.drift.outputs.has_drift == 'true'
@@ -114,8 +119,8 @@ jobs:
         with:
           token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
           branch: upstream-sync/auto
-          title: 'chore(contract): re-pin drifted upstream docs sources (automated)'
-          commit-message: 'chore(contract): re-pin drifted upstream docs sources (automated)'
+          title: ${{ steps.gates.outputs.title }}
+          commit-message: ${{ steps.gates.outputs.title }}
           body-path: ${{ runner.temp }}/pr-body.md
           labels: upstream-drift
 

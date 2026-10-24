@@ -1,0 +1,48 @@
+# Automated versioning (ADR 0040).
+#
+# On every push to main, release-please reads the Conventional Commit
+# subjects since the last release and keeps one release PR open with the
+# next version in package.json / package-lock.json:
+#   fix: → patch · feat: → minor · feat!: or a BREAKING CHANGE footer → major
+#   (chore/docs/test/ci/refactor commits do not trigger a release)
+# A `Release-As: x.y.z` commit footer overrides the computed version.
+#
+# CHANGELOG.md stays hand-written (skip-changelog): before merging the
+# release PR, rename its `## [Unreleased]` heading to the new version on the
+# release PR branch.
+#
+# Merging the release PR tags vX.Y.Z, creates the GitHub release and calls
+# publish.yml directly — a release created with GITHUB_TOKEN does not
+# trigger publish.yml's own `release` event.
+
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
