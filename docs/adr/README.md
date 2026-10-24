@@ -47,6 +47,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0036](./0036-post-audit-v1191-refresh-usage-grouping-cloud-gate.md)               | Post-Audit v1.19.1 Refresh: Re-Pin 36a6e99, Usage Model Grouping, ShowResponse Prompt Provenance, 0.40.5 Cloud-Model Gate, Pin-Provenance Unification |
 | [0037](./0037-systemone-signal-failover-cancellation.md)                           | Per-Call Cancellation: systemOne Takes a Signal, and the Failover Layer Stops Dropping It |
 | [0038](./0038-audio-speech-contract-mdx-pin-provenance.md)                          | `/v1/audio/speech` as a Generation-Excluded Contract Operation, MDX Pin Provenance, Drift-Anchor Correction |
+| [0039](./0039-upstream-drift-watch.md)                                               | Weekly Upstream Drift Watch: Issue + Candidate Re-Pin PR with Curated Deviations Re-Applied |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives

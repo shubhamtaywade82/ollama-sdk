@@ -1,0 +1,135 @@
+# Weekly upstream drift watch (ADR 0039).
+#
+# Compares every pinned docs source (contracts/sources/docs-index.json)
+# against the latest ollama/ollama commit touching it. On drift it:
+#   1. re-pins the drifted sources (curated deviations re-applied),
+#      regenerates the IR and generated code, and runs the contract gates;
+#   2. opens or updates the candidate PR on branch `upstream-sync/auto`
+#      with the drift report and the gate results — never merged
+#      automatically; a red gate (e.g. a newly documented endpoint that no
+#      overlay declares yet) is the signal that implementation work is due;
+#   3. opens or updates the single `upstream-drift` issue.
+#
+# A PR opened with the default GITHUB_TOKEN does not trigger ci.yml, which
+# is why the gates run here. Set the UPSTREAM_SYNC_TOKEN secret (a PAT with
+# contents + pull-requests write) to have normal CI run on the PR as well.
+
+name: Upstream Watch
+
+on:
+  schedule:
+    - cron: '30 3 * * 1' # Monday 09:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      # Authenticates the GitHub API calls in scripts/upstream-drift.ts
+      # (60 requests/hour unauthenticated).
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Detect upstream drift
+        id: drift
+        run: |
+          set +e
+          npm run --silent contract:upstream-drift -- --out "$RUNNER_TEMP/drift.md"
+          code=$?
+          # 1 = drift found, anything else non-zero = the check itself failed.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then exit "$code"; fi
+          echo "has_drift=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Re-pin, regenerate, and run contract gates
+        if: steps.drift.outputs.has_drift == 'true'
+        env:
+          DRIFTED: ${{ steps.drift.outputs.drifted }}
+          OPENAPI_SHA: ${{ steps.drift.outputs.openapi_sha }}
+        run: |
+          gates="$RUNNER_TEMP/gates.md"
+          logs="$RUNNER_TEMP/gate-logs.md"
+          printf '## Gate results\n\n| Gate | Result |\n|---|---|\n' > "$gates"
+          : > "$logs"
+          # Each gate's own exit code decides the result — never a pipeline's (ADR 0038).
+          gate() {
+            local name=$1; shift
+            if "$@" > "$RUNNER_TEMP/gate.log" 2>&1; then
+              echo "| \`$name\` | ✅ |" >> "$gates"
+            else
+              echo "| \`$name\` | ❌ |" >> "$gates"
+              { echo "<details><summary>${name} (last 40 lines)</summary>"; echo; echo '```'
+                tail -n 40 "$RUNNER_TEMP/gate.log"; echo '```'; echo '</details>'; echo; } >> "$logs"
+            fi
+          }
+          # `|| true`: grep exits 1 when only openapi drifted, which -eo pipefail would treat as fatal.
+          mdx_ids=$(echo "$DRIFTED" | tr ',' '\n' | grep -v '^openapi$' | paste -sd, - || true)
+          if [ -n "$OPENAPI_SHA" ]; then gate "contract:fetch --ref ${OPENAPI_SHA:0:7}" npm run contract:fetch -- --ref "$OPENAPI_SHA"; fi
+          if [ -n "$mdx_ids" ]; then gate "refresh-mdx-pins --only $mdx_ids" npx tsx scripts/refresh-mdx-pins.ts --only "$mdx_ids"; fi
+          gate contract:normalize npm run contract:normalize
+          gate contract:generate npm run contract:generate
+          gate contract:validate npm run contract:validate
+          gate contract:diff npm run contract:diff
+          gate "contract:drift --strict" npm run contract:drift -- --strict
+          gate typecheck npm run typecheck
+          gate test npm test
+          gate verify:contract-parity npm run verify:contract-parity
+          {
+            cat "$RUNNER_TEMP/drift.md"; echo; cat "$gates"; echo; cat "$logs"
+            echo '## Before merging'
+            echo
+            echo '- [ ] Rewrite the auto-refresh note in the curated header of `contracts/sources/ollama.openapi.yaml` (if re-pinned) into the usual narrative'
+            echo '- [ ] Declare any newly discovered endpoint in `contracts/overlays/` (or record why it is excluded)'
+            echo '- [ ] Update content markers in `test/contract/pin-consistency.test.ts` / `scripts/refresh-mdx-pins.ts` if upstream retired one'
+            echo '- [ ] ADR + CHANGELOG entry, version bump if the generated surface changed'
+          } > "$RUNNER_TEMP/pr-body.md"
+
+      - name: Ensure upstream-drift label
+        if: steps.drift.outputs.has_drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create upstream-drift --color B60205 --description 'Pinned upstream docs source is behind ollama/ollama' --force
+
+      - name: Open or update candidate PR
+        id: pr
+        if: steps.drift.outputs.has_drift == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          branch: upstream-sync/auto
+          title: 'chore(contract): re-pin drifted upstream docs sources (automated)'
+          commit-message: 'chore(contract): re-pin drifted upstream docs sources (automated)'
+          body-path: ${{ runner.temp }}/pr-body.md
+          labels: upstream-drift
+
+      - name: Open or update upstream-drift issue
+        if: steps.drift.outputs.has_drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          body="$RUNNER_TEMP/issue-body.md"
+          { cat "$RUNNER_TEMP/drift.md"; echo; echo "Candidate re-pin PR: ${PR_URL:-not created}"; } > "$body"
+          number=$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title 'Upstream docs drift' --label upstream-drift --body-file "$body"
+          else
+            gh issue edit "$number" --body-file "$body"
+          fi
