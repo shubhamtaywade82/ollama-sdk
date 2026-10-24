@@ -104,7 +104,9 @@ describe('pin consistency: mdx pins match docs-index.json (since 2026-10-23)', (
 
   function readPinHeader(path: string): MdxPinHeader | undefined {
     const text = readFileSync(resolve(PROJECT_ROOT, path), 'utf8');
-    const match = text.match(/Pinned from (\S+) on (\d{4}-\d{2}-\d{2}) \(source SHA: ([0-9a-f]{40})\)\./);
+    const match = text.match(
+      /Pinned from (\S+) on (\d{4}-\d{2}-\d{2}) \(source SHA: ([0-9a-f]{40})\)\./,
+    );
     if (!match) return undefined;
     return { url: match[1] ?? '', date: match[2] ?? '', sha: match[3] ?? '' };
   }

@@ -17,7 +17,12 @@
  * (delegating to `OllamaRuntime.invoke`) is wired by the hand-written
  * `GeneratedOllamaTools` adapter in `src/mcp/generated-bridge.ts`.
  */
-import type { JsonSchemaNode, OperationContract, OperationParameter, SchemaContract } from '../../types.js';
+import type {
+  JsonSchemaNode,
+  OperationContract,
+  OperationParameter,
+  SchemaContract,
+} from '../../types.js';
 import type { EmittedFile } from '../typescript/models.js';
 
 const HEADER = '';
@@ -94,14 +99,12 @@ function deriveInputSchemaFromPath(op: OperationContract): Record<string, unknow
   const params: readonly OperationParameter[] =
     op.parameters && op.parameters.length > 0
       ? op.parameters
-      : extractPathParams(op.path).map(
-          (name): OperationParameter => ({
-            name,
-            in: 'path',
-            required: true,
-            schema: { type: 'string' },
-          }),
-        );
+      : extractPathParams(op.path).map((name): OperationParameter => ({
+          name,
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+        }));
   if (params.length === 0) {
     return {
       type: 'object',
@@ -115,7 +118,9 @@ function deriveInputSchemaFromPath(op: OperationContract): Record<string, unknow
   for (const p of params) {
     properties[p.name] = {
       ...(p.schema ?? { type: 'string' }),
-      ...(p.description ? { description: p.description } : { description: `${p.in} parameter: ${p.name}` }),
+      ...(p.description
+        ? { description: p.description }
+        : { description: `${p.in} parameter: ${p.name}` }),
     };
     if (p.required) required.push(p.name);
   }

@@ -137,7 +137,13 @@ describe('Wave 13: System One is contract-generated from OpenAPI', () => {
         difficulty: {
           type: 'score',
           score: 2.73,
-          legend: { '0': 'trivial', '1': 'simple', '2': 'moderate', '3': 'complex', '4': 'very_complex' },
+          legend: {
+            '0': 'trivial',
+            '1': 'simple',
+            '2': 'moderate',
+            '3': 'complex',
+            '4': 'very_complex',
+          },
           probabilities: { '0': 0.05, '1': 0.1, '2': 0.2, '3': 0.55, '4': 0.1 },
           confidence: 0.78,
         },

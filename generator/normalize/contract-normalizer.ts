@@ -238,9 +238,7 @@ function buildOperationContract(
     // Wave 12 (P1 #8): always derive path parameters from the path
     // template. Operations without `{...}` segments get an empty array
     // (omitted from the IR for compactness).
-    ...(derivePathParameters(path).length > 0
-      ? { parameters: derivePathParameters(path) }
-      : {}),
+    ...(derivePathParameters(path).length > 0 ? { parameters: derivePathParameters(path) } : {}),
     ...(overlay.notes && overlay.notes.length > 0 ? { notes: overlay.notes } : {}),
     ...(overlay.parity ? { parity: normalizeParity(overlay.parity) } : {}),
   };

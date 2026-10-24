@@ -62,8 +62,6 @@ export const KNOWN_DONE_REASONS: ReadonlySet<KnownDoneReason> = new Set([
  *   }
  *   ```
  */
-export function isKnownDoneReason(
-  value: string | undefined | null,
-): value is KnownDoneReason {
+export function isKnownDoneReason(value: string | undefined | null): value is KnownDoneReason {
   return value !== undefined && value !== null && KNOWN_DONE_REASONS.has(value as KnownDoneReason);
 }

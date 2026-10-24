@@ -105,18 +105,20 @@ describe('MCP bridge parity', () => {
     });
     const client: McpClientLike = {
       listTools: async () => ({
-        tools: [{
-          name: 'search',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', minLength: 3 },
-              limit: { type: 'integer', minimum: 1 },
+        tools: [
+          {
+            name: 'search',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', minLength: 3 },
+                limit: { type: 'integer', minimum: 1 },
+              },
+              required: ['query'],
+              additionalProperties: false,
             },
-            required: ['query'],
-            additionalProperties: false,
           },
-        }],
+        ],
       }),
       callTool,
     };
@@ -157,10 +159,12 @@ describe('MCP bridge parity', () => {
     };
     const client: McpClientLike = {
       listTools: async () => ({
-        tools: [{
-          name: 'inspect',
-          inputSchema: { type: 'object', properties: {} },
-        }],
+        tools: [
+          {
+            name: 'inspect',
+            inputSchema: { type: 'object', properties: {} },
+          },
+        ],
       }),
       callTool: vi.fn().mockResolvedValue(rawResult),
     };
@@ -174,18 +178,21 @@ describe('MCP bridge parity', () => {
   it('validates MCP structuredContent against the declared outputSchema', async () => {
     const client: McpClientLike = {
       listTools: async () => ({
-        tools: [{
-          name: 'lookup',
-          inputSchema: { type: 'object', properties: {} },
-          outputSchema: {
-            type: 'object',
-            properties: { count: { type: 'integer', minimum: 0 } },
-            required: ['count'],
-            additionalProperties: false,
+        tools: [
+          {
+            name: 'lookup',
+            inputSchema: { type: 'object', properties: {} },
+            outputSchema: {
+              type: 'object',
+              properties: { count: { type: 'integer', minimum: 0 } },
+              required: ['count'],
+              additionalProperties: false,
+            },
           },
-        }],
+        ],
       }),
-      callTool: vi.fn()
+      callTool: vi
+        .fn()
         .mockResolvedValueOnce({
           content: [{ type: 'text', text: 'ok' }],
           structuredContent: { count: 2 },
@@ -209,11 +216,13 @@ describe('MCP bridge parity', () => {
   it('allows disabling MCP outputSchema validation for legacy servers', async () => {
     const client: McpClientLike = {
       listTools: async () => ({
-        tools: [{
-          name: 'lookup',
-          inputSchema: { type: 'object', properties: {} },
-          outputSchema: { type: 'object', required: ['count'] },
-        }],
+        tools: [
+          {
+            name: 'lookup',
+            inputSchema: { type: 'object', properties: {} },
+            outputSchema: { type: 'object', required: ['count'] },
+          },
+        ],
       }),
       callTool: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: 'legacy' }],
@@ -239,11 +248,13 @@ describe('MCP bridge parity', () => {
     const callTool = vi.fn().mockResolvedValue(response);
     const client: McpClientLike = {
       listTools: async () => ({
-        tools: [{
-          name: 'lookup',
-          inputSchema: { type: 'object', properties: {} },
-          outputSchema: { type: 'object', required: ['result'] },
-        }],
+        tools: [
+          {
+            name: 'lookup',
+            inputSchema: { type: 'object', properties: {} },
+            outputSchema: { type: 'object', required: ['result'] },
+          },
+        ],
       }),
       callTool,
     };
@@ -269,11 +280,13 @@ describe('MCP bridge parity', () => {
     const client: McpClientLike = {
       getServerCapabilities: () => ({ tasks: { requests: { tools: { call: {} } } } }),
       listTools: async () => ({
-        tools: [{
-          name: 'long_operation',
-          inputSchema: { type: 'object', properties: {} },
-          execution: { taskSupport: 'required' },
-        }],
+        tools: [
+          {
+            name: 'long_operation',
+            inputSchema: { type: 'object', properties: {} },
+            execution: { taskSupport: 'required' },
+          },
+        ],
       }),
       callTool,
     };
@@ -290,10 +303,12 @@ describe('MCP bridge parity', () => {
     const client: McpClientLike = {
       getServerCapabilities: () => ({}),
       listTools: async () => ({
-        tools: [{
-          name: 'long_operation',
-          execution: { taskSupport: 'required' },
-        }],
+        tools: [
+          {
+            name: 'long_operation',
+            execution: { taskSupport: 'required' },
+          },
+        ],
       }),
       callTool: vi.fn(),
     };
@@ -318,10 +333,12 @@ describe('MCP bridge parity', () => {
     const client: McpClientLike = {
       getServerCapabilities: () => ({ tasks: { requests: { tools: { call: {} } } } }),
       listTools: async () => ({
-        tools: [{
-          name: 'long_operation',
-          execution: { taskSupport: 'optional' },
-        }],
+        tools: [
+          {
+            name: 'long_operation',
+            execution: { taskSupport: 'optional' },
+          },
+        ],
       }),
       callTool,
     };
@@ -335,21 +352,24 @@ describe('MCP bridge parity', () => {
   });
 
   it('exposes explicit task status, result, and cancellation operations', async () => {
-    const request = vi.fn(async <T>(
-      taskRequest: McpTaskRequest,
-      resultSchema: z.ZodType<T>,
-      _options?: McpRequestOptions,
-    ) => {
-      const response = taskRequest.method === 'tasks/result'
-        ? { content: [{ type: 'text', text: 'done' }] }
-        : {
-            taskId: taskRequest.params.taskId,
-            status: taskRequest.method === 'tasks/cancel' ? 'cancelled' : 'completed',
-            createdAt: '2026-10-01T00:00:00Z',
-            lastUpdatedAt: '2026-10-01T00:01:00Z',
-          };
-      return resultSchema.parse(response);
-    });
+    const request = vi.fn(
+      async <T>(
+        taskRequest: McpTaskRequest,
+        resultSchema: z.ZodType<T>,
+        _options?: McpRequestOptions,
+      ) => {
+        const response =
+          taskRequest.method === 'tasks/result'
+            ? { content: [{ type: 'text', text: 'done' }] }
+            : {
+                taskId: taskRequest.params.taskId,
+                status: taskRequest.method === 'tasks/cancel' ? 'cancelled' : 'completed',
+                createdAt: '2026-10-01T00:00:00Z',
+                lastUpdatedAt: '2026-10-01T00:01:00Z',
+              };
+        return resultSchema.parse(response);
+      },
+    );
     const bridge = new McpBridge({
       listTools: async () => ({ tools: [] }),
       callTool: vi.fn(),
@@ -376,7 +396,8 @@ describe('MCP bridge parity', () => {
 
   it('refreshes MCP tools into an existing registry', async () => {
     const client: McpClientLike = {
-      listTools: vi.fn()
+      listTools: vi
+        .fn()
         .mockResolvedValueOnce({
           tools: [{ name: 'one', inputSchema: { type: 'object', properties: {} } }],
         })
@@ -433,7 +454,6 @@ describe('MCP bridge parity', () => {
   });
 });
 
-
 describe('MCP bridge safety and cancellation', () => {
   it('forwards AbortSignal to listTools and callTool', async () => {
     const controller = new AbortController();
@@ -443,10 +463,7 @@ describe('MCP bridge safety and cancellation', () => {
         tools: [{ name: 'echo', inputSchema: { type: 'object', properties: {} } }],
       };
     });
-    const callTool = vi.fn(async (
-      _params: unknown,
-      options?: { signal?: AbortSignal },
-    ) => {
+    const callTool = vi.fn(async (_params: unknown, options?: { signal?: AbortSignal }) => {
       expect(options?.signal).toBe(controller.signal);
       return { content: [{ type: 'text', text: 'ok' }] };
     });
@@ -482,9 +499,7 @@ describe('MCP bridge safety and cancellation', () => {
     });
     const client: McpClientLike = { listTools, callTool: vi.fn() };
 
-    await expect(
-      loadMcpTools(client, { maxPages: 2 }),
-    ).rejects.toMatchObject({
+    await expect(loadMcpTools(client, { maxPages: 2 })).rejects.toMatchObject({
       code: 'mcp_error',
       mcpMethod: 'listTools',
     });

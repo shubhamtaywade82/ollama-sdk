@@ -178,7 +178,13 @@ describe('Request lifecycle hooks', () => {
       messages: [{ role: 'user', content: 'hello' }],
     });
 
-    expect(events.map((event) => event.type)).toEqual(['start', 'error', 'retry', 'start', 'success']);
+    expect(events.map((event) => event.type)).toEqual([
+      'start',
+      'error',
+      'retry',
+      'start',
+      'success',
+    ]);
     expect(new Set(events.map((event) => event.requestId)).size).toBe(1);
     expect(events.find((event) => event.type === 'retry')?.attempt).toBe(1);
   });

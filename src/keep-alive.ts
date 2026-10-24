@@ -79,9 +79,7 @@ export type KeepAlive =
  *   normalizeKeepAlive(3600)          // → 3600
  *   normalizeKeepAlive(undefined)     // → undefined
  */
-export function normalizeKeepAlive(
-  keepAlive: KeepAlive | undefined,
-): string | number | undefined {
+export function normalizeKeepAlive(keepAlive: KeepAlive | undefined): string | number | undefined {
   if (keepAlive === undefined) return undefined;
   if (keepAlive === 'unload') return KEEP_ALIVE_UNLOAD;
   if (keepAlive === 'indefinite') return KEEP_ALIVE_INDEFINITE;
@@ -93,8 +91,6 @@ export function normalizeKeepAlive(
  * literals (`'unload'` or `'indefinite'`). Useful for callers that
  * want to branch on intent rather than magic integers.
  */
-export function isKeepAliveSugar(
-  value: KeepAlive | unknown,
-): value is 'unload' | 'indefinite' {
+export function isKeepAliveSugar(value: KeepAlive | unknown): value is 'unload' | 'indefinite' {
   return value === 'unload' || value === 'indefinite';
 }

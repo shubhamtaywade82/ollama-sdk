@@ -53,10 +53,7 @@ interface DynamicMcpClient {
     listTools: McpClientLike['listTools'];
     callTool: McpClientLike['callTool'];
   } & McpClientRequestHandler;
-  readonly StreamableHTTPClientTransport: new (
-    url: URL,
-    options?: unknown,
-  ) => unknown;
+  readonly StreamableHTTPClientTransport: new (url: URL, options?: unknown) => unknown;
   readonly SSEClientTransport: new (url: URL, options?: unknown) => unknown;
 }
 
@@ -106,7 +103,8 @@ function connectionFrom(
     client,
     transport: kind,
     close: () => client.close(),
-    ...(kind === 'streamable-http' && typeof transportWithTermination.terminateSession === 'function'
+    ...(kind === 'streamable-http' &&
+    typeof transportWithTermination.terminateSession === 'function'
       ? { terminateSession: () => transportWithTermination.terminateSession!() }
       : {}),
   };
@@ -142,7 +140,11 @@ function responseStatus(error: unknown): number | undefined {
   if (typeof value.statusCode === 'number') return value.statusCode;
 
   const response = value.response;
-  if (typeof response === 'object' && response !== null && typeof (response as Record<string, unknown>).status === 'number') {
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    typeof (response as Record<string, unknown>).status === 'number'
+  ) {
     return (response as Record<string, number>).status;
   }
 
@@ -153,7 +155,14 @@ function responseStatus(error: unknown): number | undefined {
 
 function shouldFallbackToSse(error: unknown): boolean {
   const status = responseStatus(error);
-  return status !== undefined && status >= 400 && status < 500 && status !== 401 && status !== 403 && status !== 429;
+  return (
+    status !== undefined &&
+    status >= 400 &&
+    status < 500 &&
+    status !== 401 &&
+    status !== 403 &&
+    status !== 429
+  );
 }
 
 /**

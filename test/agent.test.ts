@@ -61,7 +61,6 @@ describe('Agent Loop', () => {
   });
 });
 
-
 describe('Agent tool preflight and context management', () => {
   const tool = defineTool({
     name: 'get_weather',

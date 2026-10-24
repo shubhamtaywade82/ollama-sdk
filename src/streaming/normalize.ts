@@ -107,7 +107,13 @@ export function normalizeChatStream(
     model: '',
     done: false,
   };
-  return new OllamaStream(withStableToolCallIds(source), mapChatChunk, aggregateChat, initial, signal);
+  return new OllamaStream(
+    withStableToolCallIds(source),
+    mapChatChunk,
+    aggregateChat,
+    initial,
+    signal,
+  );
 }
 
 function aggregateGenerate(

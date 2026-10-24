@@ -79,16 +79,12 @@ export function emitSchemaRegistry(
 
   const requestMapEntries =
     requestEntries.length > 0
-      ? requestEntries
-          .map((e) => `  ${e.operationId}: ${e.schemaName}Schema,`)
-          .join('\n')
+      ? requestEntries.map((e) => `  ${e.operationId}: ${e.schemaName}Schema,`).join('\n')
       : '  // (empty — no operations carry a request schema ref)';
 
   const responseMapEntries =
     responseEntries.length > 0
-      ? responseEntries
-          .map((e) => `  ${e.operationId}: ${e.schemaName}Schema,`)
-          .join('\n')
+      ? responseEntries.map((e) => `  ${e.operationId}: ${e.schemaName}Schema,`).join('\n')
       : '  // (empty — no operations carry a response schema ref)';
 
   const content =

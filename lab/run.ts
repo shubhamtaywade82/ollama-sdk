@@ -8,7 +8,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 async function discoverExperiments(dir = __dirname): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true, recursive: true });
   return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.ts') && e.name !== 'run.ts' && !e.parentPath.includes('support'))
+    .filter(
+      (e) =>
+        e.isFile() &&
+        e.name.endsWith('.ts') &&
+        e.name !== 'run.ts' &&
+        !e.parentPath.includes('support'),
+    )
     .map((e) => relative(__dirname, join(e.parentPath, e.name)))
     .sort();
 }

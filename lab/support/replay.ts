@@ -9,7 +9,11 @@ export interface RecordedRun<T = unknown> {
   readonly result: T;
 }
 
-export async function recordRun<T>(experimentId: string, input: unknown, result: T): Promise<string> {
+export async function recordRun<T>(
+  experimentId: string,
+  input: unknown,
+  result: T,
+): Promise<string> {
   const env = getLabEnv();
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const targetPath = join(env.logDir, 'replay', `${experimentId}-${timestamp}.json`);

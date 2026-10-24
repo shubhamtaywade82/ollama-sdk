@@ -14,7 +14,8 @@ export interface ExperimentEvent {
   readonly response?: unknown | undefined;
   readonly toolCalls?: readonly unknown[] | undefined;
   readonly toolResults?: readonly unknown[] | undefined;
-  readonly tokens?: { readonly prompt?: number | undefined; readonly eval?: number | undefined } | undefined;
+  readonly tokens?:
+    { readonly prompt?: number | undefined; readonly eval?: number | undefined } | undefined;
   readonly error?: string | undefined;
 }
 
@@ -44,8 +45,10 @@ export class ExperimentLogger {
     console.log(`Provider: ${event.provider} | Endpoint: ${event.endpoint}`);
     console.log(`Model: ${event.model} | Operation: ${event.operation}`);
     if (event.durationMs !== undefined) console.log(`Duration: ${event.durationMs}ms`);
-    if (event.toolCalls?.length) console.log(`Tool Calls (${event.toolCalls.length}):`, event.toolCalls);
-    if (event.toolResults?.length) console.log(`Tool Results (${event.toolResults.length}):`, event.toolResults);
+    if (event.toolCalls?.length)
+      console.log(`Tool Calls (${event.toolCalls.length}):`, event.toolCalls);
+    if (event.toolResults?.length)
+      console.log(`Tool Results (${event.toolResults.length}):`, event.toolResults);
     if (event.response !== undefined) console.log('\nResponse:\n', event.response);
     if (event.error !== undefined) console.log('\nError:\n', event.error);
     console.log('════════════════════════════════════════════\n');

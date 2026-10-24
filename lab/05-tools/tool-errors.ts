@@ -21,7 +21,9 @@ async function main(): Promise<void> {
   try {
     const res = await client.chat({
       model: env.localModel,
-      messages: [{ role: 'user', content: 'Run buggy_database_query with query "SELECT * FROM users"' }],
+      messages: [
+        { role: 'user', content: 'Run buggy_database_query with query "SELECT * FROM users"' },
+      ],
       tools: registry.definitions(),
     });
 

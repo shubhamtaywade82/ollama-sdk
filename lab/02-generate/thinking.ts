@@ -10,7 +10,8 @@ async function main(): Promise<void> {
   try {
     const res = await client.generate({
       model: env.thinkModel,
-      prompt: 'If a rooster lays an egg on top of a barn roof, which way does it roll? Reason step by step.',
+      prompt:
+        'If a rooster lays an egg on top of a barn roof, which way does it roll? Reason step by step.',
       think: true,
     });
 

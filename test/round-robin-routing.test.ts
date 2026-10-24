@@ -3,11 +3,13 @@ import { OllamaClient } from '../src/client.js';
 import { EndpointRegistry } from '../src/providers/endpoint-registry.js';
 
 function jsonFetchMock(handler: (init: { headers?: Record<string, string> }) => unknown) {
-  return vi.fn().mockImplementation(async (_url: string, init: { headers?: Record<string, string> }) => ({
-    ok: true,
-    status: 200,
-    json: async () => handler(init),
-  }));
+  return vi
+    .fn()
+    .mockImplementation(async (_url: string, init: { headers?: Record<string, string> }) => ({
+      ok: true,
+      status: 200,
+      json: async () => handler(init),
+    }));
 }
 
 describe('EndpointRegistry: round-robin strategy', () => {
@@ -76,12 +78,18 @@ describe('EndpointRegistry: round-robin strategy', () => {
     );
     // "scoped" is restricted to only-me; free-a/free-b have no restriction so remain
     // eligible for every model, same as unscoped endpoints always have.
-    expect(registry.candidates('only-me').map((e) => e.name).sort()).toEqual([
-      'free-a',
-      'free-b',
-      'scoped',
-    ]);
-    expect(registry.candidates('anything').map((e) => e.name).sort()).toEqual(['free-a', 'free-b']);
+    expect(
+      registry
+        .candidates('only-me')
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(['free-a', 'free-b', 'scoped']);
+    expect(
+      registry
+        .candidates('anything')
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(['free-a', 'free-b']);
   });
 });
 
@@ -152,7 +160,10 @@ describe('OllamaClient: round-robin across a free credential pool', () => {
       fetch: fetchMock as never,
     });
 
-    const res = await client.chat({ model: 'any-model', messages: [{ role: 'user', content: 'hi' }] });
+    const res = await client.chat({
+      model: 'any-model',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
     expect(res.message.content).toBe('from b');
     expect(attemptedHosts.some((u) => u.startsWith('http://a.local'))).toBe(true);
     expect(attemptedHosts.some((u) => u.startsWith('http://b.local'))).toBe(true);

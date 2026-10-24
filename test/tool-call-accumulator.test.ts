@@ -158,9 +158,7 @@ describe('ToolCallAccumulator: parallel tool calls', () => {
 
   it('handles a new call arriving mid-stream alongside updates to existing calls', () => {
     const acc = new ToolCallAccumulator();
-    acc.process([
-      makeToolCall({ id: 'call_1', name: 'foo', args: { a: 1 } }),
-    ]);
+    acc.process([makeToolCall({ id: 'call_1', name: 'foo', args: { a: 1 } })]);
     const result = acc.process([
       makeToolCall({ id: 'call_1', name: 'foo', args: { b: 2 } }),
       makeToolCall({ id: 'call_2', name: 'bar', args: { x: 1 } }),
@@ -201,8 +199,12 @@ describe('mergeToolCallArrays: stateless convenience helper', () => {
   });
 
   it('handles undefined earlier or later arrays', () => {
-    expect(mergeToolCallArrays(undefined, [makeToolCall({ id: 'call_1', name: 'foo', args: {} })])).toHaveLength(1);
-    expect(mergeToolCallArrays([makeToolCall({ id: 'call_1', name: 'foo', args: {} })], undefined)).toHaveLength(1);
+    expect(
+      mergeToolCallArrays(undefined, [makeToolCall({ id: 'call_1', name: 'foo', args: {} })]),
+    ).toHaveLength(1);
+    expect(
+      mergeToolCallArrays([makeToolCall({ id: 'call_1', name: 'foo', args: {} })], undefined),
+    ).toHaveLength(1);
     expect(mergeToolCallArrays(undefined, undefined)).toEqual([]);
   });
 });
@@ -251,11 +253,17 @@ describe('mergeToolCallArgumentsString: OpenAI-compat string delta merge', () =>
     // The accumulator should concatenate these, NOT spread-merge them.
     const earlier = {
       id: 'call_1',
-      function: { name: 'get_weather', arguments: '{"city":' as unknown as Record<string, unknown> },
+      function: {
+        name: 'get_weather',
+        arguments: '{"city":' as unknown as Record<string, unknown>,
+      },
     } as ToolCall;
     const later = {
       id: 'call_1',
-      function: { name: 'get_weather', arguments: ' "Bengaluru"}' as unknown as Record<string, unknown> },
+      function: {
+        name: 'get_weather',
+        arguments: ' "Bengaluru"}' as unknown as Record<string, unknown>,
+      },
     } as ToolCall;
     const merged = mergeToolCallArgumentsString(earlier, later);
     expect(merged.id).toBe('call_1');

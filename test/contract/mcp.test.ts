@@ -83,9 +83,7 @@ describe('Wave 6: MCP tool generation', () => {
     // Wave 17: createBlob excluded (binary body); v1.21.0: openaiAudioSpeech
     // excluded (binary audio response) — see BINARY_TRANSPORT_OPS above.
     expect(parsed.tools.length).toBe(
-      ir.operations.filter(
-        (op) => op.status.documented && !BINARY_TRANSPORT_OPS.has(op.id),
-      ).length,
+      ir.operations.filter((op) => op.status.documented && !BINARY_TRANSPORT_OPS.has(op.id)).length,
     );
   });
 });

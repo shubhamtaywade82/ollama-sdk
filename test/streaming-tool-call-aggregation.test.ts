@@ -31,9 +31,7 @@ import type { ChatResponse, ToolCall } from '../src/types.js';
  * appends exactly once.
  */
 
-async function* chunks(
-  ...cs: ChatResponse[]
-): AsyncGenerator<ChatResponse, void, undefined> {
+async function* chunks(...cs: ChatResponse[]): AsyncGenerator<ChatResponse, void, undefined> {
   for (const c of cs) yield c;
 }
 

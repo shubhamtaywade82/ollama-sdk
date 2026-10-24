@@ -21,7 +21,8 @@ async function main(): Promise<void> {
   const userMessages = [
     {
       role: 'user' as const,
-      content: 'Docker containerization packages applications and OS libraries together to guarantee deterministic runtime behavior across cloud and local servers.',
+      content:
+        'Docker containerization packages applications and OS libraries together to guarantee deterministic runtime behavior across cloud and local servers.',
     },
   ];
 

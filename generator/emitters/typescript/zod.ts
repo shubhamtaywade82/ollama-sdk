@@ -172,14 +172,20 @@ function emitRecordSchema(node: JsonSchemaNode, ctx: EmissionContext): string {
   const expr = `z.record(${valueSchema})`;
   const refines: string[] = [];
   if (typeof node.minProperties === 'number') {
-    refines.push(`.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`,
+    );
   }
   if (typeof node.maxProperties === 'number') {
-    refines.push(`.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`,
+    );
   }
   if (node.propertyNames?.pattern) {
     const pat = JSON.stringify(node.propertyNames.pattern);
-    refines.push(`.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`,
+    );
   }
   return expr + refines.join('');
 }
@@ -212,14 +218,20 @@ function emitObjectSchema(node: JsonSchemaNode, ctx: EmissionContext): string {
   // Zod doesn't have a direct API for these, so we use .refine().
   const refines: string[] = [];
   if (typeof node.minProperties === 'number') {
-    refines.push(`.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).length >= ${node.minProperties}, { message: 'must have at least ${node.minProperties} properties' })`,
+    );
   }
   if (typeof node.maxProperties === 'number') {
-    refines.push(`.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).length <= ${node.maxProperties}, { message: 'must have at most ${node.maxProperties} properties' })`,
+    );
   }
   if (node.propertyNames?.pattern) {
     const pat = JSON.stringify(node.propertyNames.pattern);
-    refines.push(`.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`);
+    refines.push(
+      `.refine((v) => Object.keys(v).every((k) => new RegExp(${pat}).test(k)), { message: 'property names must match pattern ${pat}' })`,
+    );
   }
   result += refines.join('');
 

@@ -71,8 +71,9 @@ describe('OllamaClient: least-connections across a free-tier account pool', () =
     const inFlightByAccount = new Map<string, number>();
     const seenAccountPerCall: string[] = [];
 
-    const fetchMock = vi.fn().mockImplementation(
-      async (_url: string, init: { headers?: Record<string, string> }) => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (_url: string, init: { headers?: Record<string, string> }) => {
         const account = init.headers?.['Authorization'] ?? 'none';
         const current = (inFlightByAccount.get(account) ?? 0) + 1;
         inFlightByAccount.set(account, current);
@@ -97,8 +98,7 @@ describe('OllamaClient: least-connections across a free-tier account pool', () =
             done: true,
           }),
         };
-      },
-    );
+      });
 
     const client = new OllamaClient({
       baseUrl: 'https://ollama.com',

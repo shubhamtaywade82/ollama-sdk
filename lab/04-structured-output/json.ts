@@ -10,7 +10,12 @@ async function main(): Promise<void> {
   try {
     const res = await client.chat({
       model: env.localModel,
-      messages: [{ role: 'user', content: 'Output a user object with name "Alice", age 30, and role "admin" in JSON.' }],
+      messages: [
+        {
+          role: 'user',
+          content: 'Output a user object with name "Alice", age 30, and role "admin" in JSON.',
+        },
+      ],
       format: 'json',
     });
 

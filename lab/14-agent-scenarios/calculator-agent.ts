@@ -27,7 +27,12 @@ async function main(): Promise<void> {
   try {
     const res = await agent.run({
       model: env.localModel,
-      messages: [{ role: 'user', content: 'First calculate (12 + 18), then multiply that result by 4. Use tools.' }],
+      messages: [
+        {
+          role: 'user',
+          content: 'First calculate (12 + 18), then multiply that result by 4. Use tools.',
+        },
+      ],
     });
 
     await labLogger.log({

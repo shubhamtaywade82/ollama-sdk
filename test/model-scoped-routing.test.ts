@@ -3,12 +3,16 @@ import { OllamaClient } from '../src/client.js';
 import { EndpointRegistry } from '../src/providers/endpoint-registry.js';
 import { OllamaModelRoutingError } from '../src/errors.js';
 
-function jsonFetchMock(handler: (url: string, init: { headers?: Record<string, string> }) => unknown) {
-  return vi.fn().mockImplementation(async (url: string, init: { headers?: Record<string, string> }) => ({
-    ok: true,
-    status: 200,
-    json: async () => handler(url, init),
-  }));
+function jsonFetchMock(
+  handler: (url: string, init: { headers?: Record<string, string> }) => unknown,
+) {
+  return vi
+    .fn()
+    .mockImplementation(async (url: string, init: { headers?: Record<string, string> }) => ({
+      ok: true,
+      status: 200,
+      json: async () => handler(url, init),
+    }));
 }
 
 describe('EndpointRegistry: model-scoped candidates', () => {
@@ -17,7 +21,12 @@ describe('EndpointRegistry: model-scoped candidates', () => {
       { name: 'a', baseUrl: 'http://a', models: ['gpt-oss:120b'] },
       { name: 'b', baseUrl: 'http://b', models: ['minimax-m3'] },
     ]);
-    expect(registry.candidates().map((e) => e.name).sort()).toEqual(['a', 'b']);
+    expect(
+      registry
+        .candidates()
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(['a', 'b']);
   });
 
   it('filters to only the endpoint(s) authorized for the requested model', () => {
@@ -26,17 +35,29 @@ describe('EndpointRegistry: model-scoped candidates', () => {
       { name: 'b', baseUrl: 'http://b', models: ['minimax-m3'] },
       { name: 'c', baseUrl: 'http://c' }, // unscoped: eligible for every model
     ]);
-    expect(registry.candidates('minimax-m3').map((e) => e.name).sort()).toEqual(['b', 'c']);
-    expect(registry.candidates('gpt-oss:120b').map((e) => e.name).sort()).toEqual(['a', 'c']);
+    expect(
+      registry
+        .candidates('minimax-m3')
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(['b', 'c']);
+    expect(
+      registry
+        .candidates('gpt-oss:120b')
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(['a', 'c']);
     expect(registry.candidates('unrelated-model').map((e) => e.name)).toEqual(['c']);
   });
 
   it('hasModelScopedEndpoints reflects whether any endpoint declares `models`', () => {
-    expect(new EndpointRegistry([{ name: 'a', baseUrl: 'http://a' }]).hasModelScopedEndpoints()).toBe(
-      false,
-    );
     expect(
-      new EndpointRegistry([{ name: 'a', baseUrl: 'http://a', models: ['x'] }]).hasModelScopedEndpoints(),
+      new EndpointRegistry([{ name: 'a', baseUrl: 'http://a' }]).hasModelScopedEndpoints(),
+    ).toBe(false);
+    expect(
+      new EndpointRegistry([
+        { name: 'a', baseUrl: 'http://a', models: ['x'] },
+      ]).hasModelScopedEndpoints(),
     ).toBe(true);
   });
 });
@@ -97,7 +118,12 @@ describe('OllamaClient: credential-scoped multi-key routing', () => {
 
     const client = new OllamaClient({
       endpoints: [
-        { name: 'gpt-oss-key', baseUrl: 'http://a.local', apiKey: 'KEY_1', models: ['gpt-oss:120b'] },
+        {
+          name: 'gpt-oss-key',
+          baseUrl: 'http://a.local',
+          apiKey: 'KEY_1',
+          models: ['gpt-oss:120b'],
+        },
         { name: 'minimax-key', baseUrl: 'http://b.local', apiKey: 'KEY_2', models: ['minimax-m3'] },
       ],
       fetch: fetchMock as never,
@@ -110,7 +136,7 @@ describe('OllamaClient: credential-scoped multi-key routing', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('OllamaModelRoutingError reports the model and the endpoints\' configured models', async () => {
+  it("OllamaModelRoutingError reports the model and the endpoints' configured models", async () => {
     const client = new OllamaClient({
       endpoints: [
         { name: 'gpt-oss-key', baseUrl: 'http://a.local', models: ['gpt-oss:120b'] },

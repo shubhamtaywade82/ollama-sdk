@@ -193,7 +193,6 @@ describe('Agent tool_call_id correlation', () => {
   });
 });
 
-
 describe('Native Ollama tool-result protocol', () => {
   it('uses tool_name and does not send SDK-only tool_call_id in an Agent turn', async () => {
     const fetchMock = vi
@@ -207,9 +206,7 @@ describe('Native Ollama tool-result protocol', () => {
           message: {
             role: 'assistant',
             content: '',
-            tool_calls: [
-              { function: { name: 'echo', arguments: { text: 'hi' } } },
-            ],
+            tool_calls: [{ function: { name: 'echo', arguments: { text: 'hi' } } }],
           },
           done: true,
         }),
@@ -247,9 +244,7 @@ describe('Native Ollama tool-result protocol', () => {
       messages: [{ role: 'user', content: 'go' }],
     });
 
-    const secondRequestBody = JSON.parse(
-      String(fetchMock.mock.calls[1]![1]!.body),
-    ) as {
+    const secondRequestBody = JSON.parse(String(fetchMock.mock.calls[1]![1]!.body)) as {
       messages: Array<Record<string, unknown>>;
     };
     const toolMessage = secondRequestBody.messages.at(-1);
@@ -293,9 +288,7 @@ describe('Native Ollama tool-result protocol', () => {
       stream: false,
     });
 
-    const requestBody = JSON.parse(
-      String(fetchMock.mock.calls[0]![1]!.body),
-    ) as {
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)) as {
       messages: Array<Record<string, unknown>>;
     };
 

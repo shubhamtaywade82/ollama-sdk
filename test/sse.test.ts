@@ -47,9 +47,7 @@ describe('SSE parser', () => {
   });
 
   it('handles LF and CR-only line endings and blank data fields', async () => {
-    const stream = parseSseStream(
-      byteStream('data: hello\n\ndata:\r\rdata: world\r\r'),
-    );
+    const stream = parseSseStream(byteStream('data: hello\n\ndata:\r\rdata: world\r\r'));
 
     const events = [];
     for await (const event of stream) events.push(event);
@@ -65,13 +63,14 @@ describe('SSE parser', () => {
     const events = [];
     for await (const event of stream) events.push(event);
 
-    expect(events).toEqual([{ id: 'first', data: 'one' }, { id: 'first', data: 'two' }]);
+    expect(events).toEqual([
+      { id: 'first', data: 'one' },
+      { id: 'first', data: 'two' },
+    ]);
   });
 
   it('handles a CRLF sequence split across byte chunks', async () => {
-    const stream = parseSseStream(
-      byteStream('data: hello\r', '\ndata: world\r\n\r\n'),
-    );
+    const stream = parseSseStream(byteStream('data: hello\r', '\ndata: world\r\n\r\n'));
 
     const events = [];
     for await (const event of stream) events.push(event);
@@ -120,18 +119,20 @@ describe('HttpClient SSE transport', () => {
   });
   it('exposes abort and propagates it to the fetch signal after headers arrive', async () => {
     let capturedSignal: AbortSignal | undefined;
-    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: { signal?: AbortSignal }) => {
-      capturedSignal = init.signal;
-      return {
-        ok: true,
-        status: 200,
-        body: new ReadableStream<Uint8Array>({
-          start() {
-            // Intentionally keep the response open until abort().
-          },
-        }),
-      };
-    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (_url: string, init: { signal?: AbortSignal }) => {
+        capturedSignal = init.signal;
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream<Uint8Array>({
+            start() {
+              // Intentionally keep the response open until abort().
+            },
+          }),
+        };
+      });
 
     const http = new HttpClient({ baseUrl: 'http://localhost:11434', fetch: fetchMock as never });
     const source = await http.requestSseStream({ path: '/v1/chat/completions' });

@@ -4,8 +4,16 @@ import { labLogger } from '../support/logger.js';
 const mockMultiMcpClient: McpClientLike = {
   listTools: async () => ({
     tools: [
-      { name: 'read_file', description: 'Read file from disk', inputSchema: { type: 'object', properties: {} } },
-      { name: 'write_file', description: 'Write file to disk', inputSchema: { type: 'object', properties: {} } },
+      {
+        name: 'read_file',
+        description: 'Read file from disk',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'write_file',
+        description: 'Write file to disk',
+        inputSchema: { type: 'object', properties: {} },
+      },
     ],
   }),
   callTool: async ({ name }) => ({

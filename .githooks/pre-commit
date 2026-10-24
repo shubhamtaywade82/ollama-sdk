@@ -1,6 +1,8 @@
 #!/bin/sh
-# Fast local gate (~15 s): the same lint and typecheck CI runs, before the
-# commit exists. Skip in a hurry with `git commit --no-verify`; CI still runs.
+# Fast local gate (~15 s): the lint, format and typecheck checks CI runs,
+# before the commit exists. Lint fails on any warning (--max-warnings 0).
+# Skip in a hurry with `git commit --no-verify`; CI still runs.
 set -e
 npm run --silent lint
+npm run --silent format:check
 npm run --silent typecheck

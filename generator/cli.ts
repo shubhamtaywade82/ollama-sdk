@@ -140,9 +140,7 @@ function cmdGenerate(): void {
   const modelFiles = emitModels('src/generated/models', contract.schemas);
   const zodSchemaFiles = emitZodSchemas(contract.schemas);
   const apiFiles = emitApi('src/generated/api', contract.operations);
-  const opsFiles = [
-    emitOperations('src/generated/api', contract.operations),
-  ];
+  const opsFiles = [emitOperations('src/generated/api', contract.operations)];
   // Wave 12 (P1 #6): generate the runtime schema-registry from the IR
   // rather than hand-maintaining it. Every operation whose IR entry
   // carries a request.$ref gets an entry; the runtime consults this

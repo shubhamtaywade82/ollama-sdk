@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OllamaMockServer } from './mocks/ollama-mock-server.js';
 import { OllamaClient } from '../src/client.js';
-import {
-  OllamaNotFoundError,
-  OllamaOverloadedError,
-  OllamaStreamError,
-} from '../src/errors.js';
+import { OllamaNotFoundError, OllamaOverloadedError, OllamaStreamError } from '../src/errors.js';
 
 /**
  * OllamaMockServer — see `test/mocks/ollama-mock-server.ts`.

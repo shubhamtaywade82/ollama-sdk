@@ -19,32 +19,20 @@ describe('API parity documentation evidence', () => {
       '- [Input] `model`',
       '- [Input] `messages`',
     ].join('\n');
-    const staleFallback = [
-      'Supported request fields',
-      '- [Input] `output_config`',
-    ].join('\n');
+    const staleFallback = ['Supported request fields', '- [Input] `output_config`'].join('\n');
 
     expect(firstKnownStatus(liveSection, staleFallback, ['output_config'])).toBe('missing');
   });
 
   it('uses the pinned fallback when the live section is unavailable', () => {
-    const staleFallback = [
-      'Supported request fields',
-      '- [Input] `output_config`',
-    ].join('\n');
+    const staleFallback = ['Supported request fields', '- [Input] `output_config`'].join('\n');
 
     expect(firstKnownStatus('', staleFallback, ['output_config'])).toBe('supported');
   });
 
   it('preserves explicit unsupported status from the live section', () => {
-    const liveSection = [
-      'Not supported',
-      '- [ ] `tool_choice`',
-    ].join('\n');
-    const staleFallback = [
-      'Supported request fields',
-      '- [Input] `tool_choice`',
-    ].join('\n');
+    const liveSection = ['Not supported', '- [ ] `tool_choice`'].join('\n');
+    const staleFallback = ['Supported request fields', '- [Input] `tool_choice`'].join('\n');
 
     expect(firstKnownStatus(liveSection, staleFallback, ['tool_choice'])).toBe('unsupported');
   });
@@ -89,10 +77,9 @@ describe('API parity unsupported evidence', () => {
 
   it('recognizes explicit unsupported prose', () => {
     expect(
-      explicitlyUnsupported(
-        'Prompt caching via `cache_control` blocks is not supported.',
-        ['cache_control'],
-      ),
+      explicitlyUnsupported('Prompt caching via `cache_control` blocks is not supported.', [
+        'cache_control',
+      ]),
     ).toBe(true);
   });
 
@@ -100,7 +87,6 @@ describe('API parity unsupported evidence', () => {
     expect(nestedFieldName('messages[].content[].cache_control')).toBe('cache_control');
   });
 });
-
 
 describe('API parity supported feature evidence', () => {
   it('recognizes supported features that are documented outside request-field tables', () => {
@@ -164,9 +150,9 @@ describe('API parity against the pinned markdown docs (checkbox state)', () => {
     expect(
       supportedFeatureStatus(endpointSection(openaiDocs, '/v1/chat/completions'), ['Logprobs']),
     ).toBe('unsupported');
-    expect(supportedFeatureStatus(['#### Supported features', '* [x] Vision'].join('\n'), ['Vision'])).toBe(
-      'supported',
-    );
+    expect(
+      supportedFeatureStatus(['#### Supported features', '* [x] Vision'].join('\n'), ['Vision']),
+    ).toBe('supported');
   });
 });
 

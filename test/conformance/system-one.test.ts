@@ -58,10 +58,9 @@ describeConformance('System One conformance', () => {
     // conformance check. If the real server returns a different shape
     // (e.g. confidence as { score } instead of a bare number), this fails.
     const parsed = SystemOneResponseSchema.safeParse(result);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
 
     // Structural assertions on the choice answer.
     expect(result.model).toBe(CONFORMANCE_SYSTEMONE_MODEL);
@@ -106,10 +105,9 @@ describeConformance('System One conformance', () => {
     }
 
     const parsed = SystemOneResponseSchema.safeParse(result);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
 
     expect(result.answers.eligible.type).toBe('noul');
     if (result.answers.eligible.type === 'noul') {
@@ -149,10 +147,9 @@ describeConformance('System One conformance', () => {
     }
 
     const parsed = SystemOneResponseSchema.safeParse(result);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
 
     expect(result.answers.severity.type).toBe('score');
     if (result.answers.severity.type === 'score') {
@@ -215,10 +212,9 @@ describeConformance('System One conformance', () => {
     }
 
     const parsed = SystemOneResponseSchema.safeParse(result);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
 
     // All three answer types should be present and correctly typed.
     expect(result.answers.intent.type).toBe('choice');

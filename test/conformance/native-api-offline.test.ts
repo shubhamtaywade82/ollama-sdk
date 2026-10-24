@@ -159,10 +159,9 @@ describe('Native REST API offline wire-format conformance', () => {
   it('GET /api/version returns VersionResponse matching the Zod schema', async () => {
     const res = await api.version();
     const parsed = VersionResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect((res as VersionResponse).version).toBe('0.5.0');
     expect(typeof (res as VersionResponse).version).toBe('string');
   });
@@ -170,10 +169,9 @@ describe('Native REST API offline wire-format conformance', () => {
   it('GET /api/tags returns ListResponse matching the Zod schema', async () => {
     const res = await api.tags();
     const parsed = ListResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect(Array.isArray((res as ListResponse).models)).toBe(true);
     expect((res as ListResponse).models.length).toBe(1);
     expect((res as ListResponse).models[0]?.name).toBe(TEST_MODEL);
@@ -182,10 +180,9 @@ describe('Native REST API offline wire-format conformance', () => {
   it('GET /api/ps returns PsResponse matching the Zod schema (empty list)', async () => {
     const res = await api.ps();
     const parsed = PsResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect(Array.isArray((res as PsResponse).models)).toBe(true);
     expect((res as PsResponse).models.length).toBe(0);
   });
@@ -193,10 +190,9 @@ describe('Native REST API offline wire-format conformance', () => {
   it('POST /api/show returns ShowResponse matching the Zod schema', async () => {
     const res = await api.show({ model: TEST_MODEL });
     const parsed = ShowResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect((res as ShowResponse).details).toBeDefined();
     expect(typeof (res as ShowResponse).details.family).toBe('string');
     expect((res as ShowResponse).details.family).toBe('qwen3');
@@ -241,10 +237,9 @@ describe('Native REST API offline wire-format conformance — inference endpoint
       options: { temperature: 0 },
     });
     const parsed = ChatResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect((res as ChatResponse).model).toBe(TEST_MODEL);
     expect((res as ChatResponse).done).toBe(true);
     expect((res as ChatResponse).message?.content).toBe('ok');
@@ -284,10 +279,9 @@ describe('Native REST API offline wire-format conformance — inference endpoint
       options: { temperature: 0 },
     });
     const parsed = GenerateResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect((res as GenerateResponse).model).toBe(TEST_MODEL);
     expect((res as GenerateResponse).done).toBe(true);
     expect(typeof (res as GenerateResponse).response).toBe('string');
@@ -315,10 +309,9 @@ describe('Native REST API offline wire-format conformance — inference endpoint
       input: 'hello world',
     });
     const parsed = EmbedResponseSchema.safeParse(res);
-    expect(
-      parsed.success,
-      parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2),
-    ).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues, null, 2)).toBe(
+      true,
+    );
     expect((res as EmbedResponse).model).toBe(TEST_EMBED_MODEL);
     expect(Array.isArray((res as EmbedResponse).embeddings)).toBe(true);
     expect((res as EmbedResponse).embeddings.length).toBe(1);

@@ -31,7 +31,13 @@ async function main(): Promise<void> {
   try {
     const res = await agent.run({
       model: env.localModel,
-      messages: [{ role: 'user', content: 'Save the secret code "LAB_42" under key "passcode", then fetch it back and confirm.' }],
+      messages: [
+        {
+          role: 'user',
+          content:
+            'Save the secret code "LAB_42" under key "passcode", then fetch it back and confirm.',
+        },
+      ],
     });
 
     await labLogger.log({

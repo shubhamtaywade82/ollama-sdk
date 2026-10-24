@@ -27,7 +27,8 @@ async function main(): Promise<void> {
       messages: [
         {
           role: 'user',
-          content: 'Plan 2 steps to deploy a TypeScript web server and execute each step using execute_step.',
+          content:
+            'Plan 2 steps to deploy a TypeScript web server and execute each step using execute_step.',
         },
       ],
     });
