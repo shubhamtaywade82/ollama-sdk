@@ -665,7 +665,13 @@ describe('System One cloud-model version gate (ADR 0036)', () => {
 
   it('fails open when the version probe errors (auto policy)', async () => {
     const { fetchImpl, systemOneCalls } = routedFetch(null);
-    const client = new OllamaClient({ baseUrl: 'http://localhost:11434', fetch: fetchImpl });
+    // 500 is retryable; default backoff across the gate probe and the
+    // runtime's 0.35.0 probe exceeds the 5s test timeout.
+    const client = new OllamaClient({
+      baseUrl: 'http://localhost:11434',
+      fetch: fetchImpl,
+      retries: 0,
+    });
 
     await client.systemOne({
       model: 'clef:cloud',

@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added — weekly upstream drift watch (ADR 0039)
+
+- **`npm run contract:upstream-drift` (`scripts/upstream-drift.ts`).** Compares each pinned docs source against the latest `ollama/ollama` commit touching its new `docs-index.json` `upstreamPath`, by commit ancestry through the GitHub compare API. Exits 1 on drift.
+  - The report also lists bridge-code commits under upstream `openai/` and `anthropic/` and the latest Ollama release. Both are informational.
+  - Its first live run found `675150d` ("voice: add voice catalog for Phonon"), an OpenAI-compatibility docs edit after the 1.22.0 pin.
+- **`.github/workflows/upstream-watch.yml`** runs Mondays at 09:00 IST and on demand. On drift it:
+  - re-pins the drifted sources;
+  - regenerates and runs the contract gates;
+  - opens or updates the candidate PR on `upstream-sync/auto` and the single `upstream-drift` issue.
+
+  The PR is never auto-merged; a red gate in it means implementation work is due.
+- **Re-pins keep the curated parts.**
+  - `contract:fetch` takes `--ref <sha>` and now writes the verbatim spec to `docs/upstream/ollama-openapi.yaml`.
+  - The contract source keeps its curated header (pin anchor rewritten, refresh note appended), and the body gets `CURATED_DEVIATIONS` (the `families: [array, null]` deviation) re-applied. A deviation that can neither be applied nor found adopted upstream throws.
+  - `refresh-mdx-pins.ts` reads its pins from `docs-index.json`, resolves each SHA from upstream, and takes `--only <ids>`.
+  - Both scripts update `pinnedSha`/`pinnedAt` in `docs-index.json`.
+- 9 new tests in `test/contract/upstream-drift.test.ts`.
+
 ### Fixed — structural guard against rebase artifacts
 
 - **New `test/repo-hygiene.test.ts` fails the suite on any unresolved conflict marker in any tracked file.** The v1.22.0 PR head had shipped a green eight-check CI run carrying a stray rebase marker at `CHANGELOG.md:23` — caught only by pre-tag manual review and dropped in the `ac9a385` amendment. The changelog was (and is) neither linted nor imported by tests, so no existing gate could see it; this test scans every file `git ls-files` reports for the four conflict-marker line shapes (`<<<<<<<`, `=======` as a whole line, `|||||||`, `>>>>>>>`) and runs everywhere `npm test` runs — PR CI, the publish workflow's pre-publish suite, and local development. It is the structural fix for the artifact-class lessons of ADR 0036 (display artifacts) and ADR 0038 (piped exit codes): the class can no longer reach `main` behind a passing build.
