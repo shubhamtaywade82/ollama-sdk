@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added: automated versioning with release-please ([ADR 0040](./docs/adr/0040-release-please-versioning.md))
+
+- `.github/workflows/release-please.yml` keeps one release PR open with the next version, computed from Conventional Commit PR titles: `fix:` → patch, `feat:` → minor, `feat!:` → major. Merging that PR tags the version, creates the GitHub release, and calls `publish.yml`, which now accepts `workflow_call`.
+- This changelog stays hand-written. Before merging a release PR, rename `## [Unreleased]` to the new version on its branch.
+- `.github/workflows/pr-title.yml` rejects PR titles that aren't Conventional Commits.
+- Upstream-watch PRs title themselves `feat(contract):` when `src/generated` changed and `chore(contract):` for a pin-only refresh.
+
 ### Added — weekly upstream drift watch (ADR 0039)
 
 - **`npm run contract:upstream-drift` (`scripts/upstream-drift.ts`).** Compares each pinned docs source against the latest `ollama/ollama` commit touching its new `docs-index.json` `upstreamPath`, by commit ancestry through the GitHub compare API. Exits 1 on drift.

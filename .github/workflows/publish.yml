@@ -3,6 +3,8 @@ name: Publish
 on:
   release:
     types: [published]
+  # Called by release-please.yml after it creates a release (ADR 0040).
+  workflow_call:
   workflow_dispatch:
     inputs:
       tag:
