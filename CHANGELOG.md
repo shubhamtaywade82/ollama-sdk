@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.23.0] — weekly upstream drift watch; automated versioning with release-please
+
 ### Added: automated versioning with release-please ([ADR 0040](./docs/adr/0040-release-please-versioning.md))
 
 - `.github/workflows/release-please.yml` keeps one release PR open with the next version, computed from Conventional Commit PR titles: `fix:` → patch, `feat:` → minor, `feat!:` → major. Merging that PR tags the version, creates the GitHub release, and calls `publish.yml`, which now accepts `workflow_call`.
