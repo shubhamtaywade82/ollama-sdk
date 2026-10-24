@@ -20,15 +20,17 @@ import type {
 
 export type McpBridgeOptions = LoadMcpToolsOptions;
 
-const taskSchema = z.object({
-  taskId: z.string(),
-  status: z.enum(['working', 'input_required', 'completed', 'failed', 'cancelled']),
-  statusMessage: z.string().optional(),
-  createdAt: z.string(),
-  lastUpdatedAt: z.string(),
-  ttl: z.number().optional(),
-  pollInterval: z.number().optional(),
-}).passthrough();
+const taskSchema = z
+  .object({
+    taskId: z.string(),
+    status: z.enum(['working', 'input_required', 'completed', 'failed', 'cancelled']),
+    statusMessage: z.string().optional(),
+    createdAt: z.string(),
+    lastUpdatedAt: z.string(),
+    ttl: z.number().optional(),
+    pollInterval: z.number().optional(),
+  })
+  .passthrough();
 const callToolResultSchema = z.custom<McpCallToolResult>(
   (value) =>
     typeof value === 'object' &&
@@ -56,7 +58,8 @@ export class McpBridge {
         parameters: {
           ...(tool.inputSchema ?? { type: 'object', properties: {} }),
           type: 'object' as const,
-          properties: ((tool.inputSchema ?? {})['properties'] ?? {}) as ToolDefinition['function']['parameters']['properties'],
+          properties: ((tool.inputSchema ?? {})['properties'] ??
+            {}) as ToolDefinition['function']['parameters']['properties'],
         } as ToolDefinition['function']['parameters'],
       },
     }));
@@ -85,32 +88,17 @@ export class McpBridge {
 
   /** Fetches one legacy MCP task's current status without starting a polling loop. */
   async getTaskStatus(taskId: string, signal?: AbortSignal): Promise<McpTask> {
-    return this.requestTask(
-      'tasks/get',
-      taskId,
-      taskSchema,
-      signal,
-    );
+    return this.requestTask('tasks/get', taskId, taskSchema, signal);
   }
 
   /** Retrieves a completed legacy MCP task's result. */
   async getTaskResult(taskId: string, signal?: AbortSignal): Promise<McpCallToolResult> {
-    return this.requestTask(
-      'tasks/result',
-      taskId,
-      callToolResultSchema,
-      signal,
-    );
+    return this.requestTask('tasks/result', taskId, callToolResultSchema, signal);
   }
 
   /** Cancels one legacy MCP task. */
   async cancelTask(taskId: string, signal?: AbortSignal): Promise<McpTask> {
-    return this.requestTask(
-      'tasks/cancel',
-      taskId,
-      taskSchema,
-      signal,
-    );
+    return this.requestTask('tasks/cancel', taskId, taskSchema, signal);
   }
 
   private requestTask<T>(
@@ -120,10 +108,9 @@ export class McpBridge {
     signal?: AbortSignal,
   ): Promise<T> {
     if (this.client.request === undefined) {
-      throw new OllamaMcpError(
-        `MCP client does not support ${method} requests`,
-        { mcpMethod: method },
-      );
+      throw new OllamaMcpError(`MCP client does not support ${method} requests`, {
+        mcpMethod: method,
+      });
     }
     return this.client.request(
       { method, params: { taskId } },

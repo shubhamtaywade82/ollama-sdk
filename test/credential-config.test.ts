@@ -3,7 +3,9 @@ import { OllamaClient } from '../src/client.js';
 import { resolveCredentialEndpoints } from '../src/config.js';
 import { OllamaModelRoutingError } from '../src/errors.js';
 
-function jsonFetchMock(handler: (url: string, init: { headers?: Record<string, string> }) => unknown) {
+function jsonFetchMock(
+  handler: (url: string, init: { headers?: Record<string, string> }) => unknown,
+) {
   return vi
     .fn()
     .mockImplementation(async (url: string, init: { headers?: Record<string, string> }) => ({
@@ -83,7 +85,11 @@ describe('OllamaClient: credentials + modelBindings config', () => {
     const fetchMock = jsonFetchMock((_url, init) => {
       const auth = init.headers?.['Authorization'];
       const model =
-        auth === 'Bearer KEY_1' ? 'gpt-oss:120b' : auth === 'Bearer KEY_2' ? 'minimax-m3' : 'nemotron-3-super';
+        auth === 'Bearer KEY_1'
+          ? 'gpt-oss:120b'
+          : auth === 'Bearer KEY_2'
+            ? 'minimax-m3'
+            : 'nemotron-3-super';
       seenAuth[model] = auth;
       return {
         model,
@@ -108,8 +114,14 @@ describe('OllamaClient: credentials + modelBindings config', () => {
       fetch: fetchMock as never,
     });
 
-    const gpt = await client.chat({ model: 'gpt-oss:120b', messages: [{ role: 'user', content: 'hi' }] });
-    const minimax = await client.chat({ model: 'minimax-m3', messages: [{ role: 'user', content: 'hi' }] });
+    const gpt = await client.chat({
+      model: 'gpt-oss:120b',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    const minimax = await client.chat({
+      model: 'minimax-m3',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
 
     expect(gpt.message.content).toBe('ok:gpt-oss:120b');
     expect(minimax.message.content).toBe('ok:minimax-m3');
@@ -162,7 +174,10 @@ describe('OllamaClient: credentials + modelBindings config', () => {
     }));
 
     const client = new OllamaClient({ apiKey: 'SINGLE_KEY', fetch: fetchMock as never });
-    const res = await client.chat({ model: 'llama3.2', messages: [{ role: 'user', content: 'hi' }] });
+    const res = await client.chat({
+      model: 'llama3.2',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
     expect(res.message.content).toBe('Bearer SINGLE_KEY');
   });
 });

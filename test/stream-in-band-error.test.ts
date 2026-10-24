@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseNdjsonStream } from '../src/streaming/ndjson.js';
 import { normalizeChatStream, normalizeGenerateStream } from '../src/streaming/normalize.js';
-import {
-  OllamaClientError,
-  OllamaServerError,
-  OllamaStreamError,
-} from '../src/errors.js';
+import { OllamaClientError, OllamaServerError, OllamaStreamError } from '../src/errors.js';
 import type { ChatResponse, GenerateResponse } from '../src/types.js';
 
 /**
@@ -68,9 +64,7 @@ describe('parseNdjsonStream: in-band error frame trapping', () => {
   it('throws OllamaStreamError immediately if the FIRST frame is an error', async () => {
     const stream = ndjsonStream(['{"error":"model not found"}\n']);
 
-    await expect(collect<ChatResponse>(stream).next()).rejects.toBeInstanceOf(
-      OllamaStreamError,
-    );
+    await expect(collect<ChatResponse>(stream).next()).rejects.toBeInstanceOf(OllamaStreamError);
   });
 
   it('throws OllamaStreamError if the error frame is in the trailing buffer (no trailing newline)', async () => {
@@ -163,9 +157,7 @@ describe('parseNdjsonStream: defensive rejection of frames that LOOK like errors
     // markers (model, response, message, status, done). A frame that
     // carries both `error` and `model` would pass through unchanged
     // (callers can branch on the error field if they want).
-    const stream = ndjsonStream([
-      '{"model":"llama3","error":"warning: low context"}\n',
-    ]);
+    const stream = ndjsonStream(['{"model":"llama3","error":"warning: low context"}\n']);
 
     const chunks: Array<{ model?: string; error?: string }> = [];
     for await (const c of parseNdjsonStream(stream)) {
@@ -198,7 +190,10 @@ describe('OllamaStream: partialContent enrichment', () => {
     ]);
 
     const wrapped = normalizeChatStream(
-      { [Symbol.asyncIterator]: () => parseNdjsonStream<ChatResponse>(stream)[Symbol.asyncIterator]() },
+      {
+        [Symbol.asyncIterator]: () =>
+          parseNdjsonStream<ChatResponse>(stream)[Symbol.asyncIterator](),
+      },
       undefined,
     );
     const finalResult = wrapped.finalResult;
@@ -240,7 +235,10 @@ describe('OllamaStream: partialContent enrichment', () => {
     ]);
 
     const wrapped = normalizeGenerateStream(
-      { [Symbol.asyncIterator]: () => parseNdjsonStream<GenerateResponse>(stream)[Symbol.asyncIterator]() },
+      {
+        [Symbol.asyncIterator]: () =>
+          parseNdjsonStream<GenerateResponse>(stream)[Symbol.asyncIterator](),
+      },
       undefined,
     );
     const finalResult = wrapped.finalResult;
@@ -264,7 +262,10 @@ describe('OllamaStream: partialContent enrichment', () => {
     const stream = ndjsonStream(['{"error":"model not found"}\n']);
 
     const wrapped = normalizeChatStream(
-      { [Symbol.asyncIterator]: () => parseNdjsonStream<ChatResponse>(stream)[Symbol.asyncIterator]() },
+      {
+        [Symbol.asyncIterator]: () =>
+          parseNdjsonStream<ChatResponse>(stream)[Symbol.asyncIterator](),
+      },
       undefined,
     );
     const finalResult = wrapped.finalResult;

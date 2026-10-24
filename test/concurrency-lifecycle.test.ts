@@ -44,7 +44,10 @@ describe('Concurrency slot lifecycle: streaming', () => {
       fetch: fetchMock as never,
     });
 
-    const stream = await client.chatStream({ model: 'llama3', messages: [{ role: 'user', content: 'hi' }] });
+    const stream = await client.chatStream({
+      model: 'llama3',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
 
     // The HTTP response has arrived and the OllamaStream wrapper exists, but nothing has
     // consumed it yet — the slot must still be held (mirroring the real HTTP connection
@@ -115,7 +118,10 @@ describe('Concurrency slot lifecycle: streaming', () => {
       fetch: fetchMock as never,
     });
 
-    const stream = await client.chatStream({ model: 'llama3', messages: [{ role: 'user', content: 'hi' }] });
+    const stream = await client.chatStream({
+      model: 'llama3',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
     expect(client.endpointStatus()[0]?.activeRequests).toBe(1);
 
     // OllamaStream surfaces a mid-stream failure as an `error`-type event within the

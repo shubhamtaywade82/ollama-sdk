@@ -53,6 +53,6 @@
 
 /* Tidy up code block contrast against the emerald accent. */
 :root {
-  --vp-code-line-highlight-color: rgba(16, 185, 129, 0.10);
+  --vp-code-line-highlight-color: rgba(16, 185, 129, 0.1);
   --vp-code-line-number-color: #94a3b8;
 }

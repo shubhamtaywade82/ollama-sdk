@@ -21,7 +21,12 @@ async function main(): Promise<void> {
     const tradeIdea: TradeIdea = await client.chatWithSchema(
       {
         model: env.localModel,
-        messages: [{ role: 'user', content: 'Generate a trading signal for BTC/USDT based on strong momentum.' }],
+        messages: [
+          {
+            role: 'user',
+            content: 'Generate a trading signal for BTC/USDT based on strong momentum.',
+          },
+        ],
       },
       TradeIdeaSchema,
     );

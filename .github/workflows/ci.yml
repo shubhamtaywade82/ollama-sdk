@@ -52,6 +52,8 @@ jobs:
 
       - run: npm run lint
 
+      - run: npm run format:check
+
       - name: Verify Ollama contract parity (structural)
         # --skip-live-docs avoids hitting docs.ollama.com from CI; the
         # structural half (TypeScript interface + IR parity blocks) is

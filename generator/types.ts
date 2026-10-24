@@ -75,15 +75,7 @@ export interface JsonSchemaNode {
     | 'number'
     | 'boolean'
     | 'null'
-    | readonly (
-        | 'object'
-        | 'array'
-        | 'string'
-        | 'integer'
-        | 'number'
-        | 'boolean'
-        | 'null'
-      )[];
+    | readonly ('object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null')[];
   readonly description?: string;
   readonly required?: readonly string[];
   readonly properties?: Readonly<Record<string, JsonSchemaNode>>;

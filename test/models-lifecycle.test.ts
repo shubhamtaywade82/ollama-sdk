@@ -21,12 +21,12 @@ import { KEEP_ALIVE_INDEFINITE, KEEP_ALIVE_UNLOAD } from '../src/keep-alive.js';
  */
 
 function fakeFetch(status: number, body: unknown): typeof globalThis.fetch {
-  return (vi.fn().mockResolvedValue(
+  return vi.fn().mockResolvedValue(
     new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
     }),
-  ) as unknown) as typeof globalThis.fetch;
+  ) as unknown as typeof globalThis.fetch;
 }
 
 function readCallBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {

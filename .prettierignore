@@ -1,0 +1,12 @@
+dist/
+coverage/
+node_modules/
+.remember/
+# Verbatim upstream pins: pin-consistency tests compare them byte-for-byte
+# with what Ollama publishes, so they must never be reformatted.
+docs/upstream/
+contracts/sources/
+contracts/ir/
+# Prose: reflowing hand-written docs and changelog entries adds churn
+# without catching bugs.
+*.md

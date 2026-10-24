@@ -27,7 +27,12 @@ async function main(): Promise<void> {
   try {
     const result = await agent.run({
       model: env.localModel,
-      messages: [{ role: 'user', content: 'What is the temperature in Paris in Fahrenheit? Use the available tools.' }],
+      messages: [
+        {
+          role: 'user',
+          content: 'What is the temperature in Paris in Fahrenheit? Use the available tools.',
+        },
+      ],
     });
 
     const traceFile = await labLogger.saveAgentTrace('agent-multi-step', result);

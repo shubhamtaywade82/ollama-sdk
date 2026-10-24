@@ -48,7 +48,14 @@ describe('Wave 12: MCP input schemas are structurally derived (no prompt fallbac
     // Tools for operations WITHOUT a request body schema (GET/HEAD) now
     // use a path-derived schema. Those always set additionalProperties
     // to false — the previous fallback used true.
-    const pathDerivedOpIds = ['version', 'tags', 'ps', 'openaiModels', 'openaiModelsGetOne', 'blobs'];
+    const pathDerivedOpIds = [
+      'version',
+      'tags',
+      'ps',
+      'openaiModels',
+      'openaiModelsGetOne',
+      'blobs',
+    ];
     for (const id of pathDerivedOpIds) {
       const tool = byOp(id);
       expect(tool, `tool for ${id}`).toBeDefined();

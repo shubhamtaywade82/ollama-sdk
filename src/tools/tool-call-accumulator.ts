@@ -105,12 +105,16 @@ export function mergeToolCall(earlier: ToolCall, later: ToolCall): ToolCall {
     arguments:
       earlierArgs !== undefined && laterArgs !== undefined
         ? { ...earlierArgs, ...laterArgs }
-        : laterArgs ?? earlierArgs ?? {},
+        : (laterArgs ?? earlierArgs ?? {}),
   };
 
   return {
     // id: prefer the later one if present, else the earlier one
-    ...(later.id !== undefined ? { id: later.id } : earlier.id !== undefined ? { id: earlier.id } : {}),
+    ...(later.id !== undefined
+      ? { id: later.id }
+      : earlier.id !== undefined
+        ? { id: earlier.id }
+        : {}),
     function: mergedFn,
   };
 }
@@ -127,11 +131,16 @@ export function mergeToolCall(earlier: ToolCall, later: ToolCall): ToolCall {
 export function mergeToolCallArgumentsString(earlier: ToolCall, later: ToolCall): ToolCall {
   const earlierArgs = earlier.function.arguments as unknown as string | undefined;
   const laterArgs = later.function.arguments as unknown as string | undefined;
-  const concatenated = (typeof earlierArgs === 'string' ? earlierArgs : '') +
+  const concatenated =
+    (typeof earlierArgs === 'string' ? earlierArgs : '') +
     (typeof laterArgs === 'string' ? laterArgs : '');
 
   return {
-    ...(later.id !== undefined ? { id: later.id } : earlier.id !== undefined ? { id: earlier.id } : {}),
+    ...(later.id !== undefined
+      ? { id: later.id }
+      : earlier.id !== undefined
+        ? { id: earlier.id }
+        : {}),
     function: {
       name: later.function.name || earlier.function.name,
       arguments: concatenated as unknown as Record<string, unknown>,

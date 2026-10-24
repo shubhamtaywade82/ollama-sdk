@@ -54,8 +54,12 @@ export type McpElicitationResult =
   | { readonly action: 'decline' | 'cancel' };
 
 export interface McpElicitationHandlers {
-  readonly form?: ((request: McpElicitationFormRequest) => Promise<McpElicitationResult> | McpElicitationResult) | undefined;
-  readonly url?: ((request: McpElicitationUrlRequest) => Promise<McpElicitationResult> | McpElicitationResult) | undefined;
+  readonly form?:
+    | ((request: McpElicitationFormRequest) => Promise<McpElicitationResult> | McpElicitationResult)
+    | undefined;
+  readonly url?:
+    | ((request: McpElicitationUrlRequest) => Promise<McpElicitationResult> | McpElicitationResult)
+    | undefined;
 }
 
 export interface McpToolDescriptor {
@@ -125,27 +129,30 @@ export interface McpCreateTaskResult {
   readonly _meta?: Record<string, unknown> | undefined;
 }
 
-export type McpToolCallResult =
-  | McpCallToolResult
-  | McpInputRequiredResult
-  | McpCreateTaskResult;
+export type McpToolCallResult = McpCallToolResult | McpInputRequiredResult | McpCreateTaskResult;
 
 export interface McpServerCapabilities {
-  readonly tasks?: {
-    readonly requests?: {
-      readonly tools?: { readonly call?: Record<string, unknown> | undefined } | undefined;
-    } | undefined;
-  } | undefined;
+  readonly tasks?:
+    | {
+        readonly requests?:
+          | {
+              readonly tools?: { readonly call?: Record<string, unknown> | undefined } | undefined;
+            }
+          | undefined;
+      }
+    | undefined;
   readonly [key: string]: unknown;
 }
 
 export interface McpClientLike {
   getServerCapabilities?: (() => McpServerCapabilities | undefined) | undefined;
-  request?: (<T>(
-    request: McpTaskRequest,
-    resultSchema: z.ZodType<T>,
-    options?: McpRequestOptions,
-  ) => Promise<T>) | undefined;
+  request?:
+    | (<T>(
+        request: McpTaskRequest,
+        resultSchema: z.ZodType<T>,
+        options?: McpRequestOptions,
+      ) => Promise<T>)
+    | undefined;
   listTools: (
     params?: McpListToolsParams,
     options?: McpRequestOptions,

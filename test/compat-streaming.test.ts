@@ -52,38 +52,40 @@ describe('OpenAI compatibility streaming', () => {
       prompt_tokens: 10,
       completion_tokens: 5,
       total_tokens: 15,
-    });    expect(final.choices[0]?.message.reasoning).toBeUndefined();
-
+    });
+    expect(final.choices[0]?.message.reasoning).toBeUndefined();
   });
 });
 
-  it('aggregates reasoning deltas and preserves stream metadata', async () => {
-    const fetchMock = sseFetchMock([
-      'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"role":"assistant","reasoning":"think"}}],"usage":null}\n\n',
-      'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"reasoning":"ing","content":"done"},"finish_reason":"stop"}]}\n\n',
-      'data: [DONE]\n\n',
-    ]);
-    const client = new OllamaClient({ fetch: fetchMock as never });
-    const stream = await client.openai.chatCompletions({
-      model: 'qwen3',
-      messages: [{ role: 'user', content: 'hello' }],
-      stream: true,
-    });
+it('aggregates reasoning deltas and preserves stream metadata', async () => {
+  const fetchMock = sseFetchMock([
+    'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"role":"assistant","reasoning":"think"}}],"usage":null}\n\n',
+    'data: {"id":"chat-r","object":"chat.completion.chunk","created":2,"model":"qwen3","system_fingerprint":"fp1","choices":[{"index":0,"delta":{"reasoning":"ing","content":"done"},"finish_reason":"stop"}]}\n\n',
+    'data: [DONE]\n\n',
+  ]);
+  const client = new OllamaClient({ fetch: fetchMock as never });
+  const stream = await client.openai.chatCompletions({
+    model: 'qwen3',
+    messages: [{ role: 'user', content: 'hello' }],
+    stream: true,
+  });
 
-    for await (const _ of stream) {
-      // drain
-    }
+  for await (const _ of stream) {
+    // drain
+  }
 
-    await expect(stream.finalResult).resolves.toMatchObject({
-      system_fingerprint: 'fp1',
-      choices: [{
+  await expect(stream.finalResult).resolves.toMatchObject({
+    system_fingerprint: 'fp1',
+    choices: [
+      {
         message: {
           reasoning: 'thinking',
           content: 'done',
         },
-      }],
-    });
+      },
+    ],
   });
+});
 
 describe('OpenAI Responses compatibility streaming', () => {
   it('exposes typed response SSE events and preserves the completed response', async () => {
@@ -192,24 +194,30 @@ describe('OpenAI Responses compatibility streaming', () => {
 
   it('rejects Responses streams on failed and incomplete terminal events', async () => {
     const terminals = [
-      ['response.failed', {
-        id: 'resp_failed',
-        object: 'response',
-        created: 5,
-        model: 'qwen3',
-        status: 'failed',
-        error: { code: 'server_error', message: 'generation failed' },
-        output: [],
-      }],
-      ['response.incomplete', {
-        id: 'resp_incomplete',
-        object: 'response',
-        created: 6,
-        model: 'qwen3',
-        status: 'incomplete',
-        incomplete_details: { reason: 'max_output_tokens' },
-        output: [],
-      }],
+      [
+        'response.failed',
+        {
+          id: 'resp_failed',
+          object: 'response',
+          created: 5,
+          model: 'qwen3',
+          status: 'failed',
+          error: { code: 'server_error', message: 'generation failed' },
+          output: [],
+        },
+      ],
+      [
+        'response.incomplete',
+        {
+          id: 'resp_incomplete',
+          object: 'response',
+          created: 6,
+          model: 'qwen3',
+          status: 'incomplete',
+          incomplete_details: { reason: 'max_output_tokens' },
+          output: [],
+        },
+      ],
     ] as const;
 
     for (const [eventType, response] of terminals) {
@@ -217,19 +225,30 @@ describe('OpenAI Responses compatibility streaming', () => {
         'event: response.created\ndata: ' +
           JSON.stringify({
             type: 'response.created',
-            response: { id: response.id, object: 'response', created: response.created, model: response.model, status: 'in_progress', output: [] },
+            response: {
+              id: response.id,
+              object: 'response',
+              created: response.created,
+              model: response.model,
+              status: 'in_progress',
+              output: [],
+            },
           }) +
           '\n\n',
         'event: ' + eventType + '\ndata: ' + JSON.stringify({ type: eventType, response }) + '\n\n',
       ]);
       const client = new OllamaClient({ fetch: fetchMock as never });
       const stream = await client.openai.responses({ model: 'qwen3', input: 'Hi', stream: true });
-      await expect((async () => {
-        for await (const _ of stream) {
-          // drain
-        }
-      })()).rejects.toMatchObject({ code: 'openai_responses_stream_error' });
-      await expect(stream.finalResult).rejects.toMatchObject({ code: 'openai_responses_stream_error' });
+      await expect(
+        (async () => {
+          for await (const _ of stream) {
+            // drain
+          }
+        })(),
+      ).rejects.toMatchObject({ code: 'openai_responses_stream_error' });
+      await expect(stream.finalResult).rejects.toMatchObject({
+        code: 'openai_responses_stream_error',
+      });
     }
   });
 

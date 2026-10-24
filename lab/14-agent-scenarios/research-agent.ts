@@ -32,7 +32,8 @@ async function main(): Promise<void> {
       messages: [
         {
           role: 'user',
-          content: 'Search the knowledge base for Ollama Client TS features and give me a brief 2-point summary.',
+          content:
+            'Search the knowledge base for Ollama Client TS features and give me a brief 2-point summary.',
         },
       ],
     });

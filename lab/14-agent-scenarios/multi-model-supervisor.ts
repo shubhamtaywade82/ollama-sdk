@@ -70,7 +70,13 @@ async function runRole(
   model: string,
   role: Role,
   prompt: string,
-): Promise<{ role: Role; model: string; durationMs: number; totalIterations: number; finalAnswer: string }> {
+): Promise<{
+  role: Role;
+  model: string;
+  durationMs: number;
+  totalIterations: number;
+  finalAnswer: string;
+}> {
   const registry = new ToolRegistry([recordFindingTool]);
   const agent = new Agent(client, { tools: registry, maxIterations: 4 });
   const start = Date.now();

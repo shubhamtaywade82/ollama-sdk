@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { Agent, defineTool, OllamaAgentMaxIterationsError, OllamaClient, ToolRegistry } from '../../src/index.js';
+import {
+  Agent,
+  defineTool,
+  OllamaAgentMaxIterationsError,
+  OllamaClient,
+  ToolRegistry,
+} from '../../src/index.js';
 import { getLabEnv } from '../support/env.js';
 import { labLogger } from '../support/logger.js';
 
@@ -7,7 +13,10 @@ const infiniteTool = defineTool({
   name: 'loop_tool',
   description: 'A tool that asks to be called again',
   schema: z.object({ step: z.number() }),
-  execute: async ({ step }) => ({ nextStep: step + 1, message: 'Please call loop_tool again with nextStep' }),
+  execute: async ({ step }) => ({
+    nextStep: step + 1,
+    message: 'Please call loop_tool again with nextStep',
+  }),
 });
 
 async function main(): Promise<void> {

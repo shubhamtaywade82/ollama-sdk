@@ -28,7 +28,11 @@ async function main(): Promise<void> {
       );
       results[model] = { success: true, durationMs: Date.now() - start, output: book };
     } catch (err) {
-      results[model] = { success: false, durationMs: Date.now() - start, error: (err as Error).message };
+      results[model] = {
+        success: false,
+        durationMs: Date.now() - start,
+        error: (err as Error).message,
+      };
     }
   }
 

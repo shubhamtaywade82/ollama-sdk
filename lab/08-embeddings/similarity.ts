@@ -31,10 +31,12 @@ async function main(): Promise<void> {
     const queryRes = await client.embed({ model: env.embedModel, input: query });
     const qVec = queryRes.embeddings[0] ?? [];
 
-    const scored = documents.map((doc, idx) => ({
-      doc,
-      similarity: Number(cosineSimilarity(qVec, docRes.embeddings[idx] ?? []).toFixed(4)),
-    })).sort((x, y) => y.similarity - x.similarity);
+    const scored = documents
+      .map((doc, idx) => ({
+        doc,
+        similarity: Number(cosineSimilarity(qVec, docRes.embeddings[idx] ?? []).toFixed(4)),
+      }))
+      .sort((x, y) => y.similarity - x.similarity);
 
     await labLogger.log({
       experimentId: '08-embeddings-similarity',

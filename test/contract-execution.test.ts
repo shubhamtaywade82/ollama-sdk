@@ -4,7 +4,12 @@ import { NativeApi } from '../src/generated/api/native-api.js';
 import { OpenAIApi } from '../src/generated/api/openai-api.js';
 import { OllamaRuntime } from '../src/generated/runtime/runtime.js';
 import { HttpClient } from '../src/transport/http.js';
-import { openaiModelsGetOneOp, blobsOp, webSearchOp, webFetchOp } from '../src/generated/api/operations.js';
+import {
+  openaiModelsGetOneOp,
+  blobsOp,
+  webSearchOp,
+  webFetchOp,
+} from '../src/generated/api/operations.js';
 
 /**
  * Wave 15: Contract Execution Completion tests.
@@ -174,7 +179,8 @@ describe('Wave 15: Host-aware execution', () => {
 describe('Wave 15: MCP bridge splits path params from body', () => {
   it('callGeneratedOllamaTool passes path params as pathParams, not body', async () => {
     const { callGeneratedOllamaTool } = await import('../src/mcp/generated-bridge.js');
-    let capturedRequest: { pathParams?: unknown; body?: unknown; operation?: { path: string } } | undefined;
+    let capturedRequest:
+      { pathParams?: unknown; body?: unknown; operation?: { path: string } } | undefined;
 
     const mockRuntime = {
       invoke: async (req: unknown) => {
@@ -221,10 +227,17 @@ describe('Wave 15: Model-aware failover routing', () => {
   it('the runtime extracts model from the request body and passes it to the http backend', async () => {
     let capturedModel: string | undefined;
     const mockFetch = (async (_url: string | URL | Request, _init?: RequestInit) => {
-      return new Response(JSON.stringify({ model: 'gpt-4', message: { role: 'assistant', content: 'ok' }, done: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          model: 'gpt-4',
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     }) as unknown as typeof globalThis.fetch;
 
     const client = new OllamaClient({

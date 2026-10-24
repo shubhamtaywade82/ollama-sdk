@@ -54,18 +54,17 @@ export async function listAllMcpTools(
   let cursor: string | undefined;
 
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
-    const params: McpListToolsParams | undefined =
-      cursor !== undefined ? { cursor } : undefined;
+    const params: McpListToolsParams | undefined = cursor !== undefined ? { cursor } : undefined;
     const requestOptions: McpRequestOptions | undefined =
       signal !== undefined ? { signal } : undefined;
     const page = await mcpClient.listTools(params, requestOptions);
     const pageNames = new Set<string>();
     for (const tool of page.tools) {
       if (pageNames.has(tool.name)) {
-        throw new OllamaMcpError(
-          `MCP tools/list returned duplicate tool name "${tool.name}"`,
-          { mcpMethod: 'listTools', toolName: tool.name },
-        );
+        throw new OllamaMcpError(`MCP tools/list returned duplicate tool name "${tool.name}"`, {
+          mcpMethod: 'listTools',
+          toolName: tool.name,
+        });
       }
       pageNames.add(tool.name);
       if (tools.some((existing) => existing.name === tool.name)) {
@@ -141,7 +140,9 @@ function shouldCallAsTask(
   return support === 'required' || options.taskMode === 'all-supported';
 }
 
-function createInputValidator(inputSchema: Record<string, unknown>): z.ZodType<Record<string, unknown>> {
+function createInputValidator(
+  inputSchema: Record<string, unknown>,
+): z.ZodType<Record<string, unknown>> {
   return z.custom<Record<string, unknown>>().superRefine((value, ctx) => {
     const issues = validateJsonSchema(value, inputSchema);
     for (const issue of issues) {
@@ -178,15 +179,16 @@ function convertMcpDescriptorToTool(
     name: toolName,
     description: descriptor.description ?? '',
     schema: createInputValidator(inputSchema),
-    execute: async (args: Record<string, unknown>, context: { readonly signal?: AbortSignal | undefined }) => {
+    execute: async (
+      args: Record<string, unknown>,
+      context: { readonly signal?: AbortSignal | undefined },
+    ) => {
       try {
         const result = await mcpClient.callTool(
           {
             name: descriptor.name,
             arguments: args,
-            ...(executeAsTask
-              ? { task: taskTtlMs !== undefined ? { ttl: taskTtlMs } : {} }
-              : {}),
+            ...(executeAsTask ? { task: taskTtlMs !== undefined ? { ttl: taskTtlMs } : {} } : {}),
           },
           {
             ...(context.signal !== undefined ? { signal: context.signal } : {}),
@@ -252,11 +254,7 @@ export async function loadMcpTools(
     const tools = await listAllMcpTools(mcpClient, options, signal);
     const serverSupportsTasks = supportsTaskCalls(mcpClient);
     return tools.map((tool) => {
-      const taskCall = shouldCallAsTask(
-        tool,
-        options,
-        serverSupportsTasks,
-      );
+      const taskCall = shouldCallAsTask(tool, options, serverSupportsTasks);
       return convertMcpDescriptorToTool(
         tool,
         mcpClient,

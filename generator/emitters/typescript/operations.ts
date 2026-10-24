@@ -83,19 +83,17 @@ function emitOperation(op: OperationContract): string {
   const params =
     op.parameters && op.parameters.length > 0
       ? `[${op.parameters
-          .map(
-            (p) => {
-              const schemaType =
-                p.schema?.type !== undefined
-                  ? typeof p.schema.type === 'string'
-                    ? p.schema.type
-                    : Array.isArray(p.schema.type)
-                      ? p.schema.type[0] ?? 'string'
-                      : 'string'
-                  : undefined;
-              return `{ name: ${literal(p.name)}, in: ${literal(p.in)}, required: ${literal(p.required)}${schemaType !== undefined ? `, schema: { type: ${literal(schemaType)} }` : ''}${p.description !== undefined ? `, description: ${literal(p.description)}` : ''} }`;
-            },
-          )
+          .map((p) => {
+            const schemaType =
+              p.schema?.type !== undefined
+                ? typeof p.schema.type === 'string'
+                  ? p.schema.type
+                  : Array.isArray(p.schema.type)
+                    ? (p.schema.type[0] ?? 'string')
+                    : 'string'
+                : undefined;
+            return `{ name: ${literal(p.name)}, in: ${literal(p.in)}, required: ${literal(p.required)}${schemaType !== undefined ? `, schema: { type: ${literal(schemaType)} }` : ''}${p.description !== undefined ? `, description: ${literal(p.description)}` : ''} }`;
+          })
           .join(', ')}]`
       : undefined;
 

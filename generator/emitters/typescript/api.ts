@@ -195,7 +195,9 @@ function emitMethod(op: OperationContract): string {
   // POST/PUT/PATCH/DELETE with body. Wave 15: if the operation has path
   // parameters, they become explicit arguments before the request body.
   if (pathParamArgs.length > 0) {
-    lines.push(`  ${methodName}(${pathParamArgs.join(', ')}, request: ${reqType}): ${implReturn} {`);
+    lines.push(
+      `  ${methodName}(${pathParamArgs.join(', ')}, request: ${reqType}): ${implReturn} {`,
+    );
     lines.push(`    return this.runtime.invoke({`);
     lines.push(`      operation: ${op.id}Op,`);
     lines.push(`      pathParams: ${pathParamObj},`);

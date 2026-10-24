@@ -267,13 +267,17 @@ async function verifyOperationLiveDocs(
       // An unchecked `* [ ] \`field\`` item in the endpoint's request-field list (or an
       // unchecked "Supported features" entry) is explicit unsupported evidence.
       const fallbackRequestFields = requestFieldSection(fallbackDocs, op.path) || fallbackDocs;
-      if (firstKnownStatus(requestFieldSection(docs!, op.path), fallbackRequestFields, aliases) === 'unsupported') {
+      if (
+        firstKnownStatus(requestFieldSection(docs!, op.path), fallbackRequestFields, aliases) ===
+        'unsupported'
+      ) {
         return false;
       }
       const featureAliases = parity.request!.featureAliases?.[field] ?? [];
       if (
         featureAliases.length > 0 &&
-        supportedFeatureStatus(endpointSection(docs!, op.path) || docs!, featureAliases) === 'unsupported'
+        supportedFeatureStatus(endpointSection(docs!, op.path) || docs!, featureAliases) ===
+          'unsupported'
       ) {
         return false;
       }

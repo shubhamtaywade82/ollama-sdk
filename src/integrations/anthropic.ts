@@ -85,7 +85,11 @@ export interface AnthropicTool {
 export type AnthropicToolChoice =
   | { readonly type: 'auto'; readonly disable_parallel_tool_use?: boolean | undefined }
   | { readonly type: 'any'; readonly disable_parallel_tool_use?: boolean | undefined }
-  | { readonly type: 'tool'; readonly name: string; readonly disable_parallel_tool_use?: boolean | undefined }
+  | {
+      readonly type: 'tool';
+      readonly name: string;
+      readonly disable_parallel_tool_use?: boolean | undefined;
+    }
   | { readonly type: 'none' };
 
 export interface AnthropicThinkingConfig {
@@ -126,10 +130,7 @@ export interface AnthropicMessagesRequest {
 }
 
 /** Strict Ollama-documented Messages request; excludes fields Ollama marks unsupported. */
-export type OllamaAnthropicTextContentBlock = Omit<
-  AnthropicTextContentBlock,
-  'cache_control'
->;
+export type OllamaAnthropicTextContentBlock = Omit<AnthropicTextContentBlock, 'cache_control'>;
 
 export type OllamaAnthropicTool = Omit<AnthropicTool, 'eager_input_streaming'>;
 
@@ -157,14 +158,9 @@ export type OllamaAnthropicMessage = Omit<AnthropicMessage, 'content'> & {
   readonly content: string | readonly OllamaAnthropicContentBlock[];
 };
 
-export type OllamaAnthropicSystemTextBlock = Omit<
-  AnthropicSystemTextBlock,
-  'cache_control'
->;
+export type OllamaAnthropicSystemTextBlock = Omit<AnthropicSystemTextBlock, 'cache_control'>;
 
-export type OllamaAnthropicSystem =
-  | string
-  | readonly OllamaAnthropicSystemTextBlock[];
+export type OllamaAnthropicSystem = string | readonly OllamaAnthropicSystemTextBlock[];
 
 /** Strict Ollama-documented Messages request; excludes unsupported caching/tool-choice metadata. */
 export type OllamaAnthropicMessagesRequest = Omit<
@@ -185,13 +181,15 @@ export interface AnthropicMessagesResponse {
   readonly model: string;
   readonly stop_reason: string | null;
   readonly stop_sequence?: string | null | undefined;
-  readonly usage?: {
-    readonly input_tokens: number;
-    readonly output_tokens: number;
-    readonly cache_creation_input_tokens?: number | undefined;
-    readonly cache_read_input_tokens?: number | undefined;
-    readonly cache_creation?: Record<string, unknown> | undefined;
-  } | undefined;
+  readonly usage?:
+    | {
+        readonly input_tokens: number;
+        readonly output_tokens: number;
+        readonly cache_creation_input_tokens?: number | undefined;
+        readonly cache_read_input_tokens?: number | undefined;
+        readonly cache_creation?: Record<string, unknown> | undefined;
+      }
+    | undefined;
 }
 
 export interface AnthropicMessageStartEvent {
@@ -228,13 +226,15 @@ export interface AnthropicMessageDeltaEvent {
     readonly stop_reason?: string | null | undefined;
     readonly stop_sequence?: string | null | undefined;
   };
-  readonly usage?: {
-    readonly input_tokens?: number | undefined;
-    readonly output_tokens: number;
-    readonly cache_creation_input_tokens?: number | undefined;
-    readonly cache_read_input_tokens?: number | undefined;
-    readonly cache_creation?: Record<string, unknown> | undefined;
-  } | undefined;
+  readonly usage?:
+    | {
+        readonly input_tokens?: number | undefined;
+        readonly output_tokens: number;
+        readonly cache_creation_input_tokens?: number | undefined;
+        readonly cache_read_input_tokens?: number | undefined;
+        readonly cache_creation?: Record<string, unknown> | undefined;
+      }
+    | undefined;
 }
 
 export interface AnthropicMessageStopEvent {
@@ -270,10 +270,7 @@ export type AnthropicMessageStreamEvent =
   | AnthropicErrorEvent
   | AnthropicUnknownStreamEvent;
 
-type AnthropicKnownStreamEvent = Exclude<
-  AnthropicMessageStreamEvent,
-  AnthropicUnknownStreamEvent
->;
+type AnthropicKnownStreamEvent = Exclude<AnthropicMessageStreamEvent, AnthropicUnknownStreamEvent>;
 
 function isAnthropicKnownStreamEvent(
   event: AnthropicMessageStreamEvent,
@@ -324,9 +321,7 @@ function sanitizeAnthropicTextBlock(
   return sanitized;
 }
 
-function sanitizeAnthropicContentBlock(
-  block: AnthropicContentBlock,
-): AnthropicContentBlock {
+function sanitizeAnthropicContentBlock(block: AnthropicContentBlock): AnthropicContentBlock {
   if (block.type === 'text') {
     return sanitizeAnthropicTextBlock(block);
   }
@@ -354,11 +349,7 @@ function sanitizeAnthropicRequest(request: AnthropicMessagesRequest): AnthropicM
     ? request.system.map(sanitizeAnthropicTextBlock)
     : request.system;
 
-  const {
-    tool_choice: _toolChoice,
-    metadata: _metadata,
-    ...sanitized
-  } = request;
+  const { tool_choice: _toolChoice, metadata: _metadata, ...sanitized } = request;
 
   return {
     ...sanitized,
@@ -372,7 +363,10 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   private rejectFinal!: (reason: unknown) => void;
   private removeAbortListener: (() => void) | undefined;
 
-  constructor(private readonly source: AbortableAsyncIterable<SseEvent>, signal?: AbortSignal) {
+  constructor(
+    private readonly source: AbortableAsyncIterable<SseEvent>,
+    signal?: AbortSignal,
+  ) {
     this.finalResultPromise = new Promise<AnthropicMessagesResponse>((resolve, reject) => {
       this.resolveFinal = resolve;
       this.rejectFinal = reject;
@@ -399,9 +393,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   }
 
   async *[Symbol.asyncIterator](): AsyncGenerator<AnthropicMessageStreamEvent, void, undefined> {
-    let message:
-      | AnthropicMessagesResponse
-      | undefined;
+    let message: AnthropicMessagesResponse | undefined;
     const blocks = new Map<number, AnthropicContentBlock>();
     const toolInputJson = new Map<number, string>();
     let completed = false;
@@ -435,7 +427,10 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
         } else if (event.type === 'content_block_delta') {
           const current = blocks.get(event.index);
           if (event.delta.type === 'input_json_delta') {
-            toolInputJson.set(event.index, (toolInputJson.get(event.index) ?? '') + event.delta.partial_json);
+            toolInputJson.set(
+              event.index,
+              (toolInputJson.get(event.index) ?? '') + event.delta.partial_json,
+            );
           }
           if (current) blocks.set(event.index, mergeContentBlock(current, event.delta));
         } else if (event.type === 'content_block_stop') {
@@ -469,7 +464,10 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
                       ...(event.usage.cache_creation_input_tokens !== undefined
                         ? { cache_creation_input_tokens: event.usage.cache_creation_input_tokens }
                         : message.usage?.cache_creation_input_tokens !== undefined
-                          ? { cache_creation_input_tokens: message.usage.cache_creation_input_tokens }
+                          ? {
+                              cache_creation_input_tokens:
+                                message.usage.cache_creation_input_tokens,
+                            }
                           : {}),
                       ...(event.usage.cache_read_input_tokens !== undefined
                         ? { cache_read_input_tokens: event.usage.cache_read_input_tokens }
@@ -535,14 +533,11 @@ export class AnthropicCompatClient {
     holdUntil?: ((result: T) => Promise<unknown>) | undefined,
   ): Promise<T> {
     if (this.runner) {
-      return this.runner(
-        (http, runnerSignal) => operation(http, runnerSignal),
-        {
-          model,
-          ...(signal !== undefined ? { signal } : {}),
-          ...(holdUntil !== undefined ? { holdUntil } : {}),
-        },
-      );
+      return this.runner((http, runnerSignal) => operation(http, runnerSignal), {
+        model,
+        ...(signal !== undefined ? { signal } : {}),
+        ...(holdUntil !== undefined ? { holdUntil } : {}),
+      });
     }
     return operation(this.http, signal);
   }
@@ -566,12 +561,14 @@ export class AnthropicCompatClient {
     if (request.stream) {
       return this.request(
         (http, requestSignal) =>
-          http.requestSseStream({
-            path: '/v1/messages',
-            body: sanitizeAnthropicRequest(request),
-            headers: { 'anthropic-version': '2023-06-01' },
-            signal: requestSignal,
-          }).then((source) => new AnthropicMessagesStream(source, requestSignal)),
+          http
+            .requestSseStream({
+              path: '/v1/messages',
+              body: sanitizeAnthropicRequest(request),
+              headers: { 'anthropic-version': '2023-06-01' },
+              signal: requestSignal,
+            })
+            .then((source) => new AnthropicMessagesStream(source, requestSignal)),
         request.model,
         signal,
         (stream: AnthropicMessagesStream) => stream.finalResult,

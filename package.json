@@ -180,7 +180,7 @@
     "prepare": "npm run hooks:install && npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck:examples": "tsc --noEmit -p tsconfig.examples-check.json",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

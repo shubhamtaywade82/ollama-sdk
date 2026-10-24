@@ -131,7 +131,6 @@ describe('Compatibility bridge request typing (mocked network)', () => {
   });
 });
 
-
 describe('Compatibility endpoint routing and streaming lifecycle', () => {
   it('uses model-scoped failover for OpenAI compatibility calls', async () => {
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {

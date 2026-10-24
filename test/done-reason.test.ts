@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  KNOWN_DONE_REASONS,
-  isKnownDoneReason,
-  type KnownDoneReason,
-} from '../src/done-reason.js';
+import { KNOWN_DONE_REASONS, isKnownDoneReason, type KnownDoneReason } from '../src/done-reason.js';
 
 /**
  * `done_reason` decoder helpers — see `src/done-reason.ts`.
