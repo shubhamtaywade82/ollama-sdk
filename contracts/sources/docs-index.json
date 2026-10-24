@@ -17,8 +17,8 @@
       "path": "docs/upstream/ollama-openai-compatibility.mdx",
       "upstream": "https://docs.ollama.com/api/openai-compatibility",
       "upstreamPath": "docs/api/openai-compatibility.mdx",
-      "pinnedSha": "6ef847b8fef4fef0e8d48a66517887d3b2fdbe21",
-      "pinnedAt": "2026-10-23"
+      "pinnedSha": "675150d6ad2747df1e218ef59de9194bc4a7e538",
+      "pinnedAt": "2026-10-24"
     },
     {
       "id": "anthropic-compatibility",
