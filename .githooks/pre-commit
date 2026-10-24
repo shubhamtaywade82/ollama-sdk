@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fast local gate (~15 s): the same lint and typecheck CI runs, before the
+# commit exists. Skip in a hurry with `git commit --no-verify`; CI still runs.
+set -e
+npm run --silent lint
+npm run --silent typecheck
