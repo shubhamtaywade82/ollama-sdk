@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { parseNdjsonStream } from '../src/streaming/ndjson.js';
 
 interface ChatChunk {
@@ -40,7 +40,7 @@ async function consume(stream: ReadableStream<Uint8Array>): Promise<number> {
   return count;
 }
 
-describe('parseNdjsonStream', () => {
+test('parseNdjsonStream', async ({ bench }) => {
   bench('100 chunks', async () => {
     await consume(ndjsonBody(100));
   });

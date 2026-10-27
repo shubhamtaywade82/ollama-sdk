@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { z } from 'zod';
 import { parseStructuredOutput, zodToJsonSchema } from '../src/schema/zod.js';
 
@@ -49,7 +49,7 @@ const nestedPayload = JSON.stringify({
 
 const markdownFencedPayload = '```json\n' + nestedPayload + '\n```';
 
-describe('zodToJsonSchema', () => {
+test('zodToJsonSchema', async ({ bench }) => {
   bench('simple object (2 fields)', () => {
     zodToJsonSchema(SimpleSchema);
   });
@@ -59,7 +59,7 @@ describe('zodToJsonSchema', () => {
   });
 });
 
-describe('parseStructuredOutput', () => {
+test('parseStructuredOutput', async ({ bench }) => {
   bench('raw JSON', () => {
     parseStructuredOutput(nestedPayload, NestedSchema);
   });
