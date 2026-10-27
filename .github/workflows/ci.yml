@@ -19,8 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Node 22 (maintenance LTS) + Node 24 (active LTS) are the verified
+      # matrix. Node 20 reached end-of-life 2026-04-30: `engines` keeps
+      # `>=20` for consumers, but nothing below 22 is CI-verified anymore.
       matrix:
-        node-version: ['20', '22']
+        node-version: ['22', '24']
 
     steps:
       - uses: actions/checkout@v5
@@ -64,6 +67,28 @@ jobs:
       - run: npm test
 
       - run: npm run build
+
+  coverage:
+    # Enforces the vitest.config.ts coverage thresholds (statements/branches/
+    # functions/lines) — the `test` job runs the same suite but without
+    # coverage instrumentation, so regressions would otherwise be invisible
+    # to CI. Runs on the LTS floor (Node 22) only; one instrumented pass is
+    # enough and keeps the matrix legs fast.
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Enforce coverage thresholds
+        run: npm run test:coverage
 
   package:
     runs-on: ubuntu-latest

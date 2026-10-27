@@ -24,6 +24,10 @@ const runtime = new OllamaRuntime({ http });
 const api = new NativeApi(runtime);
 ```
 
+::: warning Lower-level integration path
+A standalone `HttpClient` + `OllamaRuntime` does **not** acquire `OllamaClient`'s operational machinery: multi-endpoint failover, the shared retry/backoff and timeout configuration, request lifecycle middleware and telemetry, endpoint-scoped credentials, and automatic `images` resolution. Use this construction when you deliberately bring your own transport controls (retry policy, failover, credentials) — for the client's full guarantee set, construct `NativeApi` through the client (`client.native` / `client.runtime`) as shown below. Whichever entry point you pick, timeout, retry, cancellation, and failover semantics are exactly what you configured on *that* transport.
+:::
+
 ### Shared with `OllamaClient` (recommended for mixed codebases)
 
 ```typescript

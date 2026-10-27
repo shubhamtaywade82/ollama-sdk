@@ -21,6 +21,21 @@
 - Data-URI payloads over `maxImageBytes` throw `image_too_large`.
 - Remote fetches of non-literal hostnames perform one DNS lookup on Node before connecting (negligible next to the fetch itself; injectable when it matters).
 
+### Added — CI quality and security scanning (2026-10-27 audit, P2)
+
+- **The CI test matrix is Node 22 + 24** (maintenance LTS + active LTS). Node 20 reached end-of-life on 2026-04-30; `engines` keeps `>=20` for consumers, but nothing below 22 is CI-verified anymore.
+- **Coverage thresholds are enforced** — a dedicated CI job runs `npm run test:coverage` on Node 22 and fails below statements 85 / branches 75 / functions 85 / lines 87 (measured baseline: 87.7 / 78.6 / 87.1 / 89.2). Coverage regressions now fail CI instead of drifting silently.
+- **Dependabot** watches npm dependencies (root and docs-site) and GitHub Actions versions weekly. Its PRs title themselves `chore(deps...)`, so they pass the Conventional-Commit title check and never cut releases (ADR 0040).
+- **CodeQL** static analysis on pushes to main, PRs, and weekly — complementing the behavior (unit/contract/conformance) and secret (GitGuardian) gates with vulnerability classes only static analysis sees.
+
+### Fixed — dependency security
+
+- **zod development dependency bumped to `^4.6.6`** (lockfile was at 4.4.3): HIGH severity [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) — "Zod can exhaust memory while validating oversized constrained collections", fixed in 4.6.6. The peer range stays `^3.22.0 || ^4.0.0` (ADR 0003 dual-support contract); consumers providing their own zod should also move to a patched version. `npm audit fix` additionally cleared the transitive `source-map-js` and `vite` advisories (dev tooling) — 9 findings → 6 moderate, 0 high.
+
+### Docs — API entry-point guarantees
+
+- `docs-site/api/native-api.md` now states explicitly what a standalone `HttpClient` + `OllamaRuntime` construction does **not** acquire (failover, shared retry/backoff/timeout, middleware, telemetry, endpoint credentials, `images` resolution) and when to prefer `client.native` / `client.runtime`.
+
 
 ## [1.23.0] — weekly upstream drift watch; automated versioning with release-please
 

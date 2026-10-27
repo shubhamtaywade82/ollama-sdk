@@ -1,0 +1,52 @@
+# CodeQL static analysis (2026-10-27 audit, P2: "security scanning is not
+# evident in the inspected CI workflow").
+#
+# Runs on every push to main, every PR, and weekly on schedule. Complements
+# the existing gates: unit/contract/conformance tests cover behavior,
+# GitGuardian covers leaked secrets, and CodeQL covers vulnerability
+# classes that only static analysis sees (injection sinks, tainted data
+# flows, crypto misuse).
+#
+# No build matrix is needed: the SDK is pure TypeScript with one build
+# step (`npm run build`), which CodeQL's autobuild handles. The
+# javascript-typescript analyzer covers TypeScript sources.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '30 4 * * 1' # Monday 10:00 IST
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
