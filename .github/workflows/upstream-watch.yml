@@ -115,7 +115,7 @@ jobs:
       - name: Open or update candidate PR
         id: pr
         if: steps.drift.outputs.has_drift == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
           branch: upstream-sync/auto
