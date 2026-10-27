@@ -48,6 +48,10 @@ export interface Message {
    * URLs are fetched and encoded; local file paths (`.png`/`.jpg`/`.webp`/...) are
    * read via `node:fs` on Node.js; and `Buffer`/`Uint8Array` bytes are base64-encoded.
    * Ollama's REST API only ever receives raw base64 strings.
+   *
+   * URL fetches, data-URI payloads, and file reads are governed by the
+   * client's `imageResolution` policy (byte caps, timeouts, redirect limits,
+   * host allowlist, SSRF guard — see `ImageResolutionPolicy`, ADR 0041).
    */
   readonly images?: readonly VisionInput[] | undefined;
   readonly tool_calls?: readonly ToolCall[] | undefined;
@@ -237,6 +241,10 @@ export interface GenerateRequestOptions extends RequestCancellationOptions {
    * URLs are fetched and encoded; local file paths (`.png`/`.jpg`/`.webp`/...) are
    * read via `node:fs` on Node.js; and `Buffer`/`Uint8Array` bytes are base64-encoded.
    * Ollama's REST API only ever receives raw base64 strings.
+   *
+   * URL fetches, data-URI payloads, and file reads are governed by the
+   * client's `imageResolution` policy (byte caps, timeouts, redirect limits,
+   * host allowlist, SSRF guard — see `ImageResolutionPolicy`, ADR 0041).
    */
   readonly images?: readonly VisionInput[] | undefined;
   readonly options?: ModelOptions | undefined;

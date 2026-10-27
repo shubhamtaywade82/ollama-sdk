@@ -218,6 +218,42 @@ const res = await client.chat({
 
 `generate()` accepts a top-level `images` array too — useful for prompt-only vision models.
 
+`images` entries can also be `data:image/...;base64,` data URIs (header stripped), `http(s)://` URLs (fetched and encoded), and local file paths like `./photo.jpg` (read on Node.js) — the client normalizes every form before the request reaches the wire.
+
+### Resource limits & trust boundaries
+
+URL fetches, data-URI payloads, and file reads are governed by the client's `imageResolution` policy ([ADR 0041](https://github.com/shubhamtaywade82/ollama-sdk/blob/main/docs/adr/0041-vision-resolution-trust-boundaries.md)). The defaults are chosen so **untrusted image input fails closed** — if your app passes user- or model-controlled strings into `images`, you get safe behavior without any configuration:
+
+| Option                                            | Default    | Effect                                                                                                    |
+| ------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- |
+| `maxImageBytes`                                   | 50 MiB     | Caps remote bodies **while streaming** (the download is cancelled at the cap), data-URI payloads, and file reads. Direct `Uint8Array`/`Buffer` inputs are never capped. |
+| `fetchTimeoutMs`                                  | 30 000     | Timeout for the whole remote fetch — connection, redirects, and body read; aborts by the request `signal` are honored too. |
+| `maxRedirects`                                    | 5          | Redirect cap for remote images; every hop is re-validated on Node (host policy + private-address guard).  |
+| `allowedImageHosts`                               | any host   | Explicit allowlist: exact hostnames, `*.example.com` wildcards, or `'*'`.                                 |
+| `allowPrivateNetworkAccess`                       | `false`    | **SSRF guard.** Refuses loopback/private/link-local/CGNAT/metadata addresses — including hostnames that *resolve* to them and redirect targets — unless you flip this on. |
+| `allowLocalFileReads`                             | `true`     | Whether path-shaped strings may read the local filesystem at all. Set to `false` for untrusted input.    |
+| `fetchImpl`                                       | client's `fetch` | Remote image fetches flow through the client's configured `fetch` (proxies, mocks, agents) by default. |
+
+```typescript
+const client = new OllamaClient({
+  imageResolution: {
+    // Only fetch images from hosts you actually trust:
+    allowedImageHosts: ['cdn.myapp.com', 'images.example.com'],
+    maxImageBytes: 10 * 1024 * 1024,
+    fetchTimeoutMs: 10_000,
+  },
+});
+
+// Untrusted input now fails closed with a clear error instead of
+// fetching arbitrary hosts, following redirects, or buffering unbounded bytes:
+await client.chat({
+  model: 'llava',
+  messages: [{ role: 'user', content: 'describe', images: [untrustedUrl] }],
+});
+```
+
+Fetching from a genuinely internal image host? Set `allowPrivateNetworkAccess: true` — the error message tells you exactly that. Failed local file reads throw `vision_path_read_failed` with the underlying cause instead of silently shipping the path string to the server.
+
 ## Logprobs
 
 Set `logprobs: true` (optionally with `top_logprobs`) to get per-token log probabilities — useful for confidence scoring, agent routing, or speculative decoding.

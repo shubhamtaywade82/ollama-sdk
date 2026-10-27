@@ -49,6 +49,7 @@ Format: one Markdown file per decision, numbered sequentially, following
 | [0038](./0038-audio-speech-contract-mdx-pin-provenance.md)                          | `/v1/audio/speech` as a Generation-Excluded Contract Operation, MDX Pin Provenance, Drift-Anchor Correction |
 | [0039](./0039-upstream-drift-watch.md)                                               | Weekly Upstream Drift Watch: Issue + Candidate Re-Pin PR with Curated Deviations Re-Applied |
 | [0040](./0040-release-please-versioning.md)                                     | Automated Versioning with release-please: Conventional-Commit Bumps, Chained Publish |
+| [0041](./0041-vision-resolution-trust-boundaries.md)                             | Vision Resolution Trust Boundaries: Byte Caps, Timeouts, Redirect Re-Validation, SSRF Guard |
 
 ADRs 0013-0021 form a connected series documenting the contract-first hybrid
 architecture: a single canonical IR (`contracts/ir/ollama.ir.json`) drives

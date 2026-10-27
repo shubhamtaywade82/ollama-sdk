@@ -7,6 +7,7 @@ import type { Middleware } from './middleware.js';
 import type { RetryConfig } from './transport/retry.js';
 import { isEnvApiKeyHost, normalizeBaseUrl } from './transport/host.js';
 import type { FetchLike } from './transport/http.js';
+import type { ImageResolutionPolicy } from './vision.js';
 import type { EndpointRegistryOptions, OllamaEndpoint } from './providers/endpoint-registry.js';
 
 export const DEFAULT_BASE_URL = 'http://localhost:11434';
@@ -210,6 +211,15 @@ export interface OllamaClientConfig {
   readonly retries?: number | Partial<RetryConfig>;
   /** Custom fetch implementation (defaults to globalThis.fetch). */
   readonly fetch?: FetchLike;
+  /**
+   * Policy applied when `images` entries need resolution — `http(s)` URLs
+   * (byte cap while streaming, fetch timeout, redirect cap, host allowlist,
+   * SSRF guard), data URIs (byte cap), and local file paths (byte cap,
+   * explicit capability). The client's own `fetch` is used for remote image
+   * fetches by default, so proxies/mocks installed via `config.fetch` apply.
+   * See `ImageResolutionPolicy` and ADR 0041.
+   */
+  readonly imageResolution?: ImageResolutionPolicy | undefined;
   /** Request/Response middleware list. */
   readonly middleware?: readonly Middleware[];
   /** Structured logger. */

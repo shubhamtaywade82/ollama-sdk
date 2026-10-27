@@ -6,6 +6,22 @@
 
 - **`publish.yml` no longer interpolates the `tag` workflow input into the shell command.** The dist-tag now reaches the publish step as an environment variable (`NPM_DIST_TAG`) and is validated against `^[a-zA-Z0-9][a-zA-Z0-9._-]*$` before `npm publish` runs; the manual-dispatch input is additionally restricted to the supported set (`latest`, `next`, `beta`). The previous form — `--tag ${{ inputs.tag || 'latest' }}` — was a command-injection pattern: shell metacharacters supplied in the input would execute as part of a step that holds `NODE_AUTH_TOKEN`. An env-var assignment is inert data, never shell source.
 
+### Added — vision resolution trust boundaries and resource limits ([ADR 0041](./docs/adr/0041-vision-resolution-trust-boundaries.md))
+
+- **`OllamaClientConfig.imageResolution` (`ImageResolutionPolicy`, newly exported)** governs every resolution path for polymorphic `images` entries — `http(s)` URL fetches, data URIs, and local file paths. `resolveImageInput`/`resolveImages` accept it as an optional third argument (backward-compatible).
+- **Remote image fetches now use the client's configured `fetch`** (or an explicit `imageResolution.fetchImpl`), so proxies, agents, and mocks installed via `config.fetch` apply to image resolution too.
+- **Resource limits:** `maxImageBytes` (default 50 MiB) is enforced *while streaming* remote bodies — the download is cancelled at the cap, not buffered first — and via `stat` for local file reads; `fetchTimeoutMs` (default 30 s) covers the whole fetch; `maxRedirects` (default 5). Direct `Uint8Array`/`Buffer` inputs are deliberately not capped (the caller already holds the bytes).
+- **SSRF guard on by default** (`image_private_address_blocked`): loopback/private/CGNAT/link-local/metadata/TEST-NET/multicast IPv4 and IPv6 ranges, `localhost`/`.local`/`.internal` hostnames, and hostnames that *resolve* to a private address (via `node:dns`, injectable through `addressLookup`) are refused — **including every redirect hop** (followed manually on Node so each `Location` target is re-validated: protocol, host allowlist, private-address guard). `allowedImageHosts` (exact / `*.wildcard` / `'*'`) adds an explicit allowlist; `allowPrivateNetworkAccess: true` is the documented opt-out for genuinely internal image hosts.
+- **Local reads are an explicit capability:** `allowLocalFileReads` (default `true`, the historical behavior) can disable filesystem reads entirely for untrusted input.
+- New error codes: `image_too_large`, `image_fetch_timeout`, `image_redirect_limit`, `image_host_not_allowed`, `image_private_address_blocked`, `image_unsupported_protocol`, `vision_local_reads_disabled`, `vision_path_read_failed`, `image_fetch_unavailable`; caller-signal aborts surface as `OllamaAbortError`. 58 hermetic tests cover every code and address class.
+
+### Changed — vision resolution behavior (security defaults)
+
+- **Failed local file reads throw `vision_path_read_failed`** with the underlying `cause`, instead of silently passing the raw path string through to the server (which could only reject it as invalid base64 — an extension-matched string can never *be* valid base64, the alphabet has no `.`).
+- Data-URI payloads over `maxImageBytes` throw `image_too_large`.
+- Remote fetches of non-literal hostnames perform one DNS lookup on Node before connecting (negligible next to the fetch itself; injectable when it matters).
+
+
 ## [1.23.0] — weekly upstream drift watch; automated versioning with release-please
 
 ### Added: automated versioning with release-please ([ADR 0040](./docs/adr/0040-release-please-versioning.md))
