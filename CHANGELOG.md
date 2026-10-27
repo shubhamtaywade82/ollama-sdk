@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.24.0] — vision resolution trust boundaries; release-pipeline and CI hardening
 
 ### Fixed — release workflow security
 
