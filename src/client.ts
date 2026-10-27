@@ -83,6 +83,7 @@ import {
 } from './system-one.js';
 import { ensureToolCallIds } from './tools/tool-call-id.js';
 import { withEncodedImages, withEncodedMessageImages } from './utils.js';
+import type { ImageResolutionPolicy } from './vision.js';
 import {
   withSpan,
   ATTR_GEN_AI_SYSTEM,
@@ -170,6 +171,13 @@ export class OllamaClient {
   private readonly timeoutMs: number;
   private readonly failoverCodes: Set<string>;
   private readonly fetchImpl: FetchLike;
+  /**
+   * Effective vision-resolution policy: the client's configured `fetch` by
+   * default (so image fetches flow through the caller's proxy/mock), with
+   * `config.imageResolution` layered on top — an explicit `fetchImpl` there
+   * wins. See `ImageResolutionPolicy` and ADR 0041.
+   */
+  private readonly imagePolicy: ImageResolutionPolicy;
   private readonly logger: Logger;
   private readonly middleware: OllamaClientConfig['middleware'];
   private readonly onLifecycleEvent: OllamaClientConfig['onLifecycleEvent'];
@@ -231,6 +239,7 @@ export class OllamaClient {
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.failoverCodes = new Set(config.failoverOn ?? DEFAULT_FAILOVER_CODES);
     this.fetchImpl = config.fetch ?? globalThis.fetch;
+    this.imagePolicy = { fetchImpl: this.fetchImpl, ...config.imageResolution };
     this.logger = config.logger ?? (config.debug ? createConsoleLogger() : NOOP_LOGGER);
     this.middleware = config.middleware;
     this.onLifecycleEvent = config.onLifecycleEvent;
@@ -659,7 +668,11 @@ export class OllamaClient {
   async chat(
     req: ChatRequestOptions,
   ): Promise<ChatResponse | OllamaStream<ChatResponse, ChatStreamResult>> {
-    const encodedMessages = await withEncodedMessageImages(req.messages, req.signal);
+    const encodedMessages = await withEncodedMessageImages(
+      req.messages,
+      req.signal,
+      this.imagePolicy,
+    );
     const messages = encodedMessages.map((message) => {
       if (message.role === 'tool' && message.tool_call_id !== undefined) {
         const { tool_call_id: _toolCallId, ...nativeMessage } = message;
@@ -767,7 +780,7 @@ export class OllamaClient {
   async generate(
     req: GenerateRequestOptions,
   ): Promise<GenerateResponse | OllamaStream<GenerateResponse, GenerateStreamResult>> {
-    const encodedReq = await withEncodedImages(req, req.signal);
+    const encodedReq = await withEncodedImages(req, req.signal, this.imagePolicy);
     // Context-window pre-flight — same policy as `chat`.
     this.enforceContextSafety(
       'generate',

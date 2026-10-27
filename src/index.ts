@@ -495,7 +495,14 @@ export {
 export { encodeImage } from './utils.js';
 
 // Universal vision asset resolution — data URIs, URLs, file paths, raw bytes
-export { resolveImageInput, imageStringNeedsResolution, type VisionInput } from './vision.js';
+export {
+  resolveImageInput,
+  imageStringNeedsResolution,
+  type ImageAddress,
+  type ImageFetchLike,
+  type ImageResolutionPolicy,
+  type VisionInput,
+} from './vision.js';
 
 // OpenAI Responses API bridge (dual-mode: native /v1/responses + /api/chat fallback)
 export {

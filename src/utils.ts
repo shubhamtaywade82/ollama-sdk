@@ -3,7 +3,12 @@
  * the core client bundle (see ADR 0006 — Edge Runtime CI).
  */
 
-import { imageStringNeedsResolution, resolveImages, type VisionInput } from './vision.js';
+import {
+  imageStringNeedsResolution,
+  resolveImages,
+  type ImageResolutionPolicy,
+  type VisionInput,
+} from './vision.js';
 
 /**
  * Encodes an image to a base64 string, matching the wire format Ollama's `/api/chat` and
@@ -35,27 +40,29 @@ export async function encodeImage(image: VisionInput): Promise<string> {
 async function encodeImages(
   images: readonly VisionInput[],
   signal?: AbortSignal | undefined,
+  policy?: ImageResolutionPolicy | undefined,
 ): Promise<readonly string[]> {
-  return resolveImages(images, signal) as Promise<readonly string[]>;
+  return resolveImages(images, signal, policy) as Promise<readonly string[]>;
 }
 
 /**
  * Normalizes `req.images` to wire-ready raw base64 strings, resolving every polymorphic
- * {@link VisionInput} — data URIs (header stripped), `http(s)://` URLs (fetched), local
- * file paths (read via dynamically-imported `node:fs`, Node.js only), and raw
- * `Buffer`/`Uint8Array` bytes (base64-encoded). Returns `req` **unchanged (same reference)**
- * when every entry is already a plain base64 string (the common case), so the request
- * pipeline stays allocation-free for pre-encoded callers.
+ * {@link VisionInput} — data URIs (header stripped), `http(s)://` URLs (fetched under
+ * `policy`), local file paths (read via dynamically-imported `node:fs`, Node.js only),
+ * and raw `Buffer`/`Uint8Array` bytes (base64-encoded). Returns `req` **unchanged (same
+ * reference)** when every entry is already a plain base64 string (the common case), so
+ * the request pipeline stays allocation-free for pre-encoded callers.
  */
 export async function withEncodedImages<T extends { images?: readonly VisionInput[] | undefined }>(
   req: T,
   signal?: AbortSignal | undefined,
+  policy?: ImageResolutionPolicy | undefined,
 ): Promise<T> {
   const needsResolution = req.images?.some(
     (image) => typeof image !== 'string' || imageStringNeedsResolution(image),
   );
   if (!needsResolution) return req;
-  return { ...req, images: await encodeImages(req.images ?? [], signal) };
+  return { ...req, images: await encodeImages(req.images ?? [], signal, policy) };
 }
 
 /**
@@ -64,12 +71,16 @@ export async function withEncodedImages<T extends { images?: readonly VisionInpu
  */
 export async function withEncodedMessageImages<
   T extends { images?: readonly VisionInput[] | undefined },
->(messages: readonly T[], signal?: AbortSignal | undefined): Promise<readonly T[]> {
+>(
+  messages: readonly T[],
+  signal?: AbortSignal | undefined,
+  policy?: ImageResolutionPolicy | undefined,
+): Promise<readonly T[]> {
   const needsResolution = messages.some((message) =>
     message.images?.some((image) => typeof image !== 'string' || imageStringNeedsResolution(image)),
   );
   if (!needsResolution) return messages;
-  return Promise.all(messages.map((message) => withEncodedImages(message, signal)));
+  return Promise.all(messages.map((message) => withEncodedImages(message, signal, policy)));
 }
 
 // ─── Disposable helpers (TS 5.2+ `using` declarations) ──────────────────
