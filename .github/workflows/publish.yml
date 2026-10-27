@@ -11,6 +11,12 @@ on:
         description: 'npm dist-tag to publish under'
         required: false
         default: 'latest'
+        # The dispatch surface only ever needs the supported dist-tags; the
+        # runtime regex below is the second layer (API dispatches, future
+        # workflow edits) — see the publish step for why the value reaches
+        # the shell through an env var, never by `${{ }}` interpolation.
+        type: choice
+        options: ['latest', 'next', 'beta']
 
 jobs:
   publish:
@@ -39,6 +45,18 @@ jobs:
           npm run build
 
       - name: Publish to npm with Provenance
-        run: npm publish --access public --tag ${{ inputs.tag || 'latest' }}
+        # Security: `inputs.tag` must reach the shell ONLY through the
+        # environment. Direct `${{ inputs.tag }}` interpolation into `run:`
+        # makes the value part of the shell source (a workflow-dispatcher
+        # could inject metacharacters into a step holding NODE_AUTH_TOKEN).
+        # An env var assignment is inert data; the regex is an extra control.
         env:
+          NPM_DIST_TAG: ${{ inputs.tag || 'latest' }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NPM_DIST_TAG" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+            echo "::error::Invalid npm dist-tag '$NPM_DIST_TAG' (must match ^[a-zA-Z0-9][a-zA-Z0-9._-]*$, e.g. latest / next / beta). Refusing to publish."
+            exit 1
+          fi
+          npm publish --access public --tag "$NPM_DIST_TAG"

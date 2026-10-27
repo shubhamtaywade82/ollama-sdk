@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed — release workflow security
+
+- **`publish.yml` no longer interpolates the `tag` workflow input into the shell command.** The dist-tag now reaches the publish step as an environment variable (`NPM_DIST_TAG`) and is validated against `^[a-zA-Z0-9][a-zA-Z0-9._-]*$` before `npm publish` runs; the manual-dispatch input is additionally restricted to the supported set (`latest`, `next`, `beta`). The previous form — `--tag ${{ inputs.tag || 'latest' }}` — was a command-injection pattern: shell metacharacters supplied in the input would execute as part of a step that holds `NODE_AUTH_TOKEN`. An env-var assignment is inert data, never shell source.
+
 ## [1.23.0] — weekly upstream drift watch; automated versioning with release-please
 
 ### Added: automated versioning with release-please ([ADR 0040](./docs/adr/0040-release-please-versioning.md))
