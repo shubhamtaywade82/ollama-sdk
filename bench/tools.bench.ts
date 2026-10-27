@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { z } from 'zod';
 import { defineTool, ToolRegistry } from '../src/tools/index.js';
 
@@ -12,13 +12,13 @@ const addTool = defineTool({
 const registry = new ToolRegistry({ tools: [addTool] });
 const call = { function: { name: 'add', arguments: { a: 1, b: 2 } } };
 
-describe('ToolRegistry.executeToolCall', () => {
+test('ToolRegistry.executeToolCall', async ({ bench }) => {
   bench('single call (includes the withSpan/OTel wrapper on the hot path)', async () => {
     await registry.executeToolCall(call);
   });
 });
 
-describe('ToolRegistry.executeToolCalls', () => {
+test('ToolRegistry.executeToolCalls', async ({ bench }) => {
   const calls = Array.from({ length: 20 }, () => call);
 
   bench('20 calls, unbounded concurrency', async () => {

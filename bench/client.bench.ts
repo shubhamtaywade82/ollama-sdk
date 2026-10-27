@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { OllamaClient } from '../src/client.js';
 
 const chatResponseBody = JSON.stringify({
@@ -17,7 +17,7 @@ async function instantFetch(): Promise<Response> {
   });
 }
 
-describe('OllamaClient.chat (mocked network, single endpoint)', () => {
+test('OllamaClient.chat (mocked network, single endpoint)', async ({ bench }) => {
   const client = new OllamaClient({ fetch: instantFetch as typeof fetch });
 
   bench('non-streaming chat call', async () => {
@@ -29,7 +29,7 @@ describe('OllamaClient.chat (mocked network, single endpoint)', () => {
   });
 });
 
-describe('OllamaClient.chat (mocked network, 3-endpoint failover registry)', () => {
+test('OllamaClient.chat (mocked network, 3-endpoint failover registry)', async ({ bench }) => {
   const client = new OllamaClient({
     endpoints: [
       { name: 'a', baseUrl: 'http://a.local:11434', priority: 3 },
