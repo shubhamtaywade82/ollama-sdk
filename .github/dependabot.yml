@@ -1,0 +1,41 @@
+# Dependabot: automated dependency updates (2026-10-27 audit, P2).
+#
+# Three ecosystems are watched weekly:
+#   - npm deps of the SDK itself (root)
+#   - npm deps of the docs-site (its own lockfile)
+#   - GitHub Actions versions used by every workflow
+#
+# PR titles use `chore(deps...)` prefixes so the Conventional-Commit PR
+# title check passes and release-please does NOT cut releases for
+# dependency bumps (ADR 0040); anything that changes the published surface
+# gets reviewed and re-titled deliberately.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /docs-site
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(deps-docs)'
+    labels:
+      - dependencies
+      - docs
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(ci-deps)'
+    labels:
+      - dependencies
+      - ci

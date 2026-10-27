@@ -248,6 +248,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.62.1",
     "vitest": "^4.1.11",
-    "zod": "^4.0.0"
+    "zod": "^4.6.6"
   }
 }
