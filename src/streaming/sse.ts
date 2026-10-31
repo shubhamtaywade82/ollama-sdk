@@ -26,10 +26,16 @@ function dispatch(
 ): SseEvent | undefined {
   if (data.length === 0) return undefined;
 
-  const joined = data.join('\n');
+  // WHATWG Server-Sent Events § dispatch: every `data` field appends its value
+  // plus one LF to the data buffer, and dispatch removes exactly one trailing
+  // LF. Building the buffer explicitly (value + LF per field) and stripping the
+  // single final LF keeps a trailing LF that belongs to the data itself — e.g.
+  // `data: first` followed by an empty `data: ` dispatches `first\n`, not
+  // `first`.
+  const buffer = data.map((line) => `${line}\n`).join('');
   return {
     ...(event !== undefined ? { event } : {}),
-    data: joined.endsWith('\n') ? joined.slice(0, -1) : joined,
+    data: buffer.slice(0, -1),
     ...(id !== undefined ? { id } : {}),
     ...(retry !== undefined ? { retry } : {}),
   };
