@@ -46,6 +46,20 @@ describe('SSE parser', () => {
     ]);
   });
 
+  it('appends a newline for each data field, keeping a trailing LF when the final data field is empty (WHATWG SSE dispatch)', async () => {
+    // Per the WHATWG Server-Sent Events algorithm, every `data` field appends
+    // its value plus one LF to the data buffer, and dispatch removes exactly
+    // one trailing LF. With fields `data: first` and `data: ` the buffer is
+    // `first\n\n`, so the dispatched event data is `first\n` — the LF from the
+    // empty final field is data, not a separator to be stripped.
+    const stream = parseSseStream(byteStream('data: first\ndata: \n\ndata: x\n\n'));
+
+    const events = [];
+    for await (const event of stream) events.push(event);
+
+    expect(events).toEqual([{ data: 'first\n' }, { data: 'x' }]);
+  });
+
   it('handles LF and CR-only line endings and blank data fields', async () => {
     const stream = parseSseStream(byteStream('data: hello\n\ndata:\r\rdata: world\r\r'));
 
