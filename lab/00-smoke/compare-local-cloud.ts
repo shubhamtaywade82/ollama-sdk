@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const prompt = 'What is the speed of light in vacuum?';
 
   const t0 = Date.now();
-  let localResult = 'failed';
+  let localResult: string;
   let localTime = 0;
   try {
     const res = await local.chatText({
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   }
 
   const t1 = Date.now();
-  let cloudResult = 'failed';
+  let cloudResult: string;
   let cloudTime = 0;
   try {
     const res = await cloud.chatText({

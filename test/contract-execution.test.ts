@@ -226,7 +226,10 @@ describe('Wave 15: MCP bridge splits path params from body', () => {
 describe('Wave 15: Model-aware failover routing', () => {
   it('the runtime extracts model from the request body and passes it to the http backend', async () => {
     let capturedModel: string | undefined;
-    const mockFetch = (async (_url: string | URL | Request, _init?: RequestInit) => {
+    const mockFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (typeof init?.body === 'string') {
+        capturedModel = (JSON.parse(init.body) as { model?: string }).model;
+      }
       return new Response(
         JSON.stringify({
           model: 'gpt-4',
@@ -245,9 +248,7 @@ describe('Wave 15: Model-aware failover routing', () => {
       fetch: mockFetch,
     });
 
-    // The FailoverHttpClient receives the model via the options. We can't
-    // easily inspect it directly, but we can verify the call succeeds
-    // (which means the model was passed through without error).
+    // The model is read from the request body the failover client sends.
     const api = new NativeApi(client.runtime);
     const result = await api.chat({
       model: 'gpt-4',
@@ -255,9 +256,6 @@ describe('Wave 15: Model-aware failover routing', () => {
       stream: false,
     });
     expect(result).toBeDefined();
-    // If the model wasn't passed through, the failover layer would still
-    // work — but the point is that it IS passed through now. The type
-    // system enforces this: FailoverHttpClient.request accepts { model? }.
-    void capturedModel;
+    expect(capturedModel).toBe('gpt-4');
   });
 });

@@ -163,11 +163,11 @@ export async function* observeStream<T>(
     );
   };
 
-  // 'running' while the source is being consumed; flipped to a terminal
-  // state before the natural/error paths complete so the `finally` block can
-  // distinguish "consumer walked away" (the only case that still reads
-  // 'running' there) from completion and failure.
-  let state: 'running' | 'done' | 'error' | 'abandoned' = 'running';
+  // Unset while the source is being consumed. The natural and error paths set
+  // a terminal outcome before they complete, so the `finally` block can tell
+  // "consumer walked away" (the only case that leaves it unset) from completion
+  // and failure.
+  let outcome: 'done' | 'error' | undefined;
   try {
     for await (const chunk of source) {
       if (onChunk !== undefined) {
@@ -175,7 +175,7 @@ export async function* observeStream<T>(
       }
       yield chunk;
     }
-    state = 'done';
+    outcome = 'done';
     if (onDone !== undefined) {
       // Enqueued after the last chunk callback has settled (FIFO chain), so
       // sinks observe their "done" marker only after every chunk was handed
@@ -183,7 +183,7 @@ export async function* observeStream<T>(
       dispatch('done', () => onDone());
     }
   } catch (error) {
-    state = 'error';
+    outcome = 'error';
     // Terminal hooks fire immediately rather than joining the chain: the
     // source has stopped, so there is nothing left to stay ordered with, and
     // error surfacing should not wait behind a slow logger.
@@ -194,12 +194,11 @@ export async function* observeStream<T>(
     }
     throw error;
   } finally {
-    if (state === 'running') {
+    if (outcome === undefined) {
       // The only way to land here still 'running' is an early exit at the
       // `yield` (break/return/throw in the consuming loop): the for-await's
       // iterator-close protocol has already called `source.return()` and
       // awaited it, so the transport is closed by the time this fires.
-      state = 'abandoned';
       try {
         onAbandon?.();
       } catch (listenerError) {
