@@ -1,4 +1,4 @@
-# Pinned from https://raw.githubusercontent.com/ollama/ollama/main/docs/openapi.yaml (source SHA: 36a6e994d2f6c4ab94b3555185154d069e5dba87, content hash: e94c8f02969c6807) on 2026-10-22.
+# Pinned from https://raw.githubusercontent.com/ollama/ollama/f067033f9126993b6172bdfffa71a74ad693fda4/docs/openapi.yaml (source SHA: f067033f9126993b6172bdfffa71a74ad693fda4, content hash: d8e08be41dd858c9) on 2026-11-02.
 # Run `npm run contract:fetch` to refresh.
 openapi: 3.1.0
 info:
@@ -915,7 +915,7 @@ components:
           $ref: "#/components/schemas/SystemOneContent"
         images:
           type: array
-          description: Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. URLs and data URLs are not supported.
+          description: Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. Models with audio input also accept WAV clips here. URLs and data URLs are not supported.
           items:
             type: string
             format: byte

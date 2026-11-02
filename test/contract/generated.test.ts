@@ -169,8 +169,60 @@ describe('openaiAudioSpeech: documented binary-audio endpoint (v1.22.0, ADR 0038
     const toolsFile = emitMcpTools('src/generated/mcp', ir.operations, ir.schemas);
     const parsed = JSON.parse(toolsFile.content) as { tools: { _operationId: string }[] };
     expect(parsed.tools.some((t) => t._operationId === 'openaiAudioSpeech')).toBe(false);
-    // The two binary-transport exclusions must stay in sync.
+    // The binary-transport exclusions must stay in sync.
     expect(parsed.tools.some((t) => t._operationId === 'createBlob')).toBe(false);
+  });
+});
+
+describe('openaiAudioTranscriptions/Translations: binary-WAV-upload endpoints (2026-11-02, f067033)', () => {
+  // /v1/audio/transcriptions and /v1/audio/translations are documented
+  // upstream (openai-compat MDX; translations added in Ollama v0.40.12) but
+  // absent from upstream's own openapi.yaml snapshot. Their requests carry a
+  // binary multipart WAV upload and their responses stream SSE transcript
+  // events — both outside the runtime's json/ndjson/sse transport modes.
+  // Contract: declared in the IR for endpoint-discovery completeness +
+  // field-matrix parity, excluded from the generated API class and MCP tools
+  // (the openaiAudioSpeech/createBlob precedent).
+  it('declares both endpoints in the IR with their documented contracts', () => {
+    const ir = loadIR();
+    const transcriptions = ir.operations.find((o) => o.id === 'openaiAudioTranscriptions');
+    const translations = ir.operations.find((o) => o.id === 'openaiAudioTranslations');
+    expect(transcriptions?.method).toBe('POST');
+    expect(transcriptions?.path).toBe('/v1/audio/transcriptions');
+    expect(transcriptions?.status.documented).toBe(true);
+    expect(transcriptions?.transport.streaming).toBe(false);
+    expect(transcriptions?.parity?.request?.interfaceName).toBe('OpenAITranscriptionRequest');
+    expect(transcriptions?.parity?.request?.fields).toContain('file');
+    expect(transcriptions?.parity?.request?.fields).toContain('stream');
+    expect(transcriptions?.parity?.request?.unsupportedFields).toContain('timestamp_granularities');
+    expect(transcriptions?.parity?.request?.nestedUnsupportedFields).toContain(
+      'response_format.srt',
+    );
+    expect(translations?.method).toBe('POST');
+    expect(translations?.path).toBe('/v1/audio/translations');
+    expect(translations?.status.documented).toBe(true);
+    expect(translations?.constraints?.minOllamaVersion).toBe('0.40.12');
+    expect(translations?.parity?.request?.interfaceName).toBe('OpenAITranslationRequest');
+    expect(translations?.parity?.request?.fields).toContain('to_language');
+  });
+
+  it('emits OperationDefinitions (IR visibility) but no generated API methods', () => {
+    const ir = loadIR();
+    const opsFile = emitOperations('src/generated/api', ir.operations);
+    expect(opsFile.content).toMatch(/export const openaiAudioTranscriptionsOp = \{/);
+    expect(opsFile.content).toMatch(/export const openaiAudioTranslationsOp = \{/);
+    const apiFiles = emitApi('src/generated/api', ir.operations);
+    const openaiFile = apiFiles.find((f) => f.path.endsWith('/openai-api.ts'));
+    expect(openaiFile?.content ?? '').not.toContain('openaiAudioTranscriptions');
+    expect(openaiFile?.content ?? '').not.toContain('openaiAudioTranslations');
+  });
+
+  it('is not advertised as an executable MCP tool', () => {
+    const ir = loadIR();
+    const toolsFile = emitMcpTools('src/generated/mcp', ir.operations, ir.schemas);
+    const parsed = JSON.parse(toolsFile.content) as { tools: { _operationId: string }[] };
+    expect(parsed.tools.some((t) => t._operationId === 'openaiAudioTranscriptions')).toBe(false);
+    expect(parsed.tools.some((t) => t._operationId === 'openaiAudioTranslations')).toBe(false);
   });
 });
 

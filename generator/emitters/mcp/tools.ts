@@ -230,12 +230,21 @@ function annotationsFor(op: OperationContract): McpToolDescriptor['annotations']
  *   - openaiAudioSpeech streams a raw binary audio response (16-bit mono
  *     24 kHz) that none of the transport modes (json/ndjson/sse) can
  *     deliver — declared in the IR for endpoint-discovery completeness and
- *     parity tracking only.
- * Advertising either as an executable MCP tool would mislead MCP consumers
- * into calling a tool that cannot actually perform the operation. Keep in
- * sync with BINARY_BODY_OPS in generator/emitters/typescript/api.ts.
+ *     parity tracking only;
+ *   - openaiAudioTranscriptions / openaiAudioTranslations (2026-11-02,
+ *     upstream docs f067033) take a binary multipart WAV upload and stream
+ *     SSE transcript events — likewise undeliverable by the runtime.
+ * Advertising any of these as an executable MCP tool would mislead MCP
+ * consumers into calling a tool that cannot actually perform the
+ * operation. Keep in sync with BINARY_BODY_OPS in
+ * generator/emitters/typescript/api.ts.
  */
-const BINARY_TRANSPORT_MCP_EXCLUSIONS = new Set(['createBlob', 'openaiAudioSpeech']);
+const BINARY_TRANSPORT_MCP_EXCLUSIONS = new Set([
+  'createBlob',
+  'openaiAudioSpeech',
+  'openaiAudioTranscriptions',
+  'openaiAudioTranslations',
+]);
 
 /** Build the list of MCP tool descriptors from the IR. */
 export function buildToolDescriptors(
