@@ -1,12 +1,12 @@
 <!--
-Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-10-24 (source SHA: 675150d6ad2747df1e218ef59de9194bc4a7e538).
+Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-11-02 (source SHA: f067033f9126993b6172bdfffa71a74ad693fda4).
 Offline fallback for scripts/verify-contract-parity.ts. Fetched as markdown so the
 `[x]` / `[ ]` checkbox state (supported vs explicitly unsupported) is preserved.
 The source SHA is the last upstream commit touching ollama/ollama docs/api/openai-compatibility.mdx;
 the rendered twin differs from that source in site plumbing only (it prefixes the
 site's llms.txt index preamble, unwraps Mintlify CodeGroup components, and appends
 `.md` to internal doc links) — all parse-neutral for parity verification and
-endpoint discovery. Refreshed to upstream 675150d (voice: add voice catalog for Phonon (#19242)).
+endpoint discovery. Refreshed to upstream f067033 (mlx: add LFM3 and d1 models (#19333)).
 Inline base64 image payloads are elided.
 -->
 > ## Documentation Index
@@ -340,6 +340,45 @@ Generates audio with [speech models](https://docs.ollama.com/capabilities/speech
 * Audio is 16-bit, mono, 24 kHz. `pcm` returns raw little-endian samples with no header.
 * The default `response_format` is `wav`, not `mp3`.
 * Unsupported values return a `400` error instead of being ignored.
+
+### `/v1/audio/transcriptions`
+
+Transcribes speech with models that accept audio input.
+
+#### Supported request fields
+
+* [x] `file` (WAV at up to 384 kHz; up to 512 MB and 2 hours)
+* [x] `model`
+* [x] `language` (ISO 639-1 code such as `fr`, or an English language name; omit it to let the model detect the language)
+* [x] `prompt` (used by models without speech-specific instructions)
+* [x] `response_format`
+  * [x] `json` (default)
+  * [x] `text`
+  * [x] `verbose_json` (one segment per transcribed piece of audio; `language` is the output language for translations; for transcriptions it is set only when given in the request)
+  * [ ] `srt`, `vtt`
+* [x] `temperature` (default `0`)
+* [x] `stream` (server-sent `transcript.text.delta` and `transcript.text.done` events)
+* [ ] `timestamp_granularities`
+
+#### Notes
+
+* Audio longer than the model takes at once (30 seconds for current models) is split at pauses and transcribed piece by piece. Streaming sends each piece as it finishes.
+* Each model gets the transcription instructions its publisher documents.
+
+### `/v1/audio/translations`
+
+> Note: Added in Ollama v0.40.12
+
+Translates speech into text in another language.
+
+#### Supported request fields
+
+* [x] `file`
+* [x] `model`
+* [x] `to_language` (Ollama extension; ISO 639-1 code of the output language, default `en`)
+* [x] `language` (Ollama extension; the spoken language, if known)
+* [x] `prompt` (used by models without speech-specific instructions)
+* [x] `response_format`, `temperature` and `stream`, as for transcriptions
 
 ### Responses API
 

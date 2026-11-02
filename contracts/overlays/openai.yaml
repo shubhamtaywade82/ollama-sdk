@@ -18,6 +18,14 @@
 # from the generated API class and MCP tools: its response is a raw audio
 # byte stream the generated runtime cannot transport (the createBlob
 # precedent — see ADR 0038).
+#
+# openaiAudioTranscriptions / openaiAudioTranslations (added 2026-11-02,
+# upstream docs commit f067033) join the same exclusion set: the request
+# carries a binary multipart WAV upload and the response streams SSE
+# transcript events — neither fits the runtime's json/ndjson/sse modes.
+# See ADR 0038 and the BINARY_BODY_OPS / BINARY_TRANSPORT_MCP_EXCLUSIONS
+# sets in generator/emitters/typescript/api.ts and
+# generator/emitters/mcp/tools.ts.
 
 version: 1
 service: ollama
@@ -258,6 +266,81 @@ operations:
           - 'response_format.opus'
           - 'response_format.aac'
           - 'response_format.flac'
+  openaiAudioTranscriptions:
+    path: /v1/audio/transcriptions
+    method: POST
+    runtime:
+      # Binary multipart WAV upload (`file`) + server-sent
+      # `transcript.text.delta` / `transcript.text.done` SSE events — neither
+      # fits the contract's transport modes (json/ndjson/sse), so the
+      # declaration is inert, exactly like /v1/audio/speech (ADR 0038).
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    status:
+      documented: true
+      experimental: true
+    notes:
+      - 'Transcribes speech with models that accept audio input; the request carries a binary WAV upload and the response streams transcript.text.delta / transcript.text.done SSE events — the generated runtime cannot transport either.'
+      - 'Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).'
+      - 'The typed request shape is exported as OpenAITranscriptionRequest (src/integrations/openai.ts) for direct use until an audio transport lands.'
+    parity:
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAITranscriptionRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'file'
+          - 'model'
+          - 'language'
+          - 'prompt'
+          - 'response_format'
+          - 'temperature'
+          - 'stream'
+        unsupportedFields:
+          - 'timestamp_granularities'
+        nestedUnsupportedFields:
+          - 'response_format.srt'
+          - 'response_format.vtt'
+  openaiAudioTranslations:
+    path: /v1/audio/translations
+    method: POST
+    runtime:
+      # Same binary-transport exclusion as transcriptions: binary WAV upload
+      # in, text (or SSE transcript events) out — no json/ndjson/sse fit.
+      streaming: unsupported
+      transport: json
+    environment:
+      local: supported
+      cloud: supported
+    compatibility:
+      minVersion: '0.40.12'
+    status:
+      documented: true
+      experimental: true
+    notes:
+      - 'Translates speech into text in another language (added in Ollama v0.40.12); the request carries a binary WAV upload — the generated runtime cannot transport it.'
+      - '`to_language` and `language` are Ollama extensions (not part of the OpenAI API).'
+      - 'Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).'
+      - 'The typed request shape is exported as OpenAITranslationRequest (src/integrations/openai.ts) for direct use until an audio transport lands.'
+    parity:
+      docsUrl: 'https://docs.ollama.com/api/openai-compatibility'
+      fallbackDocsFile: 'docs/upstream/ollama-openai-compatibility.mdx'
+      request:
+        interfaceName: 'OpenAITranslationRequest'
+        sourceFile: 'src/integrations/openai.ts'
+        fields:
+          - 'file'
+          - 'model'
+          - 'to_language'
+          - 'language'
+          - 'prompt'
+          - 'response_format'
+          - 'temperature'
+          - 'stream'
   openaiModels:
     path: /v1/models
     method: GET

@@ -2,7 +2,7 @@
   "contractVersion": 1,
   "sourceVersion": "0.1.0",
   "observedOllamaVersion": "0.1.0",
-  "sourceHash": "8027c57865861a99",
+  "sourceHash": "5a9924c549f13f1b",
   "operations": [
     {
       "id": "balance",
@@ -1012,6 +1012,108 @@
           "docAliases": {},
           "featureAliases": {},
           "interfaceName": "OpenAISpeechRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiAudioTranscriptions",
+      "method": "POST",
+      "path": "/v1/audio/transcriptions",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Transcribes speech with models that accept audio input; the request carries a binary WAV upload and the response streams transcript.text.delta / transcript.text.done SSE events — the generated runtime cannot transport either.",
+        "Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).",
+        "The typed request shape is exported as OpenAITranscriptionRequest (src/integrations/openai.ts) for direct use until an audio transport lands."
+      ],
+      "parity": {
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "file",
+            "model",
+            "language",
+            "prompt",
+            "response_format",
+            "temperature",
+            "stream"
+          ],
+          "unsupportedFields": [
+            "timestamp_granularities"
+          ],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [
+            "response_format.srt",
+            "response_format.vtt"
+          ],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "OpenAITranscriptionRequest",
+          "sourceFile": "src/integrations/openai.ts"
+        }
+      }
+    },
+    {
+      "id": "openaiAudioTranslations",
+      "method": "POST",
+      "path": "/v1/audio/translations",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {
+        "minOllamaVersion": "0.40.12"
+      },
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "domain": "openai",
+      "notes": [
+        "Translates speech into text in another language (added in Ollama v0.40.12); the request carries a binary WAV upload — the generated runtime cannot transport it.",
+        "`to_language` and `language` are Ollama extensions (not part of the OpenAI API).",
+        "Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).",
+        "The typed request shape is exported as OpenAITranslationRequest (src/integrations/openai.ts) for direct use until an audio transport lands."
+      ],
+      "parity": {
+        "docsUrl": "https://docs.ollama.com/api/openai-compatibility",
+        "fallbackDocsFile": "docs/upstream/ollama-openai-compatibility.mdx",
+        "request": {
+          "fields": [
+            "file",
+            "model",
+            "to_language",
+            "language",
+            "prompt",
+            "response_format",
+            "temperature",
+            "stream"
+          ],
+          "unsupportedFields": [],
+          "sdkOnlyFields": [],
+          "nestedUnsupportedFields": [],
+          "docAliases": {},
+          "featureAliases": {},
+          "interfaceName": "OpenAITranslationRequest",
           "sourceFile": "src/integrations/openai.ts"
         }
       }
@@ -2930,7 +3032,7 @@
           },
           "images": {
             "type": "array",
-            "description": "Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. URLs and data URLs are not supported.",
+            "description": "Base64-encoded images shared by all questions, in request order. Requires a model with vision, such as Clef. Models with audio input also accept WAV clips here. URLs and data URLs are not supported.",
             "items": {
               "type": "string",
               "format": "byte"

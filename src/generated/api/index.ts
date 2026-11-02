@@ -31,6 +31,8 @@ export { versionOp as version } from './operations.js';
 export { webFetchOp as webFetch } from './operations.js';
 export { webSearchOp as webSearch } from './operations.js';
 export { openaiAudioSpeechOp as openaiAudioSpeech } from './operations.js';
+export { openaiAudioTranscriptionsOp as openaiAudioTranscriptions } from './operations.js';
+export { openaiAudioTranslationsOp as openaiAudioTranslations } from './operations.js';
 export { openaiChatCompletionsOp as openaiChatCompletions } from './operations.js';
 export { openaiCompletionsOp as openaiCompletions } from './operations.js';
 export { openaiEmbeddingsOp as openaiEmbeddings } from './operations.js';

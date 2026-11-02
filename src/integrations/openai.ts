@@ -440,6 +440,85 @@ export type OllamaOpenAISpeechRequest = Omit<
 };
 
 /**
+ * Request body for OpenAI's transcriptions endpoint (`/v1/audio/transcriptions`),
+ * documented upstream (openai-compat docs) for models that accept audio input.
+ *
+ * @remarks
+ * The request carries a binary WAV upload (`file`) and, with `stream: true`,
+ * the server sends `transcript.text.delta` / `transcript.text.done` SSE
+ * events — neither a multipart file upload nor that event stream is covered
+ * by the SDK's generated transports (json/ndjson/sse), so the typed request
+ * is exported for callers driving the endpoint over their own HTTP layer
+ * (the {@link OpenAISpeechRequest} precedent, ADR 0038).
+ */
+export interface OpenAITranscriptionRequest {
+  /**
+   * The WAV audio to transcribe — a binary payload (WAV at up to 384 kHz;
+   * up to 512 MB and 2 hours). Audio longer than the model processes at once
+   * (30 seconds for current models) is split at pauses server-side.
+   */
+  readonly file: Blob | Uint8Array;
+  readonly model: string;
+  /** ISO 639-1 code such as `fr`, or an English language name; omit to let the model detect the language. */
+  readonly language?: string | undefined;
+  /** Used by models without speech-specific instructions. */
+  readonly prompt?: string | undefined;
+  /**
+   * `json` is the default; `text` and `verbose_json` are supported. `srt` and
+   * `vtt` are documented as unsupported — typed for OpenAI interop.
+   */
+  readonly response_format?: 'json' | 'text' | 'verbose_json' | 'srt' | 'vtt' | undefined;
+  /** Sampling temperature; defaults to `0`. */
+  readonly temperature?: number | undefined;
+  /** Stream `transcript.text.delta` / `transcript.text.done` server-sent events. */
+  readonly stream?: boolean | undefined;
+  /** @remarks Documented as unsupported by Ollama — accepted for OpenAI interop. */
+  readonly timestamp_granularities?: readonly string[] | undefined;
+}
+
+/**
+ * Strict Ollama-documented transcriptions request: excludes
+ * `timestamp_granularities` (documented as unsupported) and narrows
+ * `response_format` to the supported `json`/`text`/`verbose_json`.
+ */
+export type OllamaOpenAITranscriptionRequest = Omit<
+  OpenAITranscriptionRequest,
+  'response_format' | 'timestamp_granularities'
+> & {
+  readonly response_format?: 'json' | 'text' | 'verbose_json' | undefined;
+};
+
+/**
+ * Request body for OpenAI's translations endpoint (`/v1/audio/translations`),
+ * added in Ollama v0.40.12 — translates speech into text in another language.
+ *
+ * @remarks
+ * Same transport caveat as {@link OpenAITranscriptionRequest}: binary WAV
+ * upload in, so the typed request is exported for direct HTTP use until an
+ * audio transport lands (ADR 0038). `to_language` (output language, default
+ * `en`) and `language` (the spoken language, if known) are Ollama extensions
+ * not present in the OpenAI API. `response_format`, `temperature`, and
+ * `stream` behave as for transcriptions.
+ */
+export interface OpenAITranslationRequest {
+  /** The WAV audio to translate — a binary payload, as for transcriptions. */
+  readonly file: Blob | Uint8Array;
+  readonly model: string;
+  /** Ollama extension: ISO 639-1 code of the output language; defaults to `en`. */
+  readonly to_language?: string | undefined;
+  /** Ollama extension: the spoken language, if known. */
+  readonly language?: string | undefined;
+  /** Used by models without speech-specific instructions. */
+  readonly prompt?: string | undefined;
+  /** As for transcriptions: `json` (default), `text`, `verbose_json`. */
+  readonly response_format?: 'json' | 'text' | 'verbose_json' | 'srt' | 'vtt' | undefined;
+  /** Sampling temperature; defaults to `0`. */
+  readonly temperature?: number | undefined;
+  /** Stream `transcript.text.delta` / `transcript.text.done` server-sent events. */
+  readonly stream?: boolean | undefined;
+}
+
+/**
  * Request body for OpenAI's Responses API (`/v1/responses`), added in Ollama v0.13.3.
  *
  * @remarks

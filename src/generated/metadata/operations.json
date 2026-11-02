@@ -473,6 +473,59 @@
       ]
     },
     {
+      "operationId": "openaiAudioTranscriptions",
+      "method": "POST",
+      "path": "/v1/audio/transcriptions",
+      "domain": "openai",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {},
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "notes": [
+        "Transcribes speech with models that accept audio input; the request carries a binary WAV upload and the response streams transcript.text.delta / transcript.text.done SSE events — the generated runtime cannot transport either.",
+        "Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).",
+        "The typed request shape is exported as OpenAITranscriptionRequest (src/integrations/openai.ts) for direct use until an audio transport lands."
+      ]
+    },
+    {
+      "operationId": "openaiAudioTranslations",
+      "method": "POST",
+      "path": "/v1/audio/translations",
+      "domain": "openai",
+      "environment": {
+        "local": true,
+        "cloud": true
+      },
+      "transport": {
+        "mode": "json",
+        "streaming": false
+      },
+      "capabilities": {},
+      "constraints": {
+        "minOllamaVersion": "0.40.12"
+      },
+      "status": {
+        "documented": true,
+        "experimental": true
+      },
+      "notes": [
+        "Translates speech into text in another language (added in Ollama v0.40.12); the request carries a binary WAV upload — the generated runtime cannot transport it.",
+        "`to_language` and `language` are Ollama extensions (not part of the OpenAI API).",
+        "Recorded for endpoint-discovery completeness and field-matrix parity; excluded from the generated OpenAIApi class and from MCP tools (binary-transport exclusion).",
+        "The typed request shape is exported as OpenAITranslationRequest (src/integrations/openai.ts) for direct use until an audio transport lands."
+      ]
+    },
+    {
       "operationId": "openaiChatCompletions",
       "method": "POST",
       "path": "/v1/chat/completions",

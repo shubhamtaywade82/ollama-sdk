@@ -246,9 +246,17 @@ export function emitDomainApi(
   // endpoint-discovery completeness and parity tracking only; the typed
   // request shape lives in src/integrations/openai.ts and callers reach
   // the endpoint through their own HTTP layer until an audio transport
-  // lands. Keep in sync with BINARY_TRANSPORT_MCP_EXCLUSIONS in
-  // generator/emitters/mcp/tools.ts.
-  const BINARY_BODY_OPS = new Set(['createBlob', 'openaiAudioSpeech']);
+  // lands. 2026-11-02 (upstream docs f067033): /v1/audio/transcriptions
+  // and /v1/audio/translations join the same set — the request carries a
+  // binary multipart WAV upload and the response streams SSE transcript
+  // events, both outside the runtime's transport modes. Keep in sync with
+  // BINARY_TRANSPORT_MCP_EXCLUSIONS in generator/emitters/mcp/tools.ts.
+  const BINARY_BODY_OPS = new Set([
+    'createBlob',
+    'openaiAudioSpeech',
+    'openaiAudioTranscriptions',
+    'openaiAudioTranslations',
+  ]);
   const domainOps = operations.filter(
     (op) => op.domain === domain && !op.host && !BINARY_BODY_OPS.has(op.id),
   );

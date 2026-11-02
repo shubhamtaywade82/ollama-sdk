@@ -8,8 +8,8 @@
       "path": "contracts/sources/ollama.openapi.yaml",
       "upstream": "https://github.com/ollama/ollama/blob/main/docs/openapi.yaml",
       "upstreamPath": "docs/openapi.yaml",
-      "pinnedSha": "36a6e994d2f6c4ab94b3555185154d069e5dba87",
-      "pinnedAt": "2026-10-22"
+      "pinnedSha": "f067033f9126993b6172bdfffa71a74ad693fda4",
+      "pinnedAt": "2026-11-02"
     },
     {
       "id": "openai-compatibility",
@@ -17,8 +17,8 @@
       "path": "docs/upstream/ollama-openai-compatibility.mdx",
       "upstream": "https://docs.ollama.com/api/openai-compatibility",
       "upstreamPath": "docs/api/openai-compatibility.mdx",
-      "pinnedSha": "675150d6ad2747df1e218ef59de9194bc4a7e538",
-      "pinnedAt": "2026-10-24"
+      "pinnedSha": "f067033f9126993b6172bdfffa71a74ad693fda4",
+      "pinnedAt": "2026-11-02"
     },
     {
       "id": "anthropic-compatibility",
@@ -27,7 +27,7 @@
       "upstream": "https://docs.ollama.com/api/anthropic-compatibility",
       "upstreamPath": "docs/api/anthropic-compatibility.mdx",
       "pinnedSha": "33a3afa604b4e5c90263f006d979bc433d39c38d",
-      "pinnedAt": "2026-10-23"
+      "pinnedAt": "2026-11-02"
     },
     {
       "id": "native-docs",

@@ -15,8 +15,13 @@ describe('Wave 6: MCP tool generation', () => {
   // The binary-transport exclusions — must mirror BINARY_TRANSPORT_MCP_EXCLUSIONS
   // in generator/emitters/mcp/tools.ts and BINARY_BODY_OPS in
   // generator/emitters/typescript/api.ts (ADR 0038 keeps the three in sync;
-  // test/contract/generated.test.ts asserts the audio/createBlob pair).
-  const BINARY_TRANSPORT_OPS = new Set(['createBlob', 'openaiAudioSpeech']);
+  // test/contract/generated.test.ts asserts the audio/createBlob set).
+  const BINARY_TRANSPORT_OPS = new Set([
+    'createBlob',
+    'openaiAudioSpeech',
+    'openaiAudioTranscriptions',
+    'openaiAudioTranslations',
+  ]);
 
   it('emits one tool per documented operation in the IR (excluding binary-transport ops)', () => {
     const ir = loadIR();
