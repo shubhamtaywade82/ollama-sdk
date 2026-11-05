@@ -226,7 +226,7 @@
     }
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.17.4",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@edge-runtime/primitives": "^6.0.0",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "^10.0.1",
