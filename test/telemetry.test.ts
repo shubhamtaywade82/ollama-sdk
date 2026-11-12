@@ -19,8 +19,10 @@ describe('OpenTelemetry instrumentation', () => {
 
   beforeEach(() => {
     exporter = new InMemorySpanExporter();
-    provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+    // sdk-trace-base 2.x removed `addSpanProcessor`; span processors are passed through the provider config.
+    provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
     trace.setGlobalTracerProvider(provider);
     // Registers real async-boundary context propagation, matching what a Node OTel SDK
     // (e.g. `@opentelemetry/sdk-node`'s `NodeSDK`) sets up automatically in production —
@@ -97,12 +99,12 @@ describe('OpenTelemetry instrumentation', () => {
 
     expect(endpointSpan).toBeDefined();
     expect(endpointSpan?.attributes['ollama.endpoint.name']).toBe('default');
-    expect(endpointSpan?.parentSpanId).toBe(genAiSpan?.spanContext().spanId);
+    expect(endpointSpan?.parentSpanContext?.spanId).toBe(genAiSpan?.spanContext().spanId);
 
     expect(httpSpan).toBeDefined();
     expect(httpSpan?.attributes['http.request.method']).toBe('POST');
     expect(httpSpan?.attributes['http.response.status_code']).toBe(200);
-    expect(httpSpan?.parentSpanId).toBe(endpointSpan?.spanContext().spanId);
+    expect(httpSpan?.parentSpanContext?.spanId).toBe(endpointSpan?.spanContext().spanId);
   });
 
   it('templates high-cardinality blob digests out of the HTTP span name', async () => {
@@ -200,7 +202,7 @@ describe('OpenTelemetry instrumentation', () => {
     expect(agentSpan).toBeDefined();
     expect(agentSpan?.attributes['ollama.agent.max_iterations']).toBe(10);
     expect(turnSpans).toHaveLength(2);
-    expect(turnSpans[0]?.parentSpanId).toBe(agentSpan?.spanContext().spanId);
-    expect(toolSpan?.parentSpanId).toBe(turnSpans[0]?.spanContext().spanId);
+    expect(turnSpans[0]?.parentSpanContext?.spanId).toBe(agentSpan?.spanContext().spanId);
+    expect(toolSpan?.parentSpanContext?.spanId).toBe(turnSpans[0]?.spanContext().spanId);
   });
 });
