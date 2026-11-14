@@ -240,6 +240,7 @@ describe('caller abort is not reported as truncation', () => {
     expect(error).not.toBeInstanceOf(OllamaStreamError);
     await expect(stream.finalResult).rejects.toBeInstanceOf(OllamaAbortError);
   });
+
   it('OpenAI Responses: an aborted stream whose body closes cleanly rejects with OllamaAbortError', async () => {
     const created = {
       type: 'response.created',
@@ -271,5 +272,4 @@ describe('caller abort is not reported as truncation', () => {
     expect(error).not.toBeInstanceOf(OllamaStreamError);
     await expect(stream.finalResult).rejects.toBeInstanceOf(OllamaAbortError);
   });
-
 });
