@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OllamaClient } from '../src/client.js';
+import { OllamaStreamError } from '../src/errors.js';
 
 function sseBody(events: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -54,6 +55,30 @@ describe('OpenAI compatibility streaming', () => {
       total_tokens: 15,
     });
     expect(final.choices[0]?.message.reasoning).toBeUndefined();
+  });
+
+  it('rejects the final result when the stream is truncated mid-event, instead of resolving partial content', async () => {
+    // The second event is cut off before its blank-line terminator. Strict SSE
+    // discards it, and the discard must reach the caller as an error.
+    const fetchMock = sseFetchMock([
+      'data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"qwen3","choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"}}],"usage":null}\n\n',
+      'data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"qwen3","choices":[{"index":0,"delta":{"content":"lo"}}],"usage":null}',
+    ]);
+    const client = new OllamaClient({ fetch: fetchMock as never });
+
+    const stream = await client.openai.chatCompletions({
+      model: 'qwen3',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+    });
+
+    const chunks = [];
+    const iteration = (async () => {
+      for await (const chunk of stream) chunks.push(chunk);
+    })();
+    await expect(iteration).rejects.toBeInstanceOf(OllamaStreamError);
+    expect(chunks).toHaveLength(1);
+    await expect(stream.finalResult).rejects.toBeInstanceOf(OllamaStreamError);
   });
 });
 
