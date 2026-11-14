@@ -176,8 +176,8 @@ describe('OpenAI Responses: terminal completion is required', () => {
     };
     const client = new OllamaClient({
       fetch: sseFetchMock([
-        `event: response.created\\ndata: ${JSON.stringify(created)}\\n\\n`,
-        `event: response.output_text.delta\\ndata: ${JSON.stringify(delta)}\\n\\n`,
+        `event: response.created\ndata: ${JSON.stringify(created)}\n\n`,
+        `event: response.output_text.delta\ndata: ${JSON.stringify(delta)}\n\n`,
       ]) as never,
     });
     const stream = await client.openai.responses({
