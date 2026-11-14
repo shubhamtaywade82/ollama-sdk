@@ -154,6 +154,47 @@ describe('Anthropic Messages: message_stop is required', () => {
   });
 });
 
+describe('OpenAI Responses: terminal completion is required', () => {
+  it('rejects a clean EOF after response.created when no terminal event arrives', async () => {
+    const created = {
+      type: 'response.created',
+      response: {
+        id: 'resp_truncated',
+        object: 'response',
+        created: 7,
+        model: 'qwen3',
+        status: 'in_progress',
+        output: [],
+      },
+    };
+    const delta = {
+      type: 'response.output_text.delta',
+      item_id: 'msg_truncated',
+      output_index: 0,
+      content_index: 0,
+      delta: 'partial',
+    };
+    const client = new OllamaClient({
+      fetch: sseFetchMock([
+        `event: response.created\\ndata: ${JSON.stringify(created)}\\n\\n`,
+        `event: response.output_text.delta\\ndata: ${JSON.stringify(delta)}\\n\\n`,
+      ]) as never,
+    });
+    const stream = await client.openai.responses({
+      model: 'qwen3',
+      input: 'hi',
+      stream: true,
+    });
+
+    const { items, error } = await drain(stream);
+
+    expect(items).toHaveLength(2);
+    expect(error).toBeInstanceOf(OllamaStreamError);
+    expect(error).toMatchObject({ message: expect.stringContaining('response.completed') });
+    await expect(stream.finalResult).rejects.toBeInstanceOf(OllamaStreamError);
+  });
+});
+
 describe('caller abort is not reported as truncation', () => {
   it('OpenAI Chat: an aborted stream whose body closes cleanly rejects with OllamaAbortError', async () => {
     const client = new OllamaClient({
