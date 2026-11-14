@@ -8,7 +8,7 @@ This page walks through installing the SDK, configuring your first `OllamaClient
 
 ## Prerequisites
 
-- **Node.js 20+** (or any modern Edge runtime: Cloudflare Workers, Vercel Edge, Bun, Deno)
+- **Node.js 22+** (or any modern Edge runtime: Cloudflare Workers, Vercel Edge, Bun, Deno)
 - **Ollama 0.5+** running locally — install it from [ollama.com](https://ollama.com) and pull at least one model:
 
 ```bash

@@ -17,8 +17,8 @@
       "path": "docs/upstream/ollama-openai-compatibility.mdx",
       "upstream": "https://docs.ollama.com/api/openai-compatibility",
       "upstreamPath": "docs/api/openai-compatibility.mdx",
-      "pinnedSha": "f067033f9126993b6172bdfffa71a74ad693fda4",
-      "pinnedAt": "2026-11-02"
+      "pinnedSha": "5632619189ab493c70bd3f9435214b8788cc1c80",
+      "pinnedAt": "2026-11-14"
     },
     {
       "id": "anthropic-compatibility",
@@ -26,8 +26,8 @@
       "path": "docs/upstream/ollama-anthropic-compatibility.mdx",
       "upstream": "https://docs.ollama.com/api/anthropic-compatibility",
       "upstreamPath": "docs/api/anthropic-compatibility.mdx",
-      "pinnedSha": "33a3afa604b4e5c90263f006d979bc433d39c38d",
-      "pinnedAt": "2026-11-02"
+      "pinnedSha": "5632619189ab493c70bd3f9435214b8788cc1c80",
+      "pinnedAt": "2026-11-14"
     },
     {
       "id": "native-docs",

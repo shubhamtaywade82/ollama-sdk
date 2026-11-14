@@ -372,6 +372,9 @@ Each `chunk` is a full `ChatResponse` with `done: false` until the final one, wh
 | Mid-stream server 5xx | `error` with `OllamaServerError`             | The stream stops; no further events fire.  |
 | Invalid NDJSON        | `error` with `OllamaNetworkError` or wrapped | Same as server error.                      |
 | `stream.abort()`      | `error` with `OllamaAbortError`              | The underlying HTTP request is cancelled.  |
+| Truncated SSE stream  | `error` with `OllamaStreamError`             | `finalResult` rejects. Partial output is never resolved as complete. |
+
+OpenAI-compatible and Anthropic-compatible streams are complete only when their terminal event arrives: `data: [DONE]` for OpenAI Chat and Completions, `message_stop` for Anthropic. A stream that closes without it, or that stops mid-event, rejects with `OllamaStreamError`.
 
 The streaming pipeline participates in [failover](./failover) the same way non-streaming calls do — if the first endpoint fails mid-stream, the request retries on the next candidate (subject to the retry budget).
 

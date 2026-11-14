@@ -128,6 +128,99 @@ function retryAfterHeaderFrom(response: Response): Record<string, string> | unde
   }
 }
 
+/** Error-body text plus its structured form. */
+interface ErrorBody {
+  /** Exact body text; `''` when the body is empty or cannot be read. */
+  readonly raw: string;
+  /** JSON-decoded value when the text parses, otherwise the original text. */
+  readonly parsed: unknown;
+}
+
+function parseJsonOrText(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
+function isAbortLike(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+/**
+ * Reads a non-2xx response body exactly once.
+ *
+ * A body can be consumed only once. The previous `json()`-then-`text()` fallback
+ * threw "Body is unusable" on its second read, and that TypeError was then
+ * classified as a retryable network error, hiding the real HTTP status.
+ *
+ * A body that is absent, truncated or otherwise unreadable degrades to an empty
+ * body: the HTTP status line is authoritative for classification, so a failed
+ * body read must never change the error's class. Abort is the one exception and
+ * is rethrown so cancellation keeps its `OllamaAbortError` semantics.
+ *
+ * `json()`-only response shapes (non-standard fetch implementations, test
+ * doubles) remain supported.
+ */
+async function readErrorBody(response: Response): Promise<ErrorBody> {
+  try {
+    if (typeof response.text === 'function') {
+      const raw = await response.text();
+      return { raw, parsed: parseJsonOrText(raw) };
+    }
+    if (typeof response.json === 'function') {
+      const parsed: unknown = await response.json();
+      return { raw: JSON.stringify(parsed) ?? '', parsed };
+    }
+  } catch (err) {
+    if (isAbortLike(err)) throw err;
+  }
+  return { raw: '', parsed: '' };
+}
+
+/**
+ * Bridges a caller-owned `AbortSignal` into a transport-owned `AbortController`,
+ * so the transport can cancel its own fetch and stream.
+ *
+ * The caller's `abort` listener is registered eagerly, before the fetch is
+ * awaited, so every exit path must release it:
+ * - initialization failure: the catch path calls `detach()`;
+ * - normal stream completion or cancellation: the stream teardown calls `detach()`.
+ *
+ * `detach()` is idempotent, so overlapping teardown paths cannot double-remove.
+ */
+interface SignalBridge {
+  readonly controller: AbortController;
+  readonly detach: () => void;
+}
+
+function bridgeAbortSignal(signal: AbortSignal | undefined): SignalBridge {
+  const controller = new AbortController();
+  if (signal === undefined) {
+    return { controller, detach: () => undefined };
+  }
+  if (signal.aborted) {
+    controller.abort(signal.reason);
+    return { controller, detach: () => undefined };
+  }
+  const onAbort = (): void => controller.abort(signal.reason);
+  signal.addEventListener('abort', onAbort, { once: true });
+  let attached = true;
+  return {
+    controller,
+    detach: () => {
+      if (!attached) return;
+      attached = false;
+      signal.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
 export interface HttpClientOptions {
   readonly baseUrl: string;
   readonly apiKey?: string | undefined;
@@ -367,12 +460,7 @@ export class HttpClient {
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
-            let errorBody: unknown;
-            try {
-              errorBody = await response.json();
-            } catch {
-              errorBody = await response.text();
-            }
+            const { parsed: errorBody } = await readErrorBody(response);
             const message =
               typeof errorBody === 'object' && errorBody !== null && 'error' in errorBody
                 ? String((errorBody as { error: unknown }).error)
@@ -432,34 +520,21 @@ export class HttpClient {
       `${method} ${routeTemplate(options.path)}`,
       httpSpanAttributes(method, url),
       async (span) => {
+        // Registered before fetch is awaited: the catch below must release it
+        // if initialization fails, since no stream teardown will ever run.
+        const bridge = bridgeAbortSignal(options.signal);
         try {
-          const controller = new AbortController();
-          const removeAbortListener =
-            options.signal !== undefined
-              ? (() => {
-                  if (options.signal.aborted) {
-                    controller.abort(options.signal.reason);
-                  } else {
-                    const onAbort = (): void => controller.abort(options.signal?.reason);
-                    options.signal.addEventListener('abort', onAbort, { once: true });
-                    return () => options.signal?.removeEventListener('abort', onAbort);
-                  }
-                  return undefined;
-                })()
-              : undefined;
-
           const response = await this.fetchWithMiddleware({
             url,
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-            signal: controller.signal,
+            signal: bridge.controller.signal,
           });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
-            removeAbortListener?.();
-            const errorText = await response.text();
+            const errorText = (await readErrorBody(response)).raw;
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
               response: {
@@ -471,17 +546,19 @@ export class HttpClient {
           }
 
           if (!response.body) {
-            removeAbortListener?.();
             throw mapError(new Error('Response body is null, cannot stream SSE'), {
               request: { method, url },
             });
           }
 
+          const body = response.body;
+          // The listener stays attached for the whole consumption window and is
+          // released on completion, error, or consumer cancellation.
           const stream = (async function* (): AsyncGenerator<SseEvent, void, undefined> {
             try {
-              yield* parseSseStream(response.body!);
+              yield* parseSseStream(body);
             } finally {
-              removeAbortListener?.();
+              bridge.detach();
             }
           })();
 
@@ -490,11 +567,12 @@ export class HttpClient {
               return stream[Symbol.asyncIterator]();
             },
             abort: () => {
-              removeAbortListener?.();
-              controller.abort();
+              bridge.detach();
+              bridge.controller.abort();
             },
           } as AbortableAsyncIterable<SseEvent>;
         } catch (err) {
+          bridge.detach();
           throw mapError(err, { request: { method, url } });
         }
       },
@@ -510,34 +588,21 @@ export class HttpClient {
       `${method} ${routeTemplate(options.path)}`,
       httpSpanAttributes(method, url),
       async (span) => {
+        // Registered before fetch is awaited: the catch below must release it
+        // if initialization fails, since no stream teardown will ever run.
+        const bridge = bridgeAbortSignal(options.signal);
         try {
-          const controller = new AbortController();
-          const removeAbortListener =
-            options.signal !== undefined
-              ? (() => {
-                  if (options.signal.aborted) {
-                    controller.abort(options.signal.reason);
-                  } else {
-                    const onAbort = (): void => controller.abort(options.signal?.reason);
-                    options.signal.addEventListener('abort', onAbort, { once: true });
-                    return () => options.signal?.removeEventListener('abort', onAbort);
-                  }
-                  return undefined;
-                })()
-              : undefined;
-
           const response = await this.fetchWithMiddleware({
             url,
             method,
             headers,
             ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-            signal: controller.signal,
+            signal: bridge.controller.signal,
           });
           span?.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, response.status);
 
           if (!response.ok) {
-            removeAbortListener?.();
-            const errorText = await response.text();
+            const errorText = (await readErrorBody(response)).raw;
             throw mapError(new Error(errorText || `HTTP ${response.status}`), {
               request: { method, url },
               response: {
@@ -549,7 +614,6 @@ export class HttpClient {
           }
 
           if (!response.body) {
-            removeAbortListener?.();
             throw mapError(new Error('Response body is null, cannot stream'), {
               request: { method, url },
             });
@@ -562,17 +626,18 @@ export class HttpClient {
                 try {
                   yield* stream;
                 } finally {
-                  removeAbortListener?.();
+                  bridge.detach();
                 }
               })()[Symbol.asyncIterator]();
             },
             abort: () => {
-              removeAbortListener?.();
-              controller.abort();
+              bridge.detach();
+              bridge.controller.abort();
             },
           };
           return abortable;
         } catch (err) {
+          bridge.detach();
           throw mapError(err, { request: { method, url } });
         }
       },

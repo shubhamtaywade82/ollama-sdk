@@ -7,7 +7,7 @@ import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 import type { RequestRunner } from '../transport/runner.js';
-import { OllamaAbortError } from '../errors.js';
+import { OllamaAbortError, OllamaStreamError } from '../errors.js';
 
 export interface AnthropicCacheControl {
   readonly type: 'ephemeral';
@@ -362,6 +362,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   private resolveFinal!: (value: AnthropicMessagesResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
   private removeAbortListener: (() => void) | undefined;
+  private abortRequested = false;
 
   constructor(
     private readonly source: AbortableAsyncIterable<SseEvent>,
@@ -386,6 +387,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
   }
 
   abort(): void {
+    this.abortRequested = true;
     this.removeAbortListener?.();
     this.removeAbortListener = undefined;
     this.source.abort?.();
@@ -397,6 +399,7 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
     const blocks = new Map<number, AnthropicContentBlock>();
     const toolInputJson = new Map<number, string>();
     let completed = false;
+    let sawMessageStop = false;
 
     try {
       for await (const rawEvent of this.source) {
@@ -414,6 +417,10 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
 
         if (event.type === 'error') {
           throw new Error(event.error.message);
+        }
+
+        if (event.type === 'message_stop') {
+          sawMessageStop = true;
         }
 
         if (event.type === 'message_start') {
@@ -496,6 +503,13 @@ export class AnthropicMessagesStream implements AsyncIterable<AnthropicMessageSt
 
       if (!message) {
         throw new Error('Anthropic Messages stream ended without message_start');
+      }
+      // `message_stop` is the only terminal signal. A stream that ends without
+      // it was truncated and must not resolve with partial content.
+      if (!sawMessageStop) {
+        throw this.abortRequested
+          ? new OllamaAbortError('Anthropic Messages stream aborted')
+          : new OllamaStreamError('Anthropic Messages stream ended without message_stop');
       }
 
       const final: AnthropicMessagesResponse = {

@@ -5,6 +5,7 @@
  * any provider-specific event schema.
  */
 
+import { OllamaStreamError } from '../errors.js';
 import { disposableReader } from '../utils.js';
 
 export interface SseEvent {
@@ -42,11 +43,17 @@ function dispatch(
 }
 
 /**
- * Parses an SSE byte stream into discrete events.
+ * Parses an SSE byte stream into discrete events, per the WHATWG "event stream
+ * interpretation" (https://html.spec.whatwg.org/multipage/server-sent-events.html).
  *
  * Supports CRLF, CR, and LF line endings; comments; repeated data fields;
- * event/id/retry fields; UTF-8 chunks split across arbitrary byte boundaries;
- * and a terminal event without a trailing blank line.
+ * event/id/retry fields; and UTF-8 chunks split across arbitrary byte boundaries.
+ *
+ * End-of-stream is strict. An event is dispatched only by its blank-line
+ * terminator, so a final event whose terminator never arrived is discarded, as
+ * the spec requires. The discard is then reported by throwing
+ * {@link OllamaStreamError}: a stream that ends mid-event was truncated, and a
+ * silent discard would let a truncated response look complete.
  */
 export async function* parseSseStream(
   stream: ReadableStream<Uint8Array>,
@@ -100,27 +107,21 @@ export async function* parseSseStream(
     return undefined;
   };
 
-  await using _reader = disposableReader(reader);
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-
+  /**
+   * Consumes every complete line in `buffer`, yielding dispatched events. A CR
+   * at the very end of the buffer is held back until the next chunk shows
+   * whether it begins a CRLF pair. At end of stream there is no next chunk, so
+   * that CR is a complete line terminator and is consumed.
+   */
+  function* drainLines(endOfStream: boolean): Generator<SseEvent, void, undefined> {
     while (true) {
       const lf = buffer.indexOf('\n');
       const cr = buffer.indexOf('\r');
-      if (lf === -1 && cr === -1) break;
-      // A CR may be the first half of a CRLF sequence split across two network chunks.
-      if (cr !== -1 && lf === -1 && cr === buffer.length - 1) break;
+      if (lf === -1 && cr === -1) return;
+      if (!endOfStream && lf === -1 && cr === buffer.length - 1) return;
 
       const lineEnd = lf === -1 ? cr : cr === -1 ? lf : Math.min(lf, cr);
-      let separatorLength = 1;
-
-      if (buffer[lineEnd] === '\r' && buffer[lineEnd + 1] === '\n') {
-        separatorLength = 2;
-      }
+      const separatorLength = buffer[lineEnd] === '\r' && buffer[lineEnd + 1] === '\n' ? 2 : 1;
 
       const line = buffer.slice(0, lineEnd);
       buffer = buffer.slice(lineEnd + separatorLength);
@@ -130,13 +131,24 @@ export async function* parseSseStream(
     }
   }
 
-  buffer += decoder.decode();
-  if (buffer.length > 0) {
-    const event = processLine(buffer);
-    if (event) yield event;
+  await using _reader = disposableReader(reader);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    yield* drainLines(false);
   }
 
-  const terminal = dispatch(eventType, data, lastEventId, retry);
-  if (terminal) yield terminal;
+  buffer += decoder.decode();
+  yield* drainLines(true);
+
+  // Anything still pending is an incomplete event: its data lines were never
+  // terminated by a blank line, or its final line was cut off mid-way. Reaching
+  // here means the stream ended with it, so it is discarded and reported.
+  if (data.length > 0 || buffer.length > 0) {
+    throw new OllamaStreamError('SSE stream ended mid-event; the incomplete event was discarded');
+  }
   // reader.cancel() + reader.releaseLock() called automatically via `await using _reader`
 }

@@ -1,6 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpClient } from '../src/transport/http.js';
 import { parseSseStream } from '../src/streaming/sse.js';
+import { OllamaStreamError } from '../src/errors.js';
+
+/** Drains a parser, returning the dispatched events and the error it threw, if any. */
+async function drainSse(
+  stream: ReadableStream<Uint8Array>,
+): Promise<{ events: unknown[]; error: unknown }> {
+  const events: unknown[] = [];
+  try {
+    for await (const event of parseSseStream(stream)) events.push(event);
+    return { events, error: undefined };
+  } catch (error) {
+    return { events, error };
+  }
+}
 
 function byteStream(...chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -25,7 +39,7 @@ describe('SSE parser', () => {
         ': keep-alive\r\n',
         'id: 42\r\nevent: message\r\ndata: first\r\n',
         'data: second\r\nretry: 1500\r\n\r\n',
-        'data: terminal',
+        'data: terminal\n\n',
       ),
     );
 
@@ -44,6 +58,46 @@ describe('SSE parser', () => {
         data: 'terminal',
       },
     ]);
+  });
+
+  it('discards an unterminated final event and reports the truncation instead of dispatching it', async () => {
+    const { events, error } = await drainSse(byteStream('data: complete\n\n', 'data: partial'));
+
+    // The unterminated event is never dispatched (WHATWG), and the stream is
+    // not silently accepted as complete: the truncation is an error.
+    expect(events).toEqual([{ data: 'complete' }]);
+    expect(error).toBeInstanceOf(OllamaStreamError);
+    expect(error).toMatchObject({ code: 'stream_error', retryable: false });
+  });
+
+  it('treats a data line terminated by LF but missing its blank line as truncation', async () => {
+    const { events, error } = await drainSse(byteStream('data: a\n\ndata: b\n'));
+
+    expect(events).toEqual([{ data: 'a' }]);
+    expect(error).toBeInstanceOf(OllamaStreamError);
+  });
+
+  it('a lone CR at end of stream terminates the final line, so a CR-terminated event is dispatched', async () => {
+    // The blank line is the second CR, held back by the chunk boundary; at end
+    // of stream it must complete the event rather than be read as field data.
+    const { events, error } = await drainSse(byteStream('data: last\r\r'));
+
+    expect(error).toBeUndefined();
+    expect(events).toEqual([{ data: 'last' }]);
+  });
+
+  it('a lone CR at end of stream after unterminated data is still truncation', async () => {
+    const { events, error } = await drainSse(byteStream('data: cut\r'));
+
+    expect(events).toEqual([]);
+    expect(error).toBeInstanceOf(OllamaStreamError);
+  });
+
+  it('a stream that ends cleanly on a blank line raises no error', async () => {
+    const { events, error } = await drainSse(byteStream('data: one\n\n', 'data: two\n\n'));
+
+    expect(error).toBeUndefined();
+    expect(events).toEqual([{ data: 'one' }, { data: 'two' }]);
   });
 
   it('appends a newline for each data field, keeping a trailing LF when the final data field is empty (WHATWG SSE dispatch)', async () => {

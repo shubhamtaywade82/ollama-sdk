@@ -5,7 +5,9 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
+// context-async-hooks 3.x removed AsyncHooksContextManager; AsyncLocalStorageContextManager
+// is its replacement and provides the same enable/disable/with/bind surface.
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { OllamaClient } from '../src/client.js';
 import { Agent } from '../src/agent/index.js';
 import { defineTool, ToolRegistry } from '../src/tools/index.js';
@@ -15,7 +17,7 @@ import { z } from 'zod';
 describe('OpenTelemetry instrumentation', () => {
   let exporter: InMemorySpanExporter;
   let provider: BasicTracerProvider;
-  let contextManager: AsyncHooksContextManager;
+  let contextManager: AsyncLocalStorageContextManager;
 
   beforeEach(() => {
     exporter = new InMemorySpanExporter();
@@ -27,7 +29,7 @@ describe('OpenTelemetry instrumentation', () => {
     // Registers real async-boundary context propagation, matching what a Node OTel SDK
     // (e.g. `@opentelemetry/sdk-node`'s `NodeSDK`) sets up automatically in production —
     // without it, spans created after an `await` lose their parent.
-    contextManager = new AsyncHooksContextManager();
+    contextManager = new AsyncLocalStorageContextManager();
     contextManager.enable();
     context.setGlobalContextManager(contextManager);
   });
@@ -204,5 +206,48 @@ describe('OpenTelemetry instrumentation', () => {
     expect(turnSpans).toHaveLength(2);
     expect(turnSpans[0]?.parentSpanContext?.spanId).toBe(agentSpan?.spanContext().spanId);
     expect(toolSpan?.parentSpanContext?.spanId).toBe(turnSpans[0]?.spanContext().spanId);
+  });
+
+  describe('context propagation across async boundaries', () => {
+    const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 1));
+    const finished = (name: string) => exporter.getFinishedSpans().find((s) => s.name === name);
+
+    it('keeps the parent across awaits and timers', async () => {
+      await withSpan('parent.op', {}, async () => {
+        await tick();
+        await Promise.resolve();
+        await withSpan('child.op', {}, async () => 'ok');
+      });
+
+      expect(finished('child.op')?.parentSpanContext?.spanId).toBe(
+        finished('parent.op')?.spanContext().spanId,
+      );
+    });
+
+    it('isolates parents between concurrent operations', async () => {
+      await Promise.all([
+        withSpan('a.parent', {}, async () => {
+          await tick();
+          await withSpan('a.child', {}, async () => 1);
+        }),
+        withSpan('b.parent', {}, async () => {
+          await tick();
+          await withSpan('b.child', {}, async () => 2);
+        }),
+      ]);
+
+      expect(finished('a.child')?.parentSpanContext?.spanId).toBe(
+        finished('a.parent')?.spanContext().spanId,
+      );
+      expect(finished('b.child')?.parentSpanContext?.spanId).toBe(
+        finished('b.parent')?.spanContext().spanId,
+      );
+    });
+
+    it('does not leak the span context out of withSpan', async () => {
+      await withSpan('scoped.op', {}, async () => 'done');
+
+      expect(trace.getActiveSpan()).toBeUndefined();
+    });
   });
 });

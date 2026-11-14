@@ -19,7 +19,7 @@ import type { AbortableAsyncIterable } from '../streaming/types.js';
 import type { SseEvent } from '../streaming/sse.js';
 import type { HttpClient } from '../transport/http.js';
 import type { RequestRunner } from '../transport/runner.js';
-import { OllamaAbortError, OllamaClientError } from '../errors.js';
+import { OllamaAbortError, OllamaClientError, OllamaStreamError } from '../errors.js';
 
 export interface OpenAIToolCall {
   readonly id: string;
@@ -653,6 +653,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
   private resolveFinal!: (value: OpenAIChatCompletionResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
   private removeAbortListener: (() => void) | undefined;
+  private abortRequested = false;
 
   constructor(
     private readonly source: AbortableAsyncIterable<SseEvent>,
@@ -677,6 +678,7 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
   }
 
   abort(): void {
+    this.abortRequested = true;
     this.removeAbortListener?.();
     this.removeAbortListener = undefined;
     this.source.abort?.();
@@ -698,10 +700,14 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
     let systemFingerprint: string | undefined;
     let usage: OpenAIUsage | undefined;
     let completed = false;
+    let sawDone = false;
 
     try {
       for await (const event of this.source) {
-        if (event.data === '[DONE]') break;
+        if (event.data === '[DONE]') {
+          sawDone = true;
+          break;
+        }
         let chunk: OpenAIChatCompletionChunk;
         try {
           chunk = JSON.parse(event.data) as OpenAIChatCompletionChunk;
@@ -785,6 +791,15 @@ export class OpenAIChatCompletionStream implements AsyncIterable<OpenAIChatCompl
         yield chunk;
       }
 
+      // `[DONE]` is the only terminal signal for this endpoint. A stream that
+      // ends without it was truncated at an event boundary, and must not
+      // resolve with partial content.
+      if (!sawDone) {
+        throw this.abortRequested
+          ? new OllamaAbortError('OpenAI Chat Completion stream aborted')
+          : new OllamaStreamError('OpenAI Chat Completion stream ended without [DONE]');
+      }
+
       const response: OpenAIChatCompletionResponse = {
         id,
         object: 'chat.completion',
@@ -826,6 +841,7 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
   private resolveFinal!: (value: OpenAICompletionResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
   private removeAbortListener: (() => void) | undefined;
+  private abortRequested = false;
 
   constructor(
     private readonly source: AbortableAsyncIterable<SseEvent>,
@@ -850,6 +866,7 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
   }
 
   abort(): void {
+    this.abortRequested = true;
     this.removeAbortListener?.();
     this.removeAbortListener = undefined;
     this.source.abort?.();
@@ -864,10 +881,14 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
     let usage:
       { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
     let completed = false;
+    let sawDone = false;
 
     try {
       for await (const event of this.source) {
-        if (event.data === '[DONE]') break;
+        if (event.data === '[DONE]') {
+          sawDone = true;
+          break;
+        }
         const chunk = JSON.parse(event.data) as OpenAICompletionChunk;
         id = chunk.id || id;
         model = chunk.model || model;
@@ -884,6 +905,13 @@ export class OpenAICompletionStream implements AsyncIterable<OpenAICompletionChu
           });
         }
         yield chunk;
+      }
+
+      // `[DONE]` is the only terminal signal for this endpoint; see the chat stream.
+      if (!sawDone) {
+        throw this.abortRequested
+          ? new OllamaAbortError('OpenAI Completion stream aborted')
+          : new OllamaStreamError('OpenAI Completion stream ended without [DONE]');
       }
 
       const response: OpenAICompletionResponse = {

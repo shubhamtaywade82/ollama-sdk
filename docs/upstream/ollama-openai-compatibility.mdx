@@ -1,12 +1,12 @@
 <!--
-Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-11-02 (source SHA: f067033f9126993b6172bdfffa71a74ad693fda4).
+Pinned from https://docs.ollama.com/api/openai-compatibility.md on 2026-11-14 (source SHA: 5632619189ab493c70bd3f9435214b8788cc1c80).
 Offline fallback for scripts/verify-contract-parity.ts. Fetched as markdown so the
 `[x]` / `[ ]` checkbox state (supported vs explicitly unsupported) is preserved.
 The source SHA is the last upstream commit touching ollama/ollama docs/api/openai-compatibility.mdx;
 the rendered twin differs from that source in site plumbing only (it prefixes the
 site's llms.txt index preamble, unwraps Mintlify CodeGroup components, and appends
 `.md` to internal doc links) — all parse-neutral for parity verification and
-endpoint discovery. Refreshed to upstream f067033 (mlx: add LFM3 and d1 models (#19333)).
+endpoint discovery. Refreshed to upstream 5632619 (Map disabled thinking to the models lowest supported level (#19684)).
 Inline base64 image payloads are elided.
 -->
 > ## Documentation Index
@@ -251,7 +251,7 @@ curl -X POST http://localhost:11434/v1/chat/completions \
 * [ ] `user`
 * [ ] `n`
 
-`reasoning_effort` and `reasoning.effort` control model thinking. Use `/api/show` to discover each model's supported values and default. When a model uses its metadata to resolve named levels, supported names are applied exactly and unsupported names resolve to the model default. Boolean-only models that support enabling thinking map recognized compatibility efforts to `true`, while `"none"` requests `false`. Models without metadata retain the existing compatibility aliases: `"minimal"` maps to `"low"`, and `"xhigh"` or `"ultra"` map to `"max"`. GPT-OSS keeps its existing OpenAI compatibility conversion: `"minimal"` uses `"low"`, `"xhigh"` or `"ultra"` use `"high"`, and `"none"` requests no thinking output.
+`reasoning_effort` and `reasoning.effort` control model thinking. Use `/api/show` to discover each model's supported values and default. When a model uses its metadata to resolve named levels, supported names are applied exactly and unsupported names resolve to the model default. Boolean-only models that support enabling thinking map recognized compatibility efforts to `true`, while `"none"` requests `false`. Models without metadata retain the existing compatibility aliases: `"minimal"` maps to `"low"`, and `"xhigh"` or `"ultra"` map to `"max"`. GPT-OSS keeps its existing OpenAI compatibility conversion: `"minimal"` uses `"low"`, `"xhigh"` or `"ultra"` use `"high"`, and `"none"` uses `"low"` because GPT-OSS cannot disable thinking.
 
 ### `/v1/completions`
 
