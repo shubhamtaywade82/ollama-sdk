@@ -112,7 +112,7 @@ Reasoning models (`qwen3`, `deepseek-r1`, `gpt-oss`) expose a `think` parameter 
 | Value                               | Meaning                                                                                        |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `true`                              | Use the model's default thinking budget (recommended).                                         |
-| `false`                             | Disable thinking entirely.                                                                     |
+| `false`                             | Request no thinking output. Models that cannot disable thinking use their lowest supported level. |
 | `null`                              | Model default (same as omitting).                                                              |
 | `'high'`/`'low'`/`'medium'`/`'max'` | Model-defined string levels — discover them with `client.capabilities(model).thinking.values`. |
 

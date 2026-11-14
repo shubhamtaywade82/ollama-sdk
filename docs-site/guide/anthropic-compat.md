@@ -133,7 +133,7 @@ for (const block of res.content) {
 | Type         | Behavior                                                       |
 | ------------ | -------------------------------------------------------------- |
 | `enabled`    | Enable thinking; `budget_tokens` is accepted but not enforced. |
-| `disabled`   | Disable thinking entirely.                                     |
+| `disabled`   | Request no thinking output. Models that cannot disable thinking use their lowest supported level. |
 | `adaptive`   | Let the model decide.                                          |
 
 `display` (`'omitted'`, `'summarized'`, `'updates'`) is accepted but not honored by Ollama.

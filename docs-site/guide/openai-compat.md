@@ -158,7 +158,7 @@ await client.openai.chatCompletions({
 });
 ```
 
-Valid `reasoning_effort` values: `'high'`, `'medium'`, `'low'`, `'max'`, `'none'`, `'minimal'`, `'xhigh'`, `'ultra'`, or any model-defined string. Ollama's compat layer maps these to the native `think` parameter.
+Valid `reasoning_effort` values: `'high'`, `'medium'`, `'low'`, `'max'`, `'none'`, `'minimal'`, `'xhigh'`, `'ultra'`, or any model-defined string. Ollama's compat layer maps these to the native `think` parameter. `'none'` requests no thinking output, but it is not a guarantee of zero reasoning: models that cannot disable thinking use their lowest supported level instead. GPT-OSS is one such model, so `'none'` resolves to `'low'`. Inspect `/api/show` before depending on a strict off state.
 
 ## Structured output (`response_format`)
 
