@@ -22,7 +22,7 @@ const GITHUB_REPO_API = 'https://api.github.com/repos/ollama/ollama';
 // reported for human review, never counted as drift.
 const CODE_WATCH_PATHS = ['openai', 'anthropic'] as const;
 // Keep in sync with the version the conformance job in ci.yml installs.
-const CONFORMANCE_OLLAMA_VERSION = 'v0.40.0';
+const CONFORMANCE_OLLAMA_VERSION = 'v0.40.16';
 const FETCH_TIMEOUT_MS = 30_000;
 
 export interface DocsIndexSource {

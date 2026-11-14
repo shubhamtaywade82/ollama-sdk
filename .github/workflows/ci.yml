@@ -189,23 +189,18 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: Install Ollama (>= 0.35.0 for System One conformance)
+      - name: Install pinned Ollama (System One requires >= 0.35.0)
         run: |
-          # Install Ollama and its dependencies via the official script.
-          curl -fsSL https://ollama.com/install.sh | sh
-          # System One (POST /v1/systemone) requires Ollama >= 0.35.0.
-          # The install.sh installs the latest stable, which may be older
-          # (e.g. v0.34.4). If so, upgrade the binary to a known-good
-          # pre-release from GitHub releases.
+          # Pinned, so the wire-contract check runs against a known server.
+          # The value must equal CONFORMANCE_OLLAMA_VERSION in
+          # scripts/upstream-drift.ts; test/conformance-pin.test.ts enforces that.
+          # The official script serves the pinned release via OLLAMA_VERSION.
+          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.40.16 sh
           VERSION=$(ollama --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
           echo "Installed Ollama version: $VERSION"
-          MINOR=$(echo "$VERSION" | cut -d. -f2)
-          if [ "$MINOR" -lt 35 ]; then
-            echo "Version $VERSION < 0.35.0; upgrading to v0.40.0 pre-release"
-            curl -fsSL -o /tmp/ollama "https://github.com/ollama/ollama/releases/download/v0.40.0/ollama-linux-amd64"
-            chmod +x /tmp/ollama
-            sudo mv /tmp/ollama "$(which ollama)"
-            ollama --version
+          if [ "$VERSION" != "0.40.16" ]; then
+            echo "Expected Ollama 0.40.16, got $VERSION" >&2
+            exit 1
           fi
 
       - name: Start Ollama server
