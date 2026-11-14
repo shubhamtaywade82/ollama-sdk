@@ -22,7 +22,7 @@ hero:
 features:
   - icon: 🚀
     title: Native Web Standards
-    details: Built entirely on native fetch and Web Streams. Zero external HTTP dependencies, runs on Node 20+, Cloudflare Workers, and Vercel Edge without a single Node-only API in the root bundle.
+    details: Built entirely on native fetch and Web Streams. Zero external HTTP dependencies, runs on Node 22+, Cloudflare Workers, and Vercel Edge without a single Node-only API in the root bundle.
     link: /guide/getting-started
     linkText: Quickstart →
   - icon: 🧠

@@ -23,7 +23,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   treeshake: true,
-  target: 'node20',
+  target: 'node22',
   // Copy the MCP tools.json (the Wave 6 generated artifact) into dist/ so
   // the published package can load it. tsup doesn't copy non-TS assets by
   // default; the loader resolves this file at runtime relative to its own

@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       # Node 22 (maintenance LTS) + Node 24 (active LTS) are the verified
-      # matrix. Node 20 reached end-of-life 2026-04-30: `engines` keeps
-      # `>=20` for consumers, but nothing below 22 is CI-verified anymore.
+      # matrix. `engines` is `>=22`, matching the matrix floor. Node 20 reached
+      # end-of-life 2026-04-30 and is no longer supported.
       matrix:
         node-version: ['22', '24']
 
