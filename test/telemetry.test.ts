@@ -101,12 +101,12 @@ describe('OpenTelemetry instrumentation', () => {
 
     expect(endpointSpan).toBeDefined();
     expect(endpointSpan?.attributes['ollama.endpoint.name']).toBe('default');
-    expect(endpointSpan?.parentSpanId).toBe(genAiSpan?.spanContext().spanId);
+    expect(endpointSpan?.parentSpanContext?.spanId).toBe(genAiSpan?.spanContext().spanId);
 
     expect(httpSpan).toBeDefined();
     expect(httpSpan?.attributes['http.request.method']).toBe('POST');
     expect(httpSpan?.attributes['http.response.status_code']).toBe(200);
-    expect(httpSpan?.parentSpanId).toBe(endpointSpan?.spanContext().spanId);
+    expect(httpSpan?.parentSpanContext?.spanId).toBe(endpointSpan?.spanContext().spanId);
   });
 
   it('templates high-cardinality blob digests out of the HTTP span name', async () => {
@@ -204,8 +204,8 @@ describe('OpenTelemetry instrumentation', () => {
     expect(agentSpan).toBeDefined();
     expect(agentSpan?.attributes['ollama.agent.max_iterations']).toBe(10);
     expect(turnSpans).toHaveLength(2);
-    expect(turnSpans[0]?.parentSpanId).toBe(agentSpan?.spanContext().spanId);
-    expect(toolSpan?.parentSpanId).toBe(turnSpans[0]?.spanContext().spanId);
+    expect(turnSpans[0]?.parentSpanContext?.spanId).toBe(agentSpan?.spanContext().spanId);
+    expect(toolSpan?.parentSpanContext?.spanId).toBe(turnSpans[0]?.spanContext().spanId);
   });
 
   describe('context propagation across async boundaries', () => {
@@ -219,7 +219,9 @@ describe('OpenTelemetry instrumentation', () => {
         await withSpan('child.op', {}, async () => 'ok');
       });
 
-      expect(finished('child.op')?.parentSpanId).toBe(finished('parent.op')?.spanContext().spanId);
+      expect(finished('child.op')?.parentSpanContext?.spanId).toBe(
+        finished('parent.op')?.spanContext().spanId,
+      );
     });
 
     it('isolates parents between concurrent operations', async () => {
@@ -234,8 +236,12 @@ describe('OpenTelemetry instrumentation', () => {
         }),
       ]);
 
-      expect(finished('a.child')?.parentSpanId).toBe(finished('a.parent')?.spanContext().spanId);
-      expect(finished('b.child')?.parentSpanId).toBe(finished('b.parent')?.spanContext().spanId);
+      expect(finished('a.child')?.parentSpanContext?.spanId).toBe(
+        finished('a.parent')?.spanContext().spanId,
+      );
+      expect(finished('b.child')?.parentSpanContext?.spanId).toBe(
+        finished('b.parent')?.spanContext().spanId,
+      );
     });
 
     it('does not leak the span context out of withSpan', async () => {
