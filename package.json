@@ -237,7 +237,7 @@
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.1.0",
     "cross-env": "^10.1.0",
-    "dotenv": "^18.0.9",
+    "dotenv": "^18.0.10",
     "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
