@@ -1,30 +1,20 @@
 name: Publish
 
-# Security model (why each step is shaped this way):
-# - NPM_TOKEN is exposed ONLY to the two steps that talk to the npm registry
-#   (token check, publish). The quality gate runs without it.
-# - `npm publish --ignore-scripts`: lifecycle scripts (prepublishOnly ->
-#   verify:release) would otherwise execute repo and third-party code while
-#   NODE_AUTH_TOKEN is set. The gate has already run as its own step.
-# - The release gate runs exactly once (verify:release), not twice.
+# Called by release-please.yml only. That file must be the trusted-publisher
+# entry on npmjs.com, because trusted publishing validates the calling workflow.
+# Publishes with npm trusted publishing (OIDC): no npm token is stored or used.
+# The direct `release` and `workflow_dispatch` triggers were removed; each would
+# make this file the caller. Manual runs go through release-please.yml's
+# workflow_dispatch.
 
 on:
-  release:
-    types: [published]
-  # Called by release-please.yml after it creates a release (ADR 0040).
   workflow_call:
-  workflow_dispatch:
     inputs:
       tag:
         description: 'npm dist-tag to publish under'
         required: false
+        type: string
         default: 'latest'
-        # The dispatch surface only ever needs the supported dist-tags; the
-        # runtime regex below is the second layer (API dispatches, future
-        # workflow edits) — see the publish step for why the value reaches
-        # the shell through an env var, never by `${{ }}` interpolation.
-        type: choice
-        options: ['latest', 'next', 'beta']
 
 jobs:
   publish:
@@ -32,60 +22,42 @@ jobs:
 
     permissions:
       contents: read
+      # OIDC token for npm trusted publishing (also drives provenance).
       id-token: write
 
     steps:
       - uses: actions/checkout@v7
 
+      # No registry-url: npm defaults to registry.npmjs.org, and setup-node's
+      # .npmrc auth placeholder must not shadow the OIDC credential.
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          registry-url: https://registry.npmjs.org
           cache: npm
 
-      - name: Validate npm dist-tag
-        # Fails before the 3-minute gate on bad input. Security: `inputs.tag`
-        # must reach the shell ONLY through the environment, never by direct
-        # `${{ inputs.tag }}` interpolation into `run:` (that makes the value
-        # part of the shell source). An env var assignment is inert data.
+      # Trusted publishing needs npm >= 11.21.0 for dist-tag handling.
+      - name: Pin npm for trusted publishing
+        run: npm install -g npm@^11.21.0
+
+      - name: Validate dist-tag
+        # Security: `inputs.tag` must reach the shell ONLY through the environment.
         env:
           NPM_DIST_TAG: ${{ inputs.tag || 'latest' }}
         run: |
           set -euo pipefail
           if [[ ! "$NPM_DIST_TAG" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
-            echo "::error::Invalid npm dist-tag '$NPM_DIST_TAG' (must match ^[a-zA-Z0-9][a-zA-Z0-9._-]*$, e.g. latest / next / beta). Refusing to publish."
+            echo "::error::Invalid npm dist-tag '$NPM_DIST_TAG'. Refusing to publish."
             exit 1
           fi
 
       - run: npm ci --ignore-scripts
 
-      - name: Check npm token is accepted
-        # Fails in seconds on a missing, revoked or expired token. `npm whoami`
-        # proves the token authenticates; it does NOT prove the token may write
-        # @nemesis-oss/ollama-sdk. Only the publish PUT proves that.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
-            echo "::error::NPM_TOKEN secret is empty or not available to this run."
-            exit 1
-          fi
-          npm whoami > /dev/null
-          echo "npm token accepted by the registry."
-
       - name: Verify Quality and Build
-        # Full release gate, run once: contract validate/diff/generate/drift,
-        # typecheck, lint, tests, build, edge runtime, contract parity, attw,
-        # and CJS/ESM consumer type checks. No npm token in this step.
+        # Full release gate, run once. The publish step uses --ignore-scripts,
+        # so prepublishOnly does not run a second time.
         run: npm run verify:release
 
-      - name: Publish to npm with Provenance
+      - name: Publish to npm (trusted publishing)
         env:
           NPM_DIST_TAG: ${{ inputs.tag || 'latest' }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          # --ignore-scripts skips prepublishOnly (already run above) and every
-          # other lifecycle hook. Provenance still applies via publishConfig.
-          npm publish --access public --tag "$NPM_DIST_TAG" --ignore-scripts
+        run: npm publish --access public --tag "$NPM_DIST_TAG" --ignore-scripts
