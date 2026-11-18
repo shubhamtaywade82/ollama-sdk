@@ -1123,6 +1123,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
   private resolveFinal!: (value: OpenAIResponsesResponse) => void;
   private rejectFinal!: (reason: unknown) => void;
   private removeAbortListener: (() => void) | undefined;
+  private abortRequested = false;
 
   constructor(
     private readonly source: AbortableAsyncIterable<SseEvent>,
@@ -1145,6 +1146,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
     return this.finalResultPromise;
   }
   abort(): void {
+    this.abortRequested = true;
     this.removeAbortListener?.();
     this.removeAbortListener = undefined;
     this.source.abort?.();
@@ -1159,6 +1161,7 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
     const outputs = new Map<number, OpenAIResponsesOutputState>();
     const canonicalOutputItems = new Map<number, OpenAIResponsesOutputItem>();
     let completed = false;
+    let sawDone = false;
 
     const ensureState = (
       outputIndex: number,
@@ -1258,7 +1261,10 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
 
     try {
       for await (const event of this.source) {
-        if (event.data === '[DONE]') break;
+        if (event.data === '[DONE]') {
+          sawDone = true;
+          break;
+        }
         let payload: OpenAIResponsesStreamEvent;
         try {
           payload = JSON.parse(event.data) as OpenAIResponsesStreamEvent;
@@ -1398,6 +1404,9 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
         }
         yield payload;
       }
+      if (this.abortRequested) {
+        throw new OllamaAbortError('OpenAI Responses stream aborted');
+      }
       if (terminalFailure || terminalIncomplete) {
         const response = terminalFailure ?? terminalIncomplete!;
         const status = terminalFailure ? 'failed' : 'incomplete';
@@ -1419,6 +1428,11 @@ export class OpenAIResponsesStream implements AsyncIterable<OpenAIResponsesStrea
           throw new OpenAIResponsesStreamError(
             'OpenAI Responses stream ' + responseMeta.status + ': ' + detail,
             responseMeta,
+          );
+        }
+        if (!sawDone) {
+          throw new OllamaStreamError(
+            'OpenAI Responses stream ended without response.completed or [DONE]',
           );
         }
         finalResponse = { ...responseMeta, output: reconstructedOutput(), status: 'completed' };
