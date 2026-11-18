@@ -199,7 +199,7 @@
     "contract:upstream-drift": "tsx scripts/upstream-drift.ts",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
-    "check:types": "npx --yes @arethetypeswrong/cli@latest --pack .",
+    "check:types": "attw --pack .",
     "verify:consumer-types": "bash scripts/verify-consumer-types.sh",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run verify:edge-runtime && npm run verify:contract-parity",
     "smoke": "npm run contract:validate && npm run contract:diff && npm run contract:drift -- --strict && npm run verify && npm run check:types && npm run verify:consumer-types",

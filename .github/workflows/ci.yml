@@ -106,7 +106,7 @@ jobs:
       - run: npm run build
 
       - name: Check published type resolution
-        run: npx --yes @arethetypeswrong/cli@latest --pack .
+        run: npm run check:types
 
       - name: Verify NodeNext TypeScript consumer compilation (CJS + ESM)
         # Compiles two real consumer projects against the packed tarball:

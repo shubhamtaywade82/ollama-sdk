@@ -1,5 +1,13 @@
 name: Publish
 
+# Security model (why each step is shaped this way):
+# - NPM_TOKEN is exposed ONLY to the two steps that talk to the npm registry
+#   (token check, publish). The quality gate runs without it.
+# - `npm publish --ignore-scripts`: lifecycle scripts (prepublishOnly ->
+#   verify:release) would otherwise execute repo and third-party code while
+#   NODE_AUTH_TOKEN is set. The gate has already run as its own step.
+# - The release gate runs exactly once (verify:release), not twice.
+
 on:
   release:
     types: [published]
@@ -35,28 +43,49 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
-      - run: npm ci --ignore-scripts
-
-      - name: Verify Quality and Build
-        run: |
-          npm run typecheck
-          npm run lint
-          npm test
-          npm run build
-
-      - name: Publish to npm with Provenance
-        # Security: `inputs.tag` must reach the shell ONLY through the
-        # environment. Direct `${{ inputs.tag }}` interpolation into `run:`
-        # makes the value part of the shell source (a workflow-dispatcher
-        # could inject metacharacters into a step holding NODE_AUTH_TOKEN).
-        # An env var assignment is inert data; the regex is an extra control.
+      - name: Validate npm dist-tag
+        # Fails before the 3-minute gate on bad input. Security: `inputs.tag`
+        # must reach the shell ONLY through the environment, never by direct
+        # `${{ inputs.tag }}` interpolation into `run:` (that makes the value
+        # part of the shell source). An env var assignment is inert data.
         env:
           NPM_DIST_TAG: ${{ inputs.tag || 'latest' }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           if [[ ! "$NPM_DIST_TAG" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
             echo "::error::Invalid npm dist-tag '$NPM_DIST_TAG' (must match ^[a-zA-Z0-9][a-zA-Z0-9._-]*$, e.g. latest / next / beta). Refusing to publish."
             exit 1
           fi
-          npm publish --access public --tag "$NPM_DIST_TAG"
+
+      - run: npm ci --ignore-scripts
+
+      - name: Check npm token is accepted
+        # Fails in seconds on a missing, revoked or expired token. `npm whoami`
+        # proves the token authenticates; it does NOT prove the token may write
+        # @nemesis-oss/ollama-sdk. Only the publish PUT proves that.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::NPM_TOKEN secret is empty or not available to this run."
+            exit 1
+          fi
+          npm whoami > /dev/null
+          echo "npm token accepted by the registry."
+
+      - name: Verify Quality and Build
+        # Full release gate, run once: contract validate/diff/generate/drift,
+        # typecheck, lint, tests, build, edge runtime, contract parity, attw,
+        # and CJS/ESM consumer type checks. No npm token in this step.
+        run: npm run verify:release
+
+      - name: Publish to npm with Provenance
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag || 'latest' }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          # --ignore-scripts skips prepublishOnly (already run above) and every
+          # other lifecycle hook. Provenance still applies via publishConfig.
+          npm publish --access public --tag "$NPM_DIST_TAG" --ignore-scripts
