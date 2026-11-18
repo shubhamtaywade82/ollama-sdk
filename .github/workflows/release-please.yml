@@ -12,14 +12,26 @@
 # release PR branch.
 #
 # Merging the release PR tags vX.Y.Z, creates the GitHub release and calls
-# publish.yml directly — a release created with GITHUB_TOKEN does not
-# trigger publish.yml's own `release` event.
+# publish.yml directly. A release created with GITHUB_TOKEN does not trigger
+# publish.yml's own events, so this call is the only publish path.
+#
+# Manual publish: workflow_dispatch publishes the current main without creating
+# a release. Trusted publishing validates the calling workflow, so every publish
+# goes through this file (the trusted-publisher entry names release-please.yml).
 
 name: Release Please
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag to publish under (publish-only run, no release created)'
+        required: false
+        default: 'latest'
+        type: choice
+        options: ['latest', 'next', 'beta']
 
 permissions:
   contents: write
@@ -27,6 +39,7 @@ permissions:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -40,9 +53,12 @@ jobs:
 
   publish:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: >-
+      always() && !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      (needs.release-please.result == 'success' && needs.release-please.outputs.release_created == 'true'))
     uses: ./.github/workflows/publish.yml
-    secrets: inherit
+    with:
+      tag: ${{ inputs.tag || 'latest' }}
     permissions:
       contents: read
       id-token: write
