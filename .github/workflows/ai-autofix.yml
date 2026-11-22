@@ -1,0 +1,79 @@
+name: AI CI Autofix
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Failed workflow run ID'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: ai-autofix-${{ github.event.workflow_run.head_branch || inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build SDK artifacts
+        run: npm ci --ignore-scripts && npm run build
+
+      - name: Resolve GitHub Token
+        id: token
+        run: |
+          if [ -n "${{ secrets.CI_AGENT_APP_ID }}" ] && [ -n "${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}" ]; then
+            echo "mode=app" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=default" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate App Token
+        if: steps.token.outputs.mode == 'app'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CI_AGENT_APP_ID }}
+          private-key: ${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}
+
+      - name: Guard - Key availability
+        id: guard
+        run: |
+          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::OLLAMA_API_KEY secret unavailable; skipping autofix."
+          fi
+
+      - name: Run Autofix Agent
+        if: steps.guard.outputs.available == 'true'
+        run: npx tsx tools/ci-agent/src/autofix.ts
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          FAILED_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          OLLAMA_HOST: https://ollama.com
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL_FIX || 'glm-5.3-flash:cloud' }}

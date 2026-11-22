@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "types": ["node"],
+    "typeRoots": ["../../node_modules/@types"],
+    "paths": {
+      "@nemesis-oss/ollama-sdk": ["../../dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*", "scripts/**/*", "vitest.config.ts"]
+}
