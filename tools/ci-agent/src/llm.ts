@@ -3,7 +3,7 @@ import {
   parseStructuredOutput,
   zodToJsonSchema,
   type SupportedSchema,
-} from '@nemesis-oss/ollama-sdk';
+} from '../../../src/index.js';
 import { z } from 'zod';
 
 export interface StructuredLlmOptions<T> {
