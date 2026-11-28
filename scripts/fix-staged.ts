@@ -17,15 +17,35 @@ if (staged.length === 0) {
   process.exit(0);
 }
 
-const prettierFiles = staged.filter((file) => {
-  const extension = extname(file).toLowerCase();
-  return !['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf', '.zip', '.lock'].includes(extension);
-});
-const eslintFiles = staged.filter((file) =>
-  ['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'].includes(
-    extname(file).toLowerCase(),
-  ),
-);
+const prettierExtensions = new Set([
+  '.astro',
+  '.css',
+  '.graphql',
+  '.gql',
+  '.html',
+  '.js',
+  '.jsx',
+  '.json',
+  '.jsonc',
+  '.md',
+  '.mdx',
+  '.mjs',
+  '.mts',
+  '.scss',
+  '.ts',
+  '.tsx',
+  '.vue',
+  '.yaml',
+  '.yml',
+]);
+const eslintExtensions = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
+
+const prettierFiles = staged
+  .filter((file) => prettierExtensions.has(extname(file).toLowerCase()))
+  .map((file) => `./${file}`);
+const eslintFiles = staged
+  .filter((file) => eslintExtensions.has(extname(file).toLowerCase()))
+  .map((file) => `./${file}`);
 
 function run(command: string, args: string[]): void {
   if (args.length === 0) return;
