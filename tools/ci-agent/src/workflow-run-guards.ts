@@ -10,9 +10,7 @@ export interface WorkflowRunInfo {
   head_repository?: { full_name?: string | null } | null;
 }
 
-export type WorkflowRunValidation =
-  | { valid: true }
-  | { valid: false; reason: string };
+export type WorkflowRunValidation = { valid: true } | { valid: false; reason: string };
 
 /**
  * Autofix is deliberately limited to failed CI runs for same-repository PRs.
