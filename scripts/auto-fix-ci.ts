@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { shouldContinueAfterAutoFix, type AutoFixer } from './auto-fix-ci-policy.js';
 
 const directories = [
@@ -13,8 +15,21 @@ const directories = [
   'docs',
 ];
 
+const localTools: Record<AutoFixer, string> = {
+  prettier: resolve('node_modules/prettier/bin/prettier.cjs'),
+  eslint: resolve('node_modules/eslint/bin/eslint.js'),
+};
+
 function runFixer(fixer: AutoFixer, args: string[]): void {
-  const result = spawnSync(fixer, args, { stdio: 'inherit', shell: false });
+  const executable = localTools[fixer];
+  if (!existsSync(executable)) {
+    throw new Error(`${fixer} is not installed. Run npm ci before auto-fixing.`);
+  }
+
+  const result = spawnSync(process.execPath, [executable, ...args], {
+    stdio: 'inherit',
+    shell: false,
+  });
 
   if (result.error) {
     throw new Error(`Unable to execute ${fixer}: ${result.error.message}`);
