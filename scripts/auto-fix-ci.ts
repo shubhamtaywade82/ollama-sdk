@@ -48,7 +48,7 @@ function runFixer(fixer: AutoFixer, args: string[]): void {
 
 try {
   runFixer('prettier', ['--write', ...directories]);
-  runFixer('eslint', [...directories, '--fix']);
+  runFixer('eslint', ['.', '--fix']);
 } catch (error) {
   console.error('[auto-fix] deterministic remediation could not complete:', error);
   process.exitCode = 1;
