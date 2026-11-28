@@ -37,9 +37,7 @@ export function isPathAllowed(filePath: string): boolean {
   return ALLOWED_DIRECTORIES.includes(segments[0] ?? '');
 }
 
-export function validateFixProposal(
-  proposal: FixProposal,
-): { valid: boolean; reason?: string } {
+export function validateFixProposal(proposal: FixProposal): { valid: boolean; reason?: string } {
   if (proposal.confidence === 'low') {
     return { valid: false, reason: 'Confidence score is too low to apply fix automatically.' };
   }
