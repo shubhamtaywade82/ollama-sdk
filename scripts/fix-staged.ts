@@ -17,45 +17,56 @@ if (staged.length === 0) {
   process.exit(0);
 }
 
+// Avoid staging unrelated working-tree hunks when formatting a partially
+// staged file. Require the developer to stage or stash those edits first.
+const unstagedInStagedFiles = execFileSync('git', ['diff', '--name-only', '--', ...staged], {
+  encoding: 'utf8',
+})
+  .split('\n')
+  .filter(Boolean);
+
+if (unstagedInStagedFiles.length > 0) {
+  throw new Error(
+    [
+      'Refusing to auto-fix partially staged files:',
+      ...unstagedInStagedFiles.map((file) => '  - ' + file),
+      'Stage or stash the remaining edits in those files, then retry the commit.',
+    ].join('\n'),
+  );
+}
+
 const prettierExtensions = new Set([
-  '.astro',
-  '.css',
-  '.graphql',
-  '.gql',
-  '.html',
-  '.js',
-  '.jsx',
-  '.json',
-  '.jsonc',
-  '.md',
-  '.mdx',
-  '.mjs',
-  '.mts',
-  '.scss',
-  '.ts',
-  '.tsx',
-  '.vue',
-  '.yaml',
-  '.yml',
+  '.astro', '.css', '.graphql', '.gql', '.html', '.js', '.jsx', '.json',
+  '.jsonc', '.md', '.mdx', '.mjs', '.mts', '.scss', '.ts', '.tsx', '.vue',
+  '.yaml', '.yml',
 ]);
 const eslintExtensions = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
 
 const prettierFiles = staged
   .filter((file) => prettierExtensions.has(extname(file).toLowerCase()))
-  .map((file) => `./${file}`);
+  .map((file) => './' + file);
 const eslintFiles = staged
   .filter((file) => eslintExtensions.has(extname(file).toLowerCase()))
-  .map((file) => `./${file}`);
+  .map((file) => './' + file);
 
-function run(command: string, args: string[]): void {
+function run(args: string[]): void {
   if (args.length === 0) return;
-  execFileSync(command, args, { stdio: 'inherit' });
+  execFileSync(process.execPath, args, { stdio: 'inherit' });
 }
 
-run('npx', ['prettier', '--write', ...prettierFiles]);
-run('npx', ['eslint', '--fix', ...eslintFiles]);
+const prettierCli = resolve('node_modules/prettier/bin/prettier.cjs');
+const eslintCli = resolve('node_modules/eslint/bin/eslint.js');
 
-// Re-stage only the files that were already staged. Unstaged work in other
-// files is never added to the commit.
-run('git', ['add', '--', ...staged]);
-console.log(`Auto-fixed and re-staged ${staged.length} staged file(s).`);
+if (prettierFiles.length > 0 && !existsSync(prettierCli)) {
+  throw new Error('Prettier is not installed. Run npm ci before committing.');
+}
+if (eslintFiles.length > 0 && !existsSync(eslintCli)) {
+  throw new Error('ESLint is not installed. Run npm ci before committing.');
+}
+
+run(prettierFiles.length > 0 ? [prettierCli, '--write', ...prettierFiles] : []);
+run(eslintFiles.length > 0 ? [eslintCli, '--fix', ...eslintFiles] : []);
+
+// Re-stage only the paths that were already staged. No unrelated file is added.
+execFileSync('git', ['add', '--', ...staged], { stdio: 'inherit' });
+console.log('Auto-fixed and re-staged ' + staged.length + ' staged file(s).');
