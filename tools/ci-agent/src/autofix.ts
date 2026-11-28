@@ -69,7 +69,7 @@ export async function runAutofix(): Promise<void> {
     return;
   }
 
-  let rawLogs = '';
+  let rawLogs: string;
   try {
     // Use a fixed executable and argument array; never interpolate the run ID
     // into a shell command.
