@@ -34,7 +34,15 @@ Nexum's agent process receives the Ollama Cloud model credentials, but not the
 GitHub token. The healer daemon retains GitHub credentials for Git and REST
 operations. Repository setup and verification commands run in separate
 containers without GitHub or model credentials. The CI agent cannot edit
-workflow/security configuration or dependency manifests.
+workflow/security configuration, the deterministic fixer, or dependency manifests.
+
+The healer's local verification list includes formatting, lint, typecheck,
+unit tests, coverage, structural contract parity, edge-runtime checks, and
+published-type analysis. Network-dependent gates remain with the regular PR CI:
+live-doc contract parity, real-server conformance, npm consumer installation,
+and external integration checks. A repair branch is still subject to the full
+GitHub Actions checks before it can be merged. PR CI has an explicit read-only
+`GITHUB_TOKEN`; Nexum repair branches are excluded from the advisory AI review.
 
 The SQLite lineage ledger is restored and saved using GitHub Actions cache.
 A repository-wide concurrency group serializes invocations so ephemeral runners
