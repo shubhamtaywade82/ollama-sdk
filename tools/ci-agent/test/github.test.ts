@@ -33,10 +33,9 @@ describe('upsertReviewSummary', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify([{ id: 12, body: 'Human comment', user: { type: 'User' } }]),
-          { status: 200 },
-        ),
+        new Response(JSON.stringify([{ id: 12, body: 'Human comment', user: { type: 'User' } }]), {
+          status: 200,
+        }),
       )
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 43 }), { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
