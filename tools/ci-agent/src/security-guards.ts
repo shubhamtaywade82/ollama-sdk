@@ -18,11 +18,7 @@ export function isPathAllowed(filePath: string): boolean {
 
   // GitHub paths are POSIX paths. Reject alternate separators, absolute paths,
   // NUL bytes, and non-canonical segments before checking the allow-list.
-  if (
-    filePath.startsWith('/') ||
-    filePath.includes('\\') ||
-    filePath.includes('\0')
-  ) {
+  if (filePath.startsWith('/') || filePath.includes('\\') || filePath.includes('\0')) {
     return false;
   }
 
