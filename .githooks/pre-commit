@@ -1,8 +1,8 @@
 #!/bin/sh
-# Fast local gate (~15 s): the lint, format and typecheck checks CI runs,
-# before the commit exists. Lint fails on any warning (--max-warnings 0).
-# Skip in a hurry with `git commit --no-verify`; CI still runs.
+# Automatically fix staged files before running the existing quality gates.
+# Only paths already staged by the developer are re-staged by fix:staged.
 set -e
+npm run --silent fix:staged
 npm run --silent lint
 npm run --silent format:check
 npm run --silent typecheck
