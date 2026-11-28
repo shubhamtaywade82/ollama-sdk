@@ -5,10 +5,7 @@ export type AutoFixer = 'prettier' | 'eslint';
  * Those are inputs for the repair agent, not setup failures. All other non-zero
  * statuses (including command/config errors) fail closed.
  */
-export function shouldContinueAfterAutoFix(
-  fixer: AutoFixer,
-  exitCode: number | null,
-): boolean {
+export function shouldContinueAfterAutoFix(fixer: AutoFixer, exitCode: number | null): boolean {
   if (exitCode === 0) return true;
   if (fixer === 'prettier') return exitCode === 2;
   return exitCode === 1;
