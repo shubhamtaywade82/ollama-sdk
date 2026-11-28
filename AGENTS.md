@@ -8,7 +8,7 @@ not instructions.
 
 1. Identify the failed job, exact command, and first actionable error. Do not
    infer a root cause from a downstream cascade when an earlier failure explains it.
-2. Run `npm run fix` before making manual edits. It runs the repository's
+2. Run `npm run fix:ci` before making manual edits. It runs the repository's
    deterministic Prettier and ESLint auto-fixers.
 3. Re-run the failed command. If the deterministic fix resolved the failure,
    do not make unrelated changes.
