@@ -90,7 +90,17 @@ export async function runReview(): Promise<void> {
           const suggestion = finding.suggestion
             ? '\n  - Suggested change: ' + finding.suggestion
             : '';
-          return '- **[' + severity + ' / ' + confidence + ']** ' + location + ' - ' + finding.message + suggestion;
+          return (
+            '- **[' +
+            severity +
+            ' / ' +
+            confidence +
+            ']** ' +
+            location +
+            ' - ' +
+            finding.message +
+            suggestion
+          );
         })
         .join('\n')
     : 'No high- or medium-confidence actionable findings were identified in the reviewed diff.';
@@ -101,8 +111,12 @@ export async function runReview(): Promise<void> {
     '',
     'Reviewed **' + selectedChunks.length + '/' + chunks.length + '** changed-file diffs.',
     'Models: ' + (modelSummary || 'none'),
-    'Estimated input: **' + estimatedInputTokens.toLocaleString() + ' tokens** (character-based estimate; not provider billing usage).',
-    'Findings: **' + renderedFindings.length + '** actionable observations; informational and low-confidence findings are suppressed.',
+    'Estimated input: **' +
+      estimatedInputTokens.toLocaleString() +
+      ' tokens** (character-based estimate; not provider billing usage).',
+    'Findings: **' +
+      renderedFindings.length +
+      '** actionable observations; informational and low-confidence findings are suppressed.',
     '',
     sections,
     '',
