@@ -149,6 +149,7 @@ jobs:
             forbidden_paths: [
               '.github/**',
               'AGENTS.md',
+              'scripts/auto-fix-ci.ts',
               'package.json',
               'package-lock.json',
               'npm-shrinkwrap.json',
