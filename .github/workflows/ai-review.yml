@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   review:
-    # Avoid running on draft PRs or external forks without access to secrets
+    # Never expose secrets or run the agent on fork PRs or draft PRs.
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -33,8 +33,10 @@ jobs:
 
       - name: Guard - Ollama Cloud Key
         id: guard
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         run: |
-          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+          if [[ -n "${OLLAMA_API_KEY:-}" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"

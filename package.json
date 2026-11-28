@@ -185,6 +185,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:ci-agent": "vitest run --config tools/ci-agent/vitest.config.ts tools/ci-agent/test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:conformance": "vitest run test/conformance/",

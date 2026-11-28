@@ -25,9 +25,14 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.event == 'pull_request' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -43,8 +48,11 @@ jobs:
 
       - name: Resolve GitHub Token
         id: token
+        env:
+          CI_AGENT_APP_ID: ${{ secrets.CI_AGENT_APP_ID }}
+          CI_AGENT_APP_PRIVATE_KEY: ${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}
         run: |
-          if [ -n "${{ secrets.CI_AGENT_APP_ID }}" ] && [ -n "${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}" ]; then
+          if [[ -n "${CI_AGENT_APP_ID:-}" && -n "${CI_AGENT_APP_PRIVATE_KEY:-}" ]]; then
             echo "mode=app" >> "$GITHUB_OUTPUT"
           else
             echo "mode=default" >> "$GITHUB_OUTPUT"
@@ -58,10 +66,12 @@ jobs:
           app-id: ${{ secrets.CI_AGENT_APP_ID }}
           private-key: ${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}
 
-      - name: Guard - Key availability
+      - name: Guard - Ollama Cloud Key
         id: guard
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         run: |
-          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+          if [[ -n "${OLLAMA_API_KEY:-}" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
