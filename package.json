@@ -186,6 +186,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:ci-agent": "vitest run --config tools/ci-agent/vitest.config.ts tools/ci-agent/test",
+    "typecheck:ci-agent": "tsc --noEmit -p tools/ci-agent/tsconfig.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:conformance": "vitest run test/conformance/",

@@ -71,6 +71,9 @@ jobs:
       - name: Test Ollama CI agents
         run: npm run test:ci-agent
 
+      - name: Typecheck Ollama CI agents
+        run: npm run typecheck:ci-agent
+
   coverage:
     # Enforces the vitest.config.ts coverage thresholds (statements/branches/
     # functions/lines) — the `test` job runs the same suite but without
