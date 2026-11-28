@@ -36,9 +36,25 @@ if (unstagedInStagedFiles.length > 0) {
 }
 
 const prettierExtensions = new Set([
-  '.astro', '.css', '.graphql', '.gql', '.html', '.js', '.jsx', '.json',
-  '.jsonc', '.md', '.mdx', '.mjs', '.mts', '.scss', '.ts', '.tsx', '.vue',
-  '.yaml', '.yml',
+  '.astro',
+  '.css',
+  '.graphql',
+  '.gql',
+  '.html',
+  '.js',
+  '.jsx',
+  '.json',
+  '.jsonc',
+  '.md',
+  '.mdx',
+  '.mjs',
+  '.mts',
+  '.scss',
+  '.ts',
+  '.tsx',
+  '.vue',
+  '.yaml',
+  '.yml',
 ]);
 const eslintExtensions = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
 
