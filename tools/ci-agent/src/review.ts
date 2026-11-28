@@ -73,8 +73,8 @@ export async function runReview(): Promise<void> {
   }
 
   const renderedFindings = findings.slice(0, 12);
-  const modelSummary = [...modelUsage.entries()]
-    .map(([name, count]) => String(name) + ' (' + String(count) + ' file(s))')
+  const modelSummary = Array.from(modelUsage.entries())
+    .map((entry) => entry[0] + ' (' + entry[1] + ' files)')
     .join(', ');
   const sections = renderedFindings.length
     ? renderedFindings
@@ -94,10 +94,10 @@ export async function runReview(): Promise<void> {
     '<!-- ollama-ci-agent-review -->',
     '## Ollama Cloud PR Review',
     '',
-    `Reviewed **${selectedChunks.length}/${chunks.length}** changed-file diffs.`,
-    `Models: ${modelSummary || 'none'}`,
-    `Estimated input: **${estimatedInputTokens.toLocaleString()} tokens** (character-based estimate; not provider billing usage).`,
-    `Findings: **${renderedFindings.length}** actionable observations; informational and low-confidence findings are suppressed.`,
+    'Reviewed **' + selectedChunks.length + '/' + chunks.length + '** changed-file diffs.',
+    'Models: ' + (modelSummary || 'none'),
+    'Estimated input: **' + estimatedInputTokens.toLocaleString() + ' tokens** (character-based estimate; not provider billing usage).',
+    'Findings: **' + renderedFindings.length + '** actionable observations; informational and low-confidence findings are suppressed.',
     '',
     sections,
     '',
