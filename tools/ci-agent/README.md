@@ -23,8 +23,8 @@ The workflow uses Nexum's existing `nexum ci-healer tick` application:
 3. Fetch and digest failed job logs.
 4. Create an isolated Git worktree and install dependencies with lifecycle
    scripts disabled.
-5. Invoke Nexum over its JSON-RPC agent runtime. The agent first runs
-   `npm run fix` (Prettier plus ESLint auto-fix), then diagnoses any remaining
+5. Invoke Nexum over its JSON-RPC agent runtime. The setup phase first runs
+   `npm run fix:ci` (Prettier plus ESLint auto-fix) before starting the agent, then diagnoses any remaining
    failure and makes only minimal source/test changes.
 6. Verify each configured command in a Docker sandbox with no network.
 7. Enforce the changed-file limit and protected-path policy.
