@@ -19,4 +19,24 @@ describe('log-minimizer', () => {
     expect(minimized.errorSummary).toContain('AssertionError: expected 5 to be 4');
     expect(minimized.relevantFiles).toContain('src/calc.ts');
   });
+
+  it('captures npm ERESOLVE peer dependency failures', () => {
+    const rawLog = `
+      npm error code ERESOLVE
+      npm error ERESOLVE could not resolve
+      npm error While resolving: @opentelemetry/sdk-trace-base@2.12.0
+      npm error Found: @opentelemetry/api@1.10.0
+      npm error Could not resolve dependency:
+      npm error peer @opentelemetry/api@">=1.3.0 <1.10.0" from @opentelemetry/sdk-trace-base@2.12.0
+    `;
+    const minimized = minimizeFailureLogs(rawLog);
+    expect(minimized.errorSummary).toContain('ERESOLVE');
+    expect(minimized.errorSummary).toContain('@opentelemetry/api@1.10.0');
+    expect(minimized.errorSummary).toContain('<1.10.0');
+  });
+
+  it('does not treat non-actionable informational output as a failure', () => {
+    const minimized = minimizeFailureLogs('added 248 packages and audited 249 packages');
+    expect(minimized.errorSummary).toBe('');
+  });
 });

@@ -185,6 +185,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:ci-agent": "vitest run --config tools/ci-agent/vitest.config.ts tools/ci-agent/test",
+    "typecheck:ci-agent": "tsc --noEmit -p tools/ci-agent/tsconfig.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:conformance": "vitest run test/conformance/",
@@ -210,7 +212,12 @@
     "prepublishOnly": "npm run verify:release",
     "docs:dev": "cd docs-site && npm run dev",
     "docs:build": "cd docs-site && npm run build",
-    "docs:preview": "cd docs-site && npm run preview"
+    "docs:preview": "cd docs-site && npm run preview",
+    "fix:format": "prettier --write .",
+    "fix:lint": "eslint . --fix",
+    "fix": "npm run fix:format && npm run fix:lint",
+    "fix:staged": "tsx scripts/fix-staged.ts",
+    "fix:ci": "tsx scripts/auto-fix-ci.ts"
   },
   "peerDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",

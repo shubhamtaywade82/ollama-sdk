@@ -11,9 +11,16 @@ const ERROR_PATTERNS = [
   /Received:.+/i,
   /error TS\d+:.+/i,
   /failed with exit code \d+/i,
+  /npm (?:error|ERR!)\s+.+/i,
+  /ERESOLVE(?:\s+.+)?/i,
+  /unable to resolve dependency tree/i,
+  /could not resolve dependency/i,
+  /peer dependency/i,
+  /pnpm (?:error|ERR!)\s+.+/i,
+  /yarn error\s+.+/i,
 ];
 
-// Strips ANSI terminal escape sequences to save context window tokens
+// Strips ANSI terminal escape sequences to save context window tokens.
 export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
@@ -30,7 +37,7 @@ export function minimizeFailureLogs(rawLogs: string): MinimizedFailureLog {
       matchedLines.push(trimmed);
     }
 
-    // Match file paths like src/foo.ts:12:34
+    // Match file paths like src/foo.ts:12:34.
     const fileMatch = trimmed.match(
       /(?:at\s+|in\s+)?([a-zA-Z0-9_\-./]+\.(?:ts|js|tsx|jsx|rb)):(\d+)/,
     );
@@ -41,7 +48,7 @@ export function minimizeFailureLogs(rawLogs: string): MinimizedFailureLog {
 
   const errorSummary = matchedLines.slice(-30).join('\n');
   return {
-    errorSummary: errorSummary.slice(0, 8000),
+    errorSummary: errorSummary.slice(0, 8_000),
     relevantFiles: Array.from(fileCandidates).slice(0, 5),
   };
 }

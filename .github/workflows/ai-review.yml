@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 concurrency:
   group: ai-review-${{ github.event.pull_request.number }}
@@ -14,8 +15,8 @@ concurrency:
 
 jobs:
   review:
-    # Avoid running on draft PRs or external forks without access to secrets
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    # Never run on fork/draft PRs or recursively review an agent-created fix PR.
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'ci-agent/fix-') && !startsWith(github.event.pull_request.head.ref, 'fix/ci-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,14 +32,17 @@ jobs:
       - name: Build SDK artifacts
         run: npm ci --ignore-scripts && npm run build
 
-      - name: Guard - Ollama Cloud Key
+      - name: Guard - Ollama Cloud Key and model
         id: guard
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_MODEL_REVIEW: ${{ vars.OLLAMA_MODEL_REVIEW }}
         run: |
-          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+          if [[ -n "${OLLAMA_API_KEY:-}" && -n "${OLLAMA_MODEL_REVIEW:-}" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::OLLAMA_API_KEY secret unavailable; skipping review."
+            echo "::notice::OLLAMA_API_KEY or OLLAMA_MODEL_REVIEW unavailable; skipping paid review."
           fi
 
       - name: Run Review Agent
@@ -49,4 +53,5 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           OLLAMA_HOST: https://ollama.com
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL_REVIEW || 'glm-5.3-flash:cloud' }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL_REVIEW }}
+          OLLAMA_MODEL_ESCALATION: ${{ vars.OLLAMA_MODEL_REVIEW_ESCALATION }}

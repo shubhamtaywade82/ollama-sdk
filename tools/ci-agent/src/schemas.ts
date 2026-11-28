@@ -4,6 +4,7 @@ export const ReviewFindingSchema = z.object({
   file: z.string(),
   line: z.number().int().positive(),
   severity: z.enum(['info', 'warning', 'error']),
+  confidence: z.enum(['low', 'medium', 'high']),
   message: z.string().min(5),
   suggestion: z.string().optional(),
 });

@@ -1,5 +1,9 @@
 name: CI
 
+# PR code is untrusted. CI jobs must never receive a write-capable GITHUB_TOKEN.
+permissions:
+  contents: read
+
 on:
   # PR branches are covered by `pull_request` (which tests the merge result);
   # `push` only runs for main so each PR commit triggers one CI run, not two.
@@ -67,6 +71,12 @@ jobs:
       - run: npm test
 
       - run: npm run build
+
+      - name: Test Ollama CI agents
+        run: npm run test:ci-agent
+
+      - name: Typecheck Ollama CI agents
+        run: npm run typecheck:ci-agent
 
   coverage:
     # Enforces the vitest.config.ts coverage thresholds (statements/branches/
