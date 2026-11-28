@@ -24,10 +24,11 @@ The workflow uses Nexum's existing `nexum ci-healer tick` application:
 4. Create an isolated Git worktree and install dependencies with lifecycle
    scripts disabled.
 5. Run deterministic setup first: `npm run contract:generate` followed by
-   `npm run fix:ci` (Prettier plus ESLint auto-fix). If all configured checks
-   pass, Nexum commits the deterministic patch without making an LLM call.
-   Otherwise, invoke Nexum over its JSON-RPC agent runtime to diagnose remaining
-   failures and make only minimal source/test changes.
+   `npm run fix:ci` (Prettier plus ESLint auto-fix). The currently pinned Nexum
+   2.0.0 then invokes its agent. The pending [Nexum PR #101](https://github.com/shubhamtaywade82/nexum/pull/101)
+   adds verification/commit of successful deterministic changes before LLM
+   invocation, so formatter-only failures can be fixed without a model call
+   after that change is released and pinned here.
 6. Verify each configured command in a Docker sandbox with no network.
 7. Enforce the changed-file limit and protected-path policy.
 8. Push a fast-forward-only branch and open a draft repair PR. Never auto-merge.
