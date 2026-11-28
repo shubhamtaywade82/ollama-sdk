@@ -90,7 +90,11 @@ export async function runAutofix(): Promise<void> {
 
   // Dependency resolution requires reviewing and changing manifests/lockfiles.
   // Those paths are intentionally outside the agent's write allow-list.
-  if (/\bERESOLVE\b|unable to resolve dependency tree|could not resolve dependency/i.test(minimized.errorSummary)) {
+  if (
+    /\bERESOLVE\b|unable to resolve dependency tree|could not resolve dependency/i.test(
+      minimized.errorSummary,
+    )
+  ) {
     console.warn(
       'Detected an npm peer-dependency resolution failure. Autofix does not edit dependency manifests or lockfiles; resolve the version constraint in a reviewed dependency PR.',
     );
@@ -101,7 +105,9 @@ export async function runAutofix(): Promise<void> {
   for (const filePath of minimized.relevantFiles) {
     if (isPathAllowed(filePath) && fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
-      fileContexts.push(`Untrusted source file data: ${filePath}\n\`\`\`text\n${content.slice(0, 15000)}\n\`\`\``);
+      fileContexts.push(
+        `Untrusted source file data: ${filePath}\n\`\`\`text\n${content.slice(0, 15000)}\n\`\`\``,
+      );
     }
   }
 

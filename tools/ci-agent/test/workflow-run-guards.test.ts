@@ -49,25 +49,29 @@ describe('workflow-run-guards', () => {
   });
 
   it('rejects non-CI workflows, push runs, and successful runs', () => {
-    expect(validateAutofixWorkflowRun({ ...validRun, name: 'Release Please' }, repository).valid).toBe(
-      false,
-    );
     expect(
-      validateAutofixWorkflowRun({ ...validRun, path: '.github/workflows/release-please.yml' }, repository)
-        .valid,
+      validateAutofixWorkflowRun({ ...validRun, name: 'Release Please' }, repository).valid,
     ).toBe(false);
-    expect(validateAutofixWorkflowRun({ ...validRun, event: 'push' }, repository).valid).toBe(false);
-    expect(validateAutofixWorkflowRun({ ...validRun, conclusion: 'success' }, repository).valid).toBe(
-      false,
-    );
+    expect(
+      validateAutofixWorkflowRun(
+        { ...validRun, path: '.github/workflows/release-please.yml' },
+        repository,
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateAutofixWorkflowRun({ ...validRun, event: 'push' }, repository).valid,
+    ).toBe(false);
+    expect(
+      validateAutofixWorkflowRun({ ...validRun, conclusion: 'success' }, repository).valid,
+    ).toBe(false);
   });
 
   it('rejects incomplete run metadata', () => {
-    expect(validateAutofixWorkflowRun({ ...validRun, head_sha: 'not-a-sha' }, repository).valid).toBe(
-      false,
-    );
-    expect(validateAutofixWorkflowRun({ ...validRun, head_branch: null }, repository).valid).toBe(
-      false,
-    );
+    expect(
+      validateAutofixWorkflowRun({ ...validRun, head_sha: 'not-a-sha' }, repository).valid,
+    ).toBe(false);
+    expect(
+      validateAutofixWorkflowRun({ ...validRun, head_branch: null }, repository).valid,
+    ).toBe(false);
   });
 });

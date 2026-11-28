@@ -63,7 +63,8 @@ export function findMissingRequiredPackageFiles(paths: string[]): string[] {
 }
 
 export function findSensitivePackageFiles(paths: string[]): string[] {
-  const sensitivePath = /(^|\/)(?:\.env(?:\..*)?|\.npmrc|[^/]*\.pem|[^/]*\.key|id_rsa|credentials(?:\.json)?|secrets?[^/]*)(?:$|\/)/i;
+  const sensitivePath =
+    /(^|\/)(?:\.env(?:\..*)?|\.npmrc|[^/]*\.pem|[^/]*\.key|id_rsa|credentials(?:\.json)?|secrets?[^/]*)(?:$|\/)/i;
   return paths.filter((filePath) => sensitivePath.test(filePath));
 }
 

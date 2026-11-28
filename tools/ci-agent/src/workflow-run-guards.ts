@@ -14,6 +14,11 @@ export type WorkflowRunValidation =
   | { valid: true }
   | { valid: false; reason: string };
 
+/**
+ * Autofix is deliberately limited to failed CI runs for same-repository PRs.
+ * The workflow_run trigger is not sufficient authorization by itself because
+ * workflow_dispatch can supply an arbitrary run ID.
+ */
 export function isValidWorkflowRunId(value: string): boolean {
   if (!/^\d+$/.test(value)) return false;
 
@@ -21,11 +26,6 @@ export function isValidWorkflowRunId(value: string): boolean {
   return Number.isSafeInteger(numericId) && numericId > 0;
 }
 
-/**
- * Autofix is deliberately limited to failed CI runs for same-repository PRs.
- * The workflow_run trigger is not sufficient authorization by itself because
- * workflow_dispatch can supply an arbitrary run ID.
- */
 export function validateAutofixWorkflowRun(
   run: WorkflowRunInfo,
   expectedRepository: string,
