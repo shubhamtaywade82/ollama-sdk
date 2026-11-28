@@ -122,7 +122,7 @@ jobs:
             worktree_base: worktreeBase,
             nexum_command: ['nexum'],
             nexum_timeout_sec: 1800,
-            setup_commands: ['npm ci --ignore-scripts'],
+            setup_commands: ['npm ci --ignore-scripts', 'npm run fix:ci'],
             setup_timeout_sec: 1200,
             verify_commands: [
               'npm run contract:validate',
