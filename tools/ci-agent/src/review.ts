@@ -74,13 +74,13 @@ export async function runReview(): Promise<void> {
 
   const renderedFindings = findings.slice(0, 12);
   const modelSummary = [...modelUsage.entries()]
-    .map(([name, count]) => `\`${name}\` (${count} file(s))`)
+    .map(([name, count]) => String(name) + ' (' + String(count) + ' file(s))')
     .join(', ');
   const sections = renderedFindings.length
     ? renderedFindings
         .map(
           (finding) =>
-            `- **[${finding.severity.toUpperCase()} / ${finding.confidence.toUpperCase()}]** \`${finding.file}:${finding.line}\` - ${finding.message}${finding.suggestion ? `\n  - Suggested change: \`${finding.suggestion}\`` : ''}`,
+          (finding) => `- **[${finding.severity.toUpperCase()} / ${finding.confidence.toUpperCase()}]** ${finding.file}:${finding.line} - ${finding.message}${finding.suggestion ? `\n  - Suggested change: ${finding.suggestion}` : ''}`,
         )
         .join('\n')
     : 'No high- or medium-confidence actionable findings were identified in the reviewed diff.';
