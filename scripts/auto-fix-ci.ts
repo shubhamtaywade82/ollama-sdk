@@ -4,6 +4,10 @@ import { resolve } from 'node:path';
 import { shouldContinueAfterAutoFix, type AutoFixer } from './auto-fix-ci-policy.js';
 
 const directories = [
+  'README.md',
+  'CHANGELOG.md',
+  'CONTRIBUTING.md',
+  'docs-site',
   'src',
   'test',
   'tools',
