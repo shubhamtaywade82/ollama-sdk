@@ -1,49 +1,96 @@
-# Ollama Cloud CI Agents
+# Ollama SDK CI agents
 
-These agents provide advisory engineering assistance around the repository's deterministic GitHub Actions pipeline. They do not replace CI, approve pull requests, merge branches, create tags, or publish npm packages.
+The repository uses deterministic GitHub Actions checks as the authority for
+quality and release readiness. Nexum is the bounded repair operator; it does
+not replace those checks, approve pull requests, merge branches, tag releases,
+or publish npm packages.
 
-## Configuration
+## CI remediation architecture
 
-Create a repository Actions secret named `OLLAMA_API_KEY`. Configure these repository Actions variables explicitly; the review workflow deliberately has no expensive model fallback.
+`Nexum CI Healer` runs after a failed `CI` workflow on the default branch or
+an open same-repository pull request. It is also available through
+`workflow_dispatch` for an operator-triggered scan.
 
-| Variable | Required | Purpose |
+The workflow installs the pinned `@nemesis-oss/nexum@2.0.0` CLI separately.
+Do not add Nexum as a dependency of this SDK: Nexum already depends on
+`@nemesis-oss/ollama-sdk`, so doing so would create a circular package
+dependency.
+
+The workflow uses Nexum's existing `nexum ci-healer tick` application:
+
+1. Scan the default branch and eligible same-repository, non-draft PR heads.
+2. Match failed workflow runs to the exact current branch head.
+3. Fetch and digest failed job logs.
+4. Create an isolated Git worktree and install dependencies with lifecycle
+   scripts disabled.
+5. Invoke Nexum over its JSON-RPC agent runtime. The agent first runs
+   `npm run fix` (Prettier plus ESLint auto-fix), then diagnoses any remaining
+   failure and makes only minimal source/test changes.
+6. Verify each configured command in a Docker sandbox with no network.
+7. Enforce the changed-file limit and protected-path policy.
+8. Push a fast-forward-only branch and open a draft repair PR. Never auto-merge.
+
+Nexum's agent process receives the Ollama Cloud model credentials, but not the
+GitHub token. The healer daemon retains GitHub credentials for Git and REST
+operations. Repository setup and verification commands run in separate
+containers without GitHub or model credentials. The CI agent cannot edit
+workflow/security configuration or dependency manifests.
+
+The SQLite lineage ledger is restored and saved using GitHub Actions cache.
+A repository-wide concurrency group serializes invocations so ephemeral runners
+cannot race while restoring and updating the ledger. Nexum's configured retry
+budget is three attempts per repair lineage and one new heal per workflow run.
+
+## Required GitHub configuration
+
+Create a GitHub App installed on this repository with:
+
+- **Contents: read/write** — create repair branches and push verified commits.
+- **Pull requests: read/write** — scan PRs and open draft repair PRs.
+- **Actions: read** — inspect workflow runs and failed job logs.
+
+Configure these repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `CI_AGENT_APP_ID` | GitHub App ID |
+| `CI_AGENT_APP_PRIVATE_KEY` | GitHub App private key |
+| `OLLAMA_API_KEY` | Ollama Cloud model access |
+
+Optional repository variable:
+
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `OLLAMA_MODEL_REVIEW` | Yes | Cost-controlled default PR review model |
-| `OLLAMA_MODEL_REVIEW_ESCALATION` | No | Optional stronger model used only for security-sensitive paths |
-| `OLLAMA_MODEL_FIX` | No | Model used for CI autofix proposals; defaults to `glm-5.3-flash:cloud` |
-| `OLLAMA_MODEL_RELEASE` | No | Model used for release readiness; defaults to `glm-5.3-flash:cloud` |
+| `OLLAMA_MODEL_FIX` | `glm-5.3-flash:cloud` | Nexum repair model |
 
-Choose `OLLAMA_MODEL_REVIEW` based on the current Ollama Cloud catalog and your price/quality target. If it is not configured, the PR review agent skips without making a paid model request. The optional escalation model is called only for paths such as workflows, authentication, authorization, tokens, secrets, security, release, and publishing.
+The workflow skips safely when any required secret is missing. The App token
+is intentional: commits made with the repository's `GITHUB_TOKEN` do not
+trigger the follow-up CI run required for Nexum's bounded repair loop.
 
-## Agents
+## Deterministic local fixes
 
-### AI PR Review
+Developers can run the same mechanical fixers locally:
 
-`ai-review.yml` runs on opened, synchronized, and ready-for-review PRs. It runs only for non-draft pull requests from this repository and skips branches created by the CI autofix agent. It checks out the default branch rather than executing PR code.
+```sh
+npm run fix
+npm run format:check
+npm run lint
+```
 
-The reviewer prioritizes security-sensitive files, reviews at most 8 file diffs and 28,000 diff characters per run, suppresses informational and low-confidence findings, caps output at 12 findings and 2 per file, and deduplicates findings. It writes one marker-based conversation comment and updates that comment on subsequent runs instead of adding a new set of inline review threads. The summary reports the selected models and a character-based input-token estimate; this estimate is not provider billing usage.
+Pre-commit also runs the staged-file fixer. Type errors, failing tests,
+behavioral defects, security findings, and dependency conflicts are not
+blindly auto-fixed. They require diagnosis and review.
 
-The review is advisory. It does not approve or request changes.
-
-### AI CI Autofix
-
-`ai-autofix.yml` reacts to failed `CI` workflow runs and supports manual dispatch with a workflow run ID. The agent independently validates the run before reading logs or proposing changes. Only failed same-repository pull-request runs are eligible; fork runs, push runs, other workflows, and successful runs are rejected.
-
-The agent validates workflow run IDs, retrieves logs with argument-safe process invocation, treats logs and repository content as untrusted data, rejects path traversal and protected files, and creates draft PRs for human review only. Its write allowlist is limited to `src/`, `lib/`, `test/`, and `tests/`; it cannot modify scripts, workflows, dependencies, or repository configuration.
-
-### AI Release Readiness
-
-`ai-release-readiness.yml` is manually dispatched from `main`. It runs deterministic `npm run verify:release` first, then produces an advisory assessment. It cannot publish or modify repository state.
-
-## Authority and secret boundaries
+## Authority and release boundaries
 
 | Component | Authority |
 | --- | --- |
 | `ci.yml` | Deterministic quality gate |
-| AI PR Review | One advisory conversation comment |
-| AI CI Autofix | Draft repair PR only |
-| AI Release Readiness | Advisory report |
+| Nexum CI Healer | Verified draft repair PRs only |
+| AI PR Review | Advisory review only |
+| AI Release Readiness | Advisory report only |
 | `release-please.yml` | Deterministic version/release orchestration |
 | `publish.yml` | npm trusted publishing via OIDC |
 
-Do not add `OLLAMA_API_KEY` to the npm publishing workflow. Keep GitHub App permissions minimal. The App private key is used only by the token-generation action; pass only the resulting short-lived installation token to jobs that need it. Human review remains mandatory before merging agent-generated code.
+Do not add `OLLAMA_API_KEY` to release or npm publishing workflows. Human
+review remains mandatory before a repair PR is merged.
