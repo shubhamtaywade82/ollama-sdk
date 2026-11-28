@@ -16,7 +16,7 @@ concurrency:
 jobs:
   review:
     # Never run on fork/draft PRs or recursively review an agent-created fix PR.
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'ci-agent/fix-')
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'ci-agent/fix-') && !startsWith(github.event.pull_request.head.ref, 'fix/ci-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
