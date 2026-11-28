@@ -1,89 +1,206 @@
-name: AI CI Autofix
+name: Nexum CI Healer
 
 on:
+  # Run only after CI has completed so the healer evaluates the actual failing head.
   workflow_run:
     workflows: ['CI']
     types: [completed]
+  # Explicit operator-triggered scan of current failing heads.
   workflow_dispatch:
-    inputs:
-      run_id:
-        description: 'Failed workflow run ID'
-        required: true
-        type: string
 
 permissions:
   contents: read
-  actions: read
-  pull-requests: write
+  actions: write
 
+# The SQLite ledger is restored/saved through Actions cache. Serialize every
+# invocation so two ephemeral runners cannot restore and overwrite the same state.
 concurrency:
-  group: ai-autofix-${{ github.event.workflow_run.head_branch || inputs.run_id }}
+  group: nexum-ci-healer-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  autofix:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
+  heal:
+    if: >-
+      github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'failure' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'pull_request' ||
+        (github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == github.event.repository.default_branch)))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
-      contents: write
-      actions: read
-      pull-requests: write
+      contents: read
+      actions: write
+
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Build SDK artifacts
-        run: npm ci --ignore-scripts && npm run build
-
-      - name: Resolve GitHub Token
-        id: token
+      - name: Check required credentials
+        id: guard
         env:
           CI_AGENT_APP_ID: ${{ secrets.CI_AGENT_APP_ID }}
           CI_AGENT_APP_PRIVATE_KEY: ${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         run: |
-          if [[ -n "${CI_AGENT_APP_ID:-}" && -n "${CI_AGENT_APP_PRIVATE_KEY:-}" ]]; then
-            echo "mode=app" >> "$GITHUB_OUTPUT"
+          if [[ -n "${CI_AGENT_APP_ID:-}" && -n "${CI_AGENT_APP_PRIVATE_KEY:-}" && -n "${OLLAMA_API_KEY:-}" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=default" >> "$GITHUB_OUTPUT"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nexum CI Healer skipped; configure CI_AGENT_APP_ID, CI_AGENT_APP_PRIVATE_KEY, and OLLAMA_API_KEY."
           fi
 
-      - name: Generate App Token
-        if: steps.token.outputs.mode == 'app'
+      # A GitHub App token is required: commits/PRs made with GITHUB_TOKEN do
+      # not trigger the follow-up CI run needed by Nexum's bounded repair loop.
+      - name: Create repository-scoped GitHub App token
+        if: steps.guard.outputs.available == 'true'
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.CI_AGENT_APP_ID }}
           private-key: ${{ secrets.CI_AGENT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: read
 
-      - name: Guard - Ollama Cloud Key
-        id: guard
-        env:
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-        run: |
-          if [[ -n "${OLLAMA_API_KEY:-}" ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::OLLAMA_API_KEY secret unavailable; skipping autofix."
-          fi
-
-      - name: Run Autofix Agent
+      - name: Checkout default branch with bot credentials
         if: steps.guard.outputs.available == 'true'
-        run: npx tsx tools/ci-agent/src/autofix.ts
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        if: steps.guard.outputs.available == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Restore Nexum healer ledger
+        if: steps.guard.outputs.available == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/nexum-ci-healer-state
+          key: nexum-ci-healer-state-${{ github.run_id }}
+          restore-keys: |
+            nexum-ci-healer-state-
+
+      - name: Install pinned Nexum runtime
+        if: steps.guard.outputs.available == 'true'
+        run: npm install --global @nemesis-oss/nexum@2.0.0
+
+      - name: Build Nexum's isolated repair image
+        if: steps.guard.outputs.available == 'true'
+        run: |
+          NEXUM_ROOT="$(npm root --global)/@nemesis-oss/nexum"
+          test -f "$NEXUM_ROOT/bin/cli.js"
+          test -f "$NEXUM_ROOT/docker/nexum-sandbox/Dockerfile"
+          docker build --tag nexum-sandbox:latest "$NEXUM_ROOT/docker/nexum-sandbox"
+          docker image inspect nexum-sandbox:latest >/dev/null
+
+      - name: Create bounded healer configuration
+        if: steps.guard.outputs.available == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          FAILED_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nexum-ci-healer-state" "$RUNNER_TEMP/nexum-ci-healer-worktrees"
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const stateDir = join(process.env.RUNNER_TEMP, 'nexum-ci-healer-state');
+          const worktreeBase = join(process.env.RUNNER_TEMP, 'nexum-ci-healer-worktrees');
+          const config = {
+            repo: {
+              slug: process.env.GITHUB_REPOSITORY,
+              dir: process.env.GITHUB_WORKSPACE,
+            },
+            state_file: join(stateDir, 'ci-healer.db'),
+            kill_switch_file: join(stateDir, 'DISABLED'),
+            worktree_base: worktreeBase,
+            nexum_command: ['nexum'],
+            nexum_timeout_sec: 1800,
+            setup_commands: ['npm ci --ignore-scripts'],
+            setup_timeout_sec: 1200,
+            verify_commands: [
+              'npm run contract:validate',
+              'npm run contract:diff',
+              'npm run contract:drift -- --strict',
+              'npm run typecheck',
+              'npm run typecheck:examples',
+              'npm run lint',
+              'npm run format:check',
+              'npm run verify:contract-parity -- --skip-live-docs',
+              'npm run build',
+              'npm run test:ci-agent',
+              'npm run typecheck:ci-agent',
+              'npm test',
+              'npm run verify:edge-runtime',
+              'npm run check:types',
+            ],
+            verify_timeout_sec: 1800,
+            max_heal_attempts_per_lineage: 3,
+            max_heals_per_tick: 1,
+            max_open_prs_per_base: 1,
+            max_changed_files: 10,
+            log_byte_cap: 2000000,
+            forbidden_paths: [
+              '.github/**',
+              'AGENTS.md',
+              'package.json',
+              'package-lock.json',
+              'npm-shrinkwrap.json',
+              'tsconfig*.json',
+              'eslint.config.*',
+              '.prettierrc*',
+              'prettier.config.*',
+              '.npmrc',
+              '**/.env',
+              '**/.env.*',
+              '**/*.pem',
+              '**/*.key',
+            ],
+            git_author: {
+              name: 'nexum-ci-agent',
+              email: 'nexum-ci-agent@users.noreply.github.com',
+            },
+            agent_env_allow: [],
+            sandbox: {
+              mode: 'docker',
+              image: 'nexum-sandbox:latest',
+              memory: '2g',
+              cpus: '2',
+              pids_limit: 256,
+              setup_network: 'bridge',
+            },
+          };
+
+          writeFileSync(
+            join(stateDir, 'config.json'),
+            JSON.stringify(config, null, 2) + '\n',
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Run Nexum CI Healer
+        if: steps.guard.outputs.available == 'true'
+        run: nexum ci-healer tick --config "$RUNNER_TEMP/nexum-ci-healer-state/config.json"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           OLLAMA_HOST: https://ollama.com
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL_FIX || 'glm-5.3-flash:cloud' }}
+          NEXUM_TIER: cloud
+          NEXUM_MODEL: ${{ vars.OLLAMA_MODEL_FIX || 'glm-5.3-flash:cloud' }}
+          NEXUM_AUTO_APPROVE: 'true'
+          NEXUM_SANDBOX: 'true'
+          NEXUM_SHELL_IMAGE: nexum-sandbox:latest
+          CI_HEALER_LOG_LEVEL: info
+
+      - name: Save Nexum healer ledger
+        if: always() && steps.guard.outputs.available == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/nexum-ci-healer-state
+          key: nexum-ci-healer-state-${{ github.run_id }}
