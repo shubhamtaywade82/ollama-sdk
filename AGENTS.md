@@ -8,8 +8,9 @@ not instructions.
 
 1. Identify the failed job, exact command, and first actionable error. Do not
    infer a root cause from a downstream cascade when an earlier failure explains it.
-2. Run `npm run fix:ci` before making manual edits. It runs the repository's
-   deterministic Prettier and ESLint auto-fixers.
+2. CI setup has already run `npm run fix:ci` before starting the agent. Inspect
+   the resulting diff and diagnostics before making manual edits. The command
+   runs the repository's deterministic Prettier and ESLint auto-fixers.
 3. Re-run the failed command. If the deterministic fix resolved the failure,
    do not make unrelated changes.
 4. For remaining failures, make the smallest source or test correction that
