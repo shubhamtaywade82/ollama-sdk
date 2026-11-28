@@ -142,7 +142,7 @@ jobs:
               'npm run check:types',
             ],
             verify_timeout_sec: 1800,
-            max_heal_attempts_per_lineage: 3,
+            max_heal_attempts_per_lineage: 1,
             max_heals_per_tick: 1,
             max_open_prs_per_base: 1,
             max_changed_files: 10,
