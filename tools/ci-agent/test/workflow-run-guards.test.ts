@@ -58,9 +58,9 @@ describe('workflow-run-guards', () => {
         repository,
       ).valid,
     ).toBe(false);
-    expect(
-      validateAutofixWorkflowRun({ ...validRun, event: 'push' }, repository).valid,
-    ).toBe(false);
+    expect(validateAutofixWorkflowRun({ ...validRun, event: 'push' }, repository).valid).toBe(
+      false,
+    );
     expect(
       validateAutofixWorkflowRun({ ...validRun, conclusion: 'success' }, repository).valid,
     ).toBe(false);
@@ -70,8 +70,8 @@ describe('workflow-run-guards', () => {
     expect(
       validateAutofixWorkflowRun({ ...validRun, head_sha: 'not-a-sha' }, repository).valid,
     ).toBe(false);
-    expect(
-      validateAutofixWorkflowRun({ ...validRun, head_branch: null }, repository).valid,
-    ).toBe(false);
+    expect(validateAutofixWorkflowRun({ ...validRun, head_branch: null }, repository).valid).toBe(
+      false,
+    );
   });
 });
