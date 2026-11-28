@@ -46,8 +46,11 @@ GitHub Actions checks before it can be merged. PR CI has an explicit read-only
 
 The SQLite lineage ledger is restored and saved using GitHub Actions cache.
 A repository-wide concurrency group serializes invocations so ephemeral runners
-cannot race while restoring and updating the ledger. Nexum's configured retry
-budget is three attempts per repair lineage and one new heal per workflow run.
+cannot race while restoring and updating the ledger. The integration currently
+allows one repair attempt per lineage because the published Nexum 2.0.0 retry
+path does not reinstall dependencies in a fresh worktree. Increase the limit to
+three only after upgrading to a Nexum release containing the retry-setup fix
+tracked in [Nexum PR #101](https://github.com/shubhamtaywade82/nexum/pull/101).
 
 ## Required GitHub configuration
 
