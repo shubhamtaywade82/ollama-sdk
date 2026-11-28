@@ -71,8 +71,8 @@ export async function runReview(): Promise<void> {
   for (const chunk of selectedChunks) {
     const selectedModel =
       isSensitiveReviewPath(chunk.file) && escalationModel ? escalationModel : model;
-    const promptChars = chunk.diff.length + chunk.file.length + SYSTEM_PROMPT.length;
-    estimatedInputTokens += estimateInputTokens(promptChars);
+    const promptText = SYSTEM_PROMPT + chunk.file + chunk.diff;
+    estimatedInputTokens += estimateInputTokens(promptText);
     modelUsage.set(selectedModel, (modelUsage.get(selectedModel) ?? 0) + 1);
     findings.push(...(await reviewChunk(chunk, selectedModel)));
   }
