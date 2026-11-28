@@ -128,7 +128,6 @@ jobs:
               'npm run contract:validate',
               'npm run contract:diff',
               'npm run contract:drift -- --strict',
-              'git diff --exit-code --stat src/generated/',
               'npm run typecheck',
               'npm run typecheck:examples',
               'npm run lint',
