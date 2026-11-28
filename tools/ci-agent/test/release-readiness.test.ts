@@ -9,9 +9,7 @@ import {
 
 describe('release-readiness evidence helpers', () => {
   it('matches the package version in a changelog section heading', () => {
-    expect(
-      changelogHasVersionHeading('## [1.26.0] - 2026-11-28\n', '1.26.0'),
-    ).toBe(true);
+    expect(changelogHasVersionHeading('## [1.26.0] - 2026-11-28\n', '1.26.0')).toBe(true);
     expect(changelogHasVersionHeading('## [Unreleased]\n', '1.26.0')).toBe(false);
   });
 
