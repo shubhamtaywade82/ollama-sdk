@@ -6,7 +6,8 @@ export const MAX_REVIEW_INPUT_CHARS = 28_000;
 export const MAX_FINDINGS_TOTAL = 12;
 export const MAX_FINDINGS_PER_FILE = 2;
 
-const SENSITIVE_PATH = /(^|\/)(\.github\/|security|auth|crypto|permission|token|secret|release|publish|workflow)/i;
+const SENSITIVE_PATH =
+  /(^|\/)(\.github\/|security|auth|crypto|permission|token|secret|release|publish|workflow)/i;
 
 export function isSensitiveReviewPath(path: string): boolean {
   return SENSITIVE_PATH.test(path);
@@ -18,8 +19,7 @@ export function selectReviewChunks(
   maxChars = MAX_REVIEW_INPUT_CHARS,
 ): DiffChunk[] {
   const ranked = [...chunks].sort((a, b) => {
-    const riskDelta =
-      Number(isSensitiveReviewPath(b.file)) - Number(isSensitiveReviewPath(a.file));
+    const riskDelta = Number(isSensitiveReviewPath(b.file)) - Number(isSensitiveReviewPath(a.file));
     return riskDelta || a.file.localeCompare(b.file);
   });
   const selected: DiffChunk[] = [];
