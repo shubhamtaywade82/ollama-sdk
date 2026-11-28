@@ -57,6 +57,23 @@ jobs:
 
       - run: npm run typecheck:examples
 
+      # Temporary bootstrap step: materialize the exact formatter patch so the
+      # CI checks can bootstrap this PR before the Nexum workflow is on main.
+      - name: Apply safe deterministic fixes (bootstrap)
+        run: npm run fix:ci
+
+      - name: Capture safe auto-fix patch
+        if: matrix.node-version == '22'
+        run: git diff --binary > "$RUNNER_TEMP/ci-auto-fix.patch"
+
+      - name: Upload safe auto-fix patch
+        if: matrix.node-version == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-ci-auto-fix-patch
+          path: ${{ runner.temp }}/ci-auto-fix.patch
+          if-no-files-found: error
+
       - run: npm run lint
 
       - run: npm run format:check
