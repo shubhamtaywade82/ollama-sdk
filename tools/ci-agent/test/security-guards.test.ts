@@ -35,27 +35,35 @@ describe('security-guards', () => {
     };
     expect(validateFixProposal(validProposal).valid).toBe(true);
     expect(validateFixProposal({ ...validProposal, confidence: 'low' }).valid).toBe(false);
-    expect(validateFixProposal({
-      ...validProposal,
-      files: [{ path: '.github/workflows/ci.yml', content: 'malicious' }],
-    }).valid).toBe(false);
-    expect(validateFixProposal({
-      ...validProposal,
-      files: [
-        { path: 'src/calc.ts', content: 'one' },
-        { path: 'src/calc.ts', content: 'two' },
-      ],
-    }).valid).toBe(false);
-    expect(validateFixProposal({
-      ...validProposal,
-      files: [{ path: 'src/calc.ts', content: 'x'.repeat(60_001) }],
-    }).valid).toBe(false);
-    expect(validateFixProposal({
-      ...validProposal,
-      files: Array.from({ length: 6 }, (_, index) => ({
-        path: `src/file-${index}.ts`,
-        content: 'export {};',
-      })),
-    }).valid).toBe(false);
+    expect(
+      validateFixProposal({
+        ...validProposal,
+        files: [{ path: '.github/workflows/ci.yml', content: 'malicious' }],
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateFixProposal({
+        ...validProposal,
+        files: [
+          { path: 'src/calc.ts', content: 'one' },
+          { path: 'src/calc.ts', content: 'two' },
+        ],
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateFixProposal({
+        ...validProposal,
+        files: [{ path: 'src/calc.ts', content: 'x'.repeat(60_001) }],
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateFixProposal({
+        ...validProposal,
+        files: Array.from({ length: 6 }, (_, index) => ({
+          path: `src/file-${index}.ts`,
+          content: 'export {};',
+        })),
+      }).valid,
+    ).toBe(false);
   });
 });

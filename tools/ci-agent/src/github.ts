@@ -129,7 +129,6 @@ export async function createDraftPr(
   return result.number;
 }
 
-
 export async function upsertReviewSummary(
   repo: string,
   prNumber: number,
@@ -137,13 +136,13 @@ export async function upsertReviewSummary(
   token: string,
 ): Promise<void> {
   const marker = '<!-- ollama-ci-agent-review -->';
-  const comments = await requestGitHub<Array<{ id: number; body?: string; user?: { type?: string } }>>(
-    `/repos/${repo}/issues/${prNumber}/comments?per_page=100`,
-    token,
+  const comments = await requestGitHub<
+    Array<{ id: number; body?: string; user?: { type?: string } }>
+  >(`/repos/${repo}/issues/${prNumber}/comments?per_page=100`, token);
+  const existing = comments.find(
+    (comment) => comment.body?.includes(marker) && comment.user?.type === 'Bot',
   );
-  const existing = comments.find((comment) =>
-    comment.body?.includes(marker) && comment.user?.type === 'Bot',
-  );
+
   if (existing) {
     await requestGitHub(`/repos/${repo}/issues/comments/${existing.id}`, token, {
       method: 'PATCH',
@@ -151,6 +150,7 @@ export async function upsertReviewSummary(
     });
     return;
   }
+
   await requestGitHub(`/repos/${repo}/issues/${prNumber}/comments`, token, {
     method: 'POST',
     body: { body },

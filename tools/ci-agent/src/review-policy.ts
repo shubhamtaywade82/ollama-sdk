@@ -18,17 +18,20 @@ export function selectReviewChunks(
   maxChars = MAX_REVIEW_INPUT_CHARS,
 ): DiffChunk[] {
   const ranked = [...chunks].sort((a, b) => {
-    const riskDelta = Number(isSensitiveReviewPath(b.file)) - Number(isSensitiveReviewPath(a.file));
+    const riskDelta =
+      Number(isSensitiveReviewPath(b.file)) - Number(isSensitiveReviewPath(a.file));
     return riskDelta || a.file.localeCompare(b.file);
   });
   const selected: DiffChunk[] = [];
   let usedChars = 0;
+
   for (const chunk of ranked) {
     if (selected.length >= maxFiles) break;
     if (chunk.diff.length > maxChars - usedChars) continue;
     selected.push(chunk);
     usedChars += chunk.diff.length;
   }
+
   return selected;
 }
 
@@ -41,15 +44,19 @@ export function filterReviewFindings(
   const perFileLimit = limits.perFile ?? MAX_FINDINGS_PER_FILE;
   const seen = new Set<string>();
   const accepted: ReviewFinding[] = [];
+
   for (const finding of findings) {
     if (finding.file !== chunk.file || !chunk.validLines.has(finding.line)) continue;
     if (finding.severity === 'info' || finding.confidence === 'low') continue;
+
     const key = `${finding.file}:${finding.line}:${finding.message.trim().toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
     if (accepted.length >= Math.min(totalLimit, perFileLimit)) break;
     accepted.push(finding);
   }
+
   return accepted;
 }
 

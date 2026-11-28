@@ -45,24 +45,31 @@ describe('review policy', () => {
 
   it('drops info, low-confidence, wrong-file, invalid-line, and duplicate findings', () => {
     const current = chunk('src/client.ts', 'diff');
-    const results = filterReviewFindings([
-      finding({ severity: 'info' }),
-      finding({ confidence: 'low' }),
-      finding({ file: 'src/other.ts' }),
-      finding({ line: 99 }),
-      finding(),
-      finding(),
-    ], current);
+    const results = filterReviewFindings(
+      [
+        finding({ severity: 'info' }),
+        finding({ confidence: 'low' }),
+        finding({ file: 'src/other.ts' }),
+        finding({ line: 99 }),
+        finding(),
+        finding(),
+      ],
+      current,
+    );
     expect(results).toHaveLength(1);
   });
 
   it('caps findings per file', () => {
     const current = chunk('src/client.ts', 'diff', [1, 2, 3]);
-    const results = filterReviewFindings([
-      finding({ line: 1 }),
-      finding({ line: 2, message: 'Missing error handling' }),
-      finding({ line: 3, message: 'Unexpected mutation' }),
-    ], current, { total: 10, perFile: 2 });
+    const results = filterReviewFindings(
+      [
+        finding({ line: 1 }),
+        finding({ line: 2, message: 'Missing error handling' }),
+        finding({ line: 3, message: 'Unexpected mutation' }),
+      ],
+      current,
+      { total: 10, perFile: 2 },
+    );
     expect(results).toHaveLength(2);
   });
 
