@@ -217,7 +217,7 @@
     "fix:lint": "eslint . --fix",
     "fix": "npm run fix:format && npm run fix:lint",
     "fix:staged": "tsx scripts/fix-staged.ts",
-    "fix:ci": "prettier --write src test tools scripts examples lab bench generator docs && eslint src test tools scripts examples lab bench generator --fix"
+    "fix:ci": "tsx scripts/auto-fix-ci.ts"
   },
   "peerDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",
