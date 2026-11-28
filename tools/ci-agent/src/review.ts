@@ -106,7 +106,15 @@ export async function runReview(): Promise<void> {
 
   await upsertReviewSummary(repo, prNumber, summary, token);
   console.log(
-    `Updated AI review summary: ${selectedChunks.length}/${chunks.length} files, ${renderedFindings.length} findings, ~${estimatedInputTokens} input tokens.`,
+    'Updated AI review summary: ' +
+      selectedChunks.length +
+      '/' +
+      chunks.length +
+      ' files, ' +
+      renderedFindings.length +
+      ' findings, ~' +
+      estimatedInputTokens +
+      ' input tokens.',
   );
 }
 
